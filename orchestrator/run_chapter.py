@@ -48,6 +48,16 @@ def main() -> None:
     print(final["coherence"])
 
     print("\n" + "#" * 78)
+    print("LINT DE STYLE (fuites de langue, tokens corrompus)")
+    print("#" * 78)
+    warns = final.get("warnings", [])
+    if warns:
+        for w in warns:
+            print(f"  ⚠ {w}")
+    else:
+        print("  aucune alerte")
+
+    print("\n" + "#" * 78)
     print("PROFILAGE (contrainte des 35 min)")
     print("#" * 78)
     gen = sum(m["gen_toks"] for m in final["metrics"])
@@ -56,6 +66,11 @@ def main() -> None:
     print(f"  vitesse moyenne  : "
           f"{sum(m['gen_tok_s'] for m in final['metrics']) / len(final['metrics']):.1f} tok/s")
     print(f"  TEMPS TOTAL      : {total:.0f} s  ({total / 60:.1f} min)")
+    print("\n  détail par appel (done_reason « length » = tronqué) :")
+    for i, m in enumerate(final["metrics"]):
+        flag = "  <-- TRONQUÉ" if m.get("done_reason") == "length" else ""
+        print(f"    #{i}  {m['gen_toks']:>4}/{m.get('num_predict', '?')} tok  "
+              f"{m['gen_tok_s']:>5} tok/s  [{m.get('done_reason')}]{flag}")
 
 
 if __name__ == "__main__":

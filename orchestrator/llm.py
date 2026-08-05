@@ -15,14 +15,11 @@ import os
 import time
 import urllib.request
 
+from style import FRENCH_GUARD
+
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 AUTHOR_MODEL = os.environ.get(
     "AUTHOR_MODEL", "mistral-nemo:12b-instruct-2407-q8_0"
-)
-
-FRENCH_GUARD = (
-    "IMPÉRATIF ABSOLU : tu écris EXCLUSIVEMENT en français. Aucun mot, "
-    "aucune expression dans une autre langue, jamais, même par accident."
 )
 
 
@@ -71,5 +68,8 @@ def chat(
         "gen_tok_s": round(ec / ed, 1) if ed else 0.0,
         "prompt_toks": pc,
         "prefill_tok_s": round(pc / pd, 1) if pd else 0.0,
+        "num_predict": num_predict,
+        # « length » = coupé par num_predict ; « stop » = fin naturelle (EOS).
+        "done_reason": data.get("done_reason", "?"),
     }
     return data["message"]["content"].strip(), metrics

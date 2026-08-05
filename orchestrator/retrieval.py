@@ -93,11 +93,17 @@ def assemble_system_prompt(
     scene_brief: str,
     place_query: str | None = None,
     n_scenes: int = 2,
+    include_scenes: bool = True,
 ) -> str:
     """Construit le prompt système d'une scène à partir de la bible.
 
     `characters` : doc_ids des personnages présents (contexte déterministe).
     `scene_brief` : sert de requête sémantique pour lieu + scènes précédentes.
+    `include_scenes` : injecter les scènes précédentes retrouvées. À DÉSACTIVER
+        pour la rédaction : le modèle a tendance à RECOPIER une scène présente
+        dans son contexte plutôt qu'à s'en servir comme toile de fond, ce qui
+        fait redémarrer le chapitre à chaque scène. La continuité intra-chapitre
+        est déjà assurée par le threading explicite des scènes dans write_node.
     """
     parts: list[str] = [
         "Tu es l'auteur d'un roman de fantasy en français. Prose littéraire "
@@ -116,10 +122,12 @@ def assemble_system_prompt(
     if lieux:
         parts.append("=== LIEU ===\n" + "\n\n".join(lieux))
 
-    scenes = semantic_context(scene_brief, doc_type="scene", n=n_scenes)
-    if scenes:
-        parts.append(
-            "=== SCÈNES PRÉCÉDENTES PERTINENTES ===\n" + "\n\n".join(scenes)
-        )
+    if include_scenes and n_scenes > 0:
+        scenes = semantic_context(scene_brief, doc_type="scene", n=n_scenes)
+        if scenes:
+            parts.append(
+                "=== SCÈNES PRÉCÉDENTES (contexte de continuité — NE PAS "
+                "RECOPIER, seulement pour la cohérence) ===\n" + "\n\n".join(scenes)
+            )
 
     return "\n\n".join(parts)

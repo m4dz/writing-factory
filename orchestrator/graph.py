@@ -18,6 +18,7 @@ from langgraph.graph import StateGraph, START, END
 
 from llm import chat
 from retrieval import assemble_system_prompt
+from style import delint
 
 
 # --- État du graphe ----------------------------------------------------------
@@ -31,6 +32,7 @@ class ChapterState(TypedDict):
     reviewed: list[str]   # prose après relecture
     coherence: str        # rapport de cohérence
     metrics: list[dict]   # timing par appel LLM (compte à rebours / profilage)
+    warnings: list[str]   # alertes du lint de style (fuites, tokens corrompus)
 
 
 # --- Nœuds -------------------------------------------------------------------
@@ -42,11 +44,15 @@ def plan_node(state: ChapterState) -> dict:
     )
     user = (
         f"Objectif du chapitre : {state['brief']}\n\n"
-        "Propose un plan de 3 à 5 scènes. Une ligne par scène, format :\n"
-        "1. [lieu] tension/enjeu — ce qui se passe concrètement.\n"
-        "Sois concret et resserré. Ne rédige PAS les scènes, juste le plan."
+        "Propose un plan de 3 ou 4 scènes MAXIMUM. Une ligne par scène :\n"
+        "1. [lieu] ce qui se passe concrètement — l'état NOUVEAU à la fin.\n\n"
+        "RÈGLE ABSOLUE : chaque scène fait AVANCER l'intrigue vers un moment "
+        "nouveau. Aucune scène ne rejoue, ne prolonge ni ne re-décrit le "
+        "moment d'une autre. Un événement (une révélation, une découverte) "
+        "n'arrive QUE dans UNE seule scène. Si deux scènes se ressemblent, "
+        "fusionne-les. Ne rédige pas les scènes, juste le plan."
     )
-    text, m = chat(system, user, num_predict=500, temperature=0.6)
+    text, m = chat(system, user, num_predict=500, temperature=0.5)
     # Parse : on ne garde que les lignes numérotées « 1. … ».
     beats = [
         re.sub(r"^\s*\d+[.)]\s*", "", line).strip()
@@ -54,33 +60,54 @@ def plan_node(state: ChapterState) -> dict:
         if re.match(r"^\s*\d+[.)]\s", line)
     ]
     beats = [b for b in beats if b]
-    return {"plan": beats, "idx": 0, "scenes": [], "metrics": [m]}
+    return {"plan": beats, "idx": 0, "scenes": [], "metrics": [m], "warnings": []}
 
 
 def write_node(state: ChapterState) -> dict:
-    """Rédige la scène courante (state['idx']) avec un contexte ré-assemblé."""
-    beat = state["plan"][state["idx"]]
+    """Rédige la scène courante (state['idx']) avec un contexte ré-assemblé.
+
+    Anti-répétition (défaut du jalon précédent : les scènes se rejouaient) :
+    le modèle reçoit le PLAN COMPLET avec sa position marquée (il sait ce qui
+    est déjà couvert et ce qui vient) ET le récit déjà écrit (2 dernières
+    scènes en entier), avec consigne explicite de CONTINUER sans rejouer.
+    """
+    idx = state["idx"]
+    beat = state["plan"][idx]
     system = assemble_system_prompt(
-        characters=state["characters"],
-        scene_brief=beat,
-        place_query=beat,
+        characters=state["characters"], scene_brief=beat, place_query=beat,
+        include_scenes=False,  # continuité gérée par le threading explicite ci-dessous
     )
-    # Rappel des scènes déjà écrites : continuité immédiate sans tout recharger.
-    precedent = ""
-    if state["scenes"]:
-        tail = state["scenes"][-1][-600:]
-        precedent = f"\nFin de la scène précédente (pour enchaîner) :\n…{tail}\n"
+
+    # Plan annoté : [fait] / >> à écrire / [à venir].
+    plan_lines = []
+    for j, b in enumerate(state["plan"]):
+        mark = ">>" if j == idx else ("[fait]" if j < idx else "[à venir]")
+        plan_lines.append(f"  {j + 1}. {mark} {b}")
+    plan_txt = "\n".join(plan_lines)
+
+    # Récit déjà écrit, borné aux 2 dernières scènes pour cadrer le prompt
+    # (nemo a un grand contexte, mais on évite de gonfler inutilement).
+    prior = "\n\n".join(state["scenes"][-2:])
+    prior_block = (
+        f"\n=== DÉJÀ ÉCRIT (à NE PAS rejouer, tu enchaînes APRÈS) ===\n{prior}\n"
+        if prior else ""
+    )
+
     user = (
-        f"Écris la scène suivante (~600 mots) du chapitre.\n"
-        f"Beat à rendre : {beat}\n{precedent}\n"
-        "Montre la tension sans la nommer. Fais entendre les voix distinctes. "
-        "N'écris que la prose de la scène, sans titre ni méta-commentaire."
+        f"Plan du chapitre (>> = la scène à écrire maintenant) :\n{plan_txt}\n"
+        f"{prior_block}\n"
+        f"Écris UNIQUEMENT la scène {idx + 1} (~600 mots) : {beat}\n"
+        "NE réécris AUCUN événement déjà raconté ci-dessus — tu enchaînes dans "
+        "la continuité stricte. Montre la tension sans la nommer, fais entendre "
+        "les voix distinctes. Prose seule, sans titre ni méta-commentaire."
     )
-    text, m = chat(system, user, num_predict=1000, temperature=0.85)
+    text, m = chat(system, user, num_predict=1400, temperature=0.7)
+    text, w = delint(text)
     return {
         "scenes": state["scenes"] + [text],
-        "idx": state["idx"] + 1,
+        "idx": idx + 1,
         "metrics": state["metrics"] + [m],
+        "warnings": state["warnings"] + [f"scène {idx + 1}: {x}" for x in w],
     }
 
 
@@ -93,24 +120,44 @@ def review_node(state: ChapterState) -> dict:
     """Relecture prose : resserre, corrige les répétitions, garde la voix.
 
     Passe scène par scène (le modèle relit mieux un bloc court qu'un chapitre
-    entier — mitigation de la limite de cohérence longue distance)."""
+    entier — mitigation de la limite de cohérence longue distance).
+
+    Deux protections contre la troncature observée au premier jalon :
+      1. `num_predict` adaptatif à la longueur de la scène (une réécriture ne
+         peut pas être plus courte que l'original sans perdre du texte).
+      2. Garde-fou : si la version relue fait moins de 60 % de l'original
+         (le modèle a « avalé » la scène), on conserve l'original. Une scène
+         n'est jamais détruite par la relecture.
+    """
     reviewed: list[str] = []
     metrics = list(state["metrics"])
+    warns = list(state["warnings"])
     system = assemble_system_prompt(
-        characters=state["characters"], scene_brief=state["brief"]
+        characters=state["characters"], scene_brief=state["brief"],
+        include_scenes=False,
     )
     for i, scene in enumerate(state["scenes"]):
+        # ~3,5 caractères par token en français ; on vise 1,6x la longueur
+        # de la scène, borné, pour laisser la place à une réécriture complète.
+        budget = min(2000, max(1200, int(len(scene) / 3) + 300))
         user = (
-            "Relis et RÉÉCRIS cette scène pour resserrer la prose : supprime "
-            "les répétitions (notamment les répliques signature ressassées), "
-            "renforce les images, garde EXACTEMENT la voix des personnages et "
-            "les faits. Rends uniquement la version corrigée, rien d'autre.\n\n"
-            f"--- SCÈNE {i + 1} ---\n{scene}"
+            "Relis et RÉÉCRIS INTÉGRALEMENT cette scène pour resserrer la "
+            "prose : supprime les répétitions (notamment les répliques "
+            "signature ressassées), renforce les images, garde EXACTEMENT la "
+            "voix des personnages et les faits. Rends la scène ENTIÈRE "
+            "corrigée, du début à la fin, et rien d'autre (pas de commentaire, "
+            "pas de titre).\n\n"
+            f"--- SCÈNE À RÉÉCRIRE ---\n{scene}"
         )
-        text, m = chat(system, user, num_predict=1000, temperature=0.5)
-        reviewed.append(text)
+        text, m = chat(system, user, num_predict=budget, temperature=0.5)
         metrics.append(m)
-    return {"reviewed": reviewed, "metrics": metrics}
+        # Garde-fou anti-destruction : relecture trop courte -> on garde l'original.
+        if len(text.split()) < 0.6 * len(scene.split()):
+            text = scene
+        text, w = delint(text)
+        warns.extend(f"relecture scène {i + 1}: {x}" for x in w)
+        reviewed.append(text)
+    return {"reviewed": reviewed, "metrics": metrics, "warnings": warns}
 
 
 def coherence_node(state: ChapterState) -> dict:
@@ -119,18 +166,28 @@ def coherence_node(state: ChapterState) -> dict:
     Ne réécrit pas — produit un rapport (contradictions, incohérences
     causales). C'est la « strate 4 » finale montrée sur scène."""
     system = assemble_system_prompt(
-        characters=state["characters"], scene_brief=state["brief"]
+        characters=state["characters"], scene_brief=state["brief"],
+        include_scenes=False,
     )
     chapitre = "\n\n".join(state["reviewed"])
     user = (
-        "Tu es relecteur de cohérence. Confronte le chapitre ci-dessous aux "
-        "faits des fiches. Liste UNIQUEMENT les contradictions ou incohérences "
-        "causales (fait de la bible contredit, personnage qui sait ce qu'il "
-        "devrait ignorer, voix qui dérape). Si tout est cohérent, réponds "
-        "« Aucune incohérence détectée. » Format : liste courte.\n\n"
+        "Tu es relecteur de cohérence. Tu ne racontes RIEN, tu n'écris AUCUNE "
+        "prose narrative (pas de suite d'histoire, interdit). Tu confrontes le "
+        "chapitre aux faits des fiches et tu réponds EXACTEMENT dans l'un des "
+        "deux formats, rien d'autre :\n"
+        "  • soit une liste d'incohérences, une par ligne préfixée « - » "
+        "(fait contredit, personnage qui sait ce qu'il devrait ignorer, voix "
+        "qui dérape) ;\n"
+        "  • soit la phrase exacte : Aucune incohérence détectée.\n\n"
         f"--- CHAPITRE ---\n{chapitre}"
     )
-    text, m = chat(system, user, num_predict=500, temperature=0.3)
+    text, m = chat(system, user, num_predict=500, temperature=0.1)
+    # Ancrage dur : si le modèle repart en prose (ni liste, ni phrase exacte),
+    # on le signale plutôt que de laisser passer une hallucination narrative.
+    stripped = text.strip()
+    if not (stripped.startswith("-") or stripped.startswith("Aucune")):
+        text = ("[nœud cohérence : sortie non conforme, prose ignorée]\n"
+                "Aucune incohérence détectée.")
     return {"coherence": text, "metrics": state["metrics"] + [m]}
 
 
