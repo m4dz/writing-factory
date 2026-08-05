@@ -1,0 +1,4 @@
+data/chromadb/*
+!data/chromadb/.gitkeep
+__pycache__/
+*.pyc

@@ -1,0 +1,50 @@
+# Stack fiction-assistant
+# Ollama reste HORS conteneur (accès GPU Apple Silicon direct).
+# Depuis les conteneurs, il est joignable via host.containers.internal:11434
+#
+# Si tu as déjà un podman-compose.yml avec OpenWebUI, fusionne simplement
+# les services `chromadb` et `indexer` dans ton fichier existant.
+
+services:
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    ports:
+      - "3000:8080"
+    environment:
+      - OLLAMA_BASE_URL=http://host.containers.internal:11434
+    volumes:
+      - openwebui-data:/app/backend/data
+    restart: unless-stopped
+
+  chromadb:
+    image: docker.io/chromadb/chroma:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - ANONYMIZED_TELEMETRY=FALSE
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/data
+    volumes:
+      - ./data/chromadb:/data
+    restart: unless-stopped
+
+  # L'indexeur ne tourne pas en continu : c'est un outil qu'on invoque
+  # à chaque modification de la bible.
+  #   podman-compose --profile tools run --rm indexer                  -> indexation
+  #   podman-compose --profile tools run --rm indexer python query_test.py "ma requête"
+  indexer:
+    build: ./indexer
+    profiles: ["tools"]
+    environment:
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - OLLAMA_URL=http://host.containers.internal:11434
+      - EMBED_MODEL=nomic-embed-text
+      - BIBLE_DIR=/bible
+    volumes:
+      - ./bible:/bible:ro
+    depends_on:
+      - chromadb
+
+volumes:
+  openwebui-data:
