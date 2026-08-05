@@ -107,13 +107,22 @@ podman-compose.yml        # openwebui + chromadb + indexer (profil tools)
 
 ## Prochaine étape convenue
 
-Corriger la qualité générative de l'orchestrateur (jalon commité, tourne mais
-défauts à traiter) :
-1. Fuites anglais / tokens corrompus (`nousWantons`) malgré la garde française :
-   baisser temp écriture (~0.7), garde en fin de prompt, post-filtre franglais.
-2. `review_node` tronque certaines scènes (réécriture intégrale ratée) :
-   passer à une relecture ciblée plutôt qu'une réécriture complète.
-3. `num_predict=1000` coupe les scènes en plein mot : passer à ~1400.
+Deux limites de qualité RÉSISTENT (ce sont des limites du modèle nemo, pas des
+bugs du pipeline — troncature, répétition et écho RAG sont réglés, cf. commits) :
+
+1. **Leak anglais niveau PHRASE** : nemo décroche parfois sur une phrase
+   entière en anglais (« meant for the maintenance of the building… »). Le
+   post-filtre mot-à-mot de `style.py` ne répare pas ça.
+2. **Cohérence** : nemo refuse la tâche de critique, repart en prose (le
+   garde-fou l'intercepte mais on n'a pas de vraie analyse).
+
+Piste retenue (à benchmarker AVANT d'acter, même rigueur que le choix auteur) :
+un **3ᵉ modèle « QA/lint » d'un autre lignage** (candidat : **Qwen 2.5/3**,
+fiable en FR + bon suivi de format). Il traiterait les deux : passe de
+réparation linguistique (réécrire l'anglais en FR) ET cohérence en checklist
+(oui/non par fait de la bible). Le lint est une phase POST-génération → Ollama
+swappe nemo→Qwen une fois, pas de co-résidence mémoire. À valider : Qwen bat-il
+nemo sur ces 2 tâches, pour un coût temps négligeable ?
 
 ## Notes d'architecture (orchestrateur)
 
