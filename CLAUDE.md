@@ -35,9 +35,15 @@ talk : une œuvre dont la fabrique est locale est inauditable.
   - *Retrieval/orchestration* : LangGraph, RAG contextuel dynamique — le
     contexte est assemblé à la requête (fiches des personnages présents,
     lieu, scènes précédentes pertinentes) en un prompt système de 2-3k tokens.
-  - *Modèles* : deux rôles, pas plus. « Auteur » (Mistral-small, ou
-    Mistral-nemo à évaluer pour la prose française) et « acteur » (roleplay,
-    prompt système interdisant la sortie de personnage).
+  - *Modèles* : deux rôles, pas plus. « Auteur » = **`mistral-nemo`
+    (Q8_0, 12B)**, tranché au benchmark sur M3 Pro 18 GB : ~10 tok/s →
+    chapitre complet ~20 min (2× de marge sur les 35 min), leak anglais
+    quasi nul. Mistral-small 24B a une prose supérieure (place les deux
+    répliques signature, zéro leak) mais plombe à ~3 tok/s sous pression
+    mémoire (14 GB / 18 GB) → chapitre ~1 h, hors budget scène. Small
+    reste l'option qualité pour l'écriture HORS-démo (non chronométrée).
+    « Acteur » (roleplay) = même modèle nemo, prompt système interdisant
+    la sortie de personnage (modèle chaud partagé, pas de reload).
 - **Ollama hors conteneur** (accès GPU Apple Silicon direct), joint depuis
   les conteneurs via `http://host.containers.internal:11434`.
   Embeddings : `nomic-embed-text` (768 dims, cosine).
@@ -86,10 +92,14 @@ podman-compose.yml        # openwebui + chromadb + indexer (profil tools)
 - [x] Validation sur machine réelle (Ollama 0.0.0.0:11434 + ChromaDB) :
       connectivité conteneur→Ollama OK sans `--add-host`, embeddings 768d,
       index/query/purge/persistance validés. Bug purge sur bible vide corrigé.
-- [ ] Peupler le premier personnage principal
-- [ ] Orchestrateur LangGraph (mode auteur d'abord)
-- [ ] Pipeline chapitre : plan de scènes → écriture scène par scène →
-      relecture (celui qui tourne pendant la keynote)
+- [~] Peupler le premier personnage principal : fiches SCAFFOLD temporaires
+      (Élara, Kael, forge, scène) dans `bible/`, marquées à remplacer par le
+      canon issu de la conversation littéraire dédiée.
+- [x] Modèle auteur tranché : mistral-nemo Q8_0 (benchmark, cf. section Modèles).
+- [x] Orchestrateur LangGraph (mode auteur) : `orchestrator/`, pipeline complet
+      plan → écriture (boucle) → relecture → cohérence, RAG dynamique assemblé
+      à la requête. Tourne bout-en-bout, chapitre 5 scènes en ~10 min (3,5× de
+      marge sur les 35 min). Défauts qualité à corriger (voir Prochaine étape).
 - [ ] Mode acteur (roleplay) + mémoire conversationnelle rolling summary
 - [ ] Intégration frontend (OpenWebUI via pipelines, ou interface dédiée —
       non tranché)
@@ -97,9 +107,27 @@ podman-compose.yml        # openwebui + chromadb + indexer (profil tools)
 
 ## Prochaine étape convenue
 
-Valider le retrieval sur machine réelle, puis peupler le premier personnage
-principal AVANT d'attaquer LangGraph (un orchestrateur sans matière à
-retriever est indéboguable).
+Corriger la qualité générative de l'orchestrateur (jalon commité, tourne mais
+défauts à traiter) :
+1. Fuites anglais / tokens corrompus (`nousWantons`) malgré la garde française :
+   baisser temp écriture (~0.7), garde en fin de prompt, post-filtre franglais.
+2. `review_node` tronque certaines scènes (réécriture intégrale ratée) :
+   passer à une relecture ciblée plutôt qu'une réécriture complète.
+3. `num_predict=1000` coupe les scènes en plein mot : passer à ~1400.
+
+## Notes d'architecture (orchestrateur)
+
+- `orchestrator/` tourne en **venv host** (pas conteneur) pour l'itération
+  rapide ; conteneurisation = étape packaging démo. Joint Ollama et ChromaDB
+  en `localhost`.
+- Retrieval à deux stratégies (`retrieval.py`) : DÉTERMINISTE par id pour les
+  chunks d'écriture des personnages présents (voix, état courant, psychologie),
+  SÉMANTIQUE top-k pour lieu et scènes précédentes.
+- Le service Ollama (brew) est régénéré au `brew services start` : les vars
+  `OLLAMA_HOST=0.0.0.0` (accès conteneur) et `OLLAMA_MAX_LOADED_MODELS=2`
+  (éviter le swap nemo↔embed) ne persistent pas dans le plist. Sans elles,
+  l'indexeur conteneur ne joint pas Ollama, et l'orchestrateur swappe les
+  modèles à chaque nœud (mitigé par un timeout embed large de 180s).
 
 ## Points de vigilance connus
 

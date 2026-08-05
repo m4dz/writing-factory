@@ -2,3 +2,5 @@ data/chromadb/*
 !data/chromadb/.gitkeep
 __pycache__/
 *.pyc
+# Environnement virtuel de l'orchestrateur (dev host, non versionné)
+orchestrator/.venv/
