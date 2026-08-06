@@ -246,6 +246,21 @@ Chantiers restants, par ordre d'urgence pour la scène :
 
 ## Points de vigilance connus
 
+- **UN RUN PAR DÉMARRAGE. Leçon du run 3 (2026-08-06, 17 h 30), la plus
+  importante de la journée.** Troisième run d'affilée sans redémarrage : swap
+  passé de 5 à 10 GB intégralement consommé, **56 MB de RAM libre**
+  (`vm_stat` : 3496 pages), `free_swap="0 B"` dans le log Ollama. Le run a
+  dépassé 32 minutes sans finir, avec des **trous de quatre à huit minutes sans
+  un seul appel réseau**, nemo chargé et inactif : le processus python
+  lui-même était paginé, il attendait ses pages au lieu de générer. Les appels
+  d'écriture, eux, tenaient leur vitesse normale (1 min 56, 1 min 29). Deux
+  conséquences : les mesures de temps d'un run non-initial ne valent RIEN, et
+  un chapitre qui déborde parce que la machine pagine est un échec de scène
+  aussi net qu'un kernel panic. J'avais raisonné ce matin qu'un swap saturé
+  n'était dangereux qu'avec un disque plein, puisque macOS peut sinon allouer
+  un swapfile de plus. Il le fait — et la machine rampe au lieu de tomber. Le
+  raisonnement était juste sur le panic, faux sur la démo. Le préflight bloque
+  désormais sur la saturation seule.
 - **Le lint doit s'appliquer AUSSI au plan**, pas seulement à la prose (leçon
   du run 2 : le token collé `maisonly` est passé du plan au brief de la scène 4,
   donc au prompt d'écriture). La réparation par Qwen n'arrive qu'en fin de
@@ -286,16 +301,18 @@ Chantiers restants, par ordre d'urgence pour la scène :
   * Purge disque : 9 GB → 127 GB libres (LM Studio 52 GB supprimé, cache
     HuggingFace 18 GB, 5 modèles Ollama inutilisés 54 GB). `~/.ollama` = 31 GB,
     strictement les 4 modèles du projet.
-  * `orchestrator/preflight.py` : refuse de démarrer si disque < 20 GB, si 2+
-    LLM sont chauds simultanément (`/api/ps`), ou si le swap est saturé ET le
-    disque sous 40 GB. Branché dans `run_chapter.py`, contournable par
-    `--skip-preflight` (dev only). Deux subtilités apprises à l'usage :
-    (i) un swap saturé n'est mortel que si le disque ne permet plus de
-    l'agrandir — c'est la CONJONCTION qui a fait paniquer la machine, donc la
-    saturation seule n'est qu'un avertissement ; (ii) après un redémarrage
+  * `orchestrator/preflight.py` : refuse de démarrer si disque < 20 GB, si le
+    swap est saturé, ou si 2+ LLM sont chauds simultanément (`/api/ps`). Il
+    rapporte aussi la RAM libre (`vm_stat`, pages free + speculative — pas
+    « inactive », dont la récupération suppose justement de la pagination), en
+    avertissement seulement : un modèle légitimement chaud fait chuter ce
+    chiffre. Branché dans `run_chapter.py`, contournable par `--skip-preflight`
+    (dev only). Deux subtilités apprises à l'usage : (i) après un redémarrage
     macOS n'a alloué AUCUN swapfile, `total = free = 0` — ne regarder que
     `free` faisait conclure « swap saturé, redémarrez » juste après un
-    redémarrage. On lit donc `total` autant que `free`.
+    redémarrage, d'où la lecture de `total` autant que `free` ; (ii) **un swap
+    saturé est bloquant même avec du disque libre** — voir la leçon du run 3
+    ci-dessous, j'avais d'abord raisonné le contraire.
   * `scripts/local.ollama.plist` : agent launchd du projet, remplace
     `brew services`. Fixe `OLLAMA_MAX_LOADED_MODELS=2` (sans quoi Ollama
     autorise 3 modèles chauds = 27+ GB demandés) et `OLLAMA_NUM_PARALLEL=1`.
