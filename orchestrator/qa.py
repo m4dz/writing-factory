@@ -188,17 +188,17 @@ def _sourced(detail: str, scene: str) -> str | None:
     return frag if _norm(frag)[:60] in _norm(scene) else None
 
 
-def check_scene(questions: list[str], scene: str) -> tuple[dict[int, str], dict]:
-    """Répond aux questions de violation contre UNE scène (entrée courte).
+def _ask(questions: list[str], texte: str, system: str, label: str) -> tuple[dict[int, str], dict]:
+    """Pose le questionnaire de violation contre UN texte court.
 
     Retourne {n° de question: citation brute} pour les seuls OUI — dict vide
-    si la scène est propre OU si le vérificateur a dérivé (distingué par
-    l'appelant, qui sait si des lignes conformes ont été produites).
+    si le texte est propre OU si le vérificateur a dérivé (distingué par
+    l'appelant via la métrique `repondues`).
     """
     posees = [(i + 1, q) for i, q in enumerate(questions) if q]
     qblock = "\n".join(f"Q{n} : {q}" for n, q in posees)
-    user = f"QUESTIONS :\n{qblock}\n\n--- EXTRAIT ---\n{scene}"
-    text, m = chat(_ANSWER_SYS, user, model=QA_MODEL, temperature=0.0,
+    user = f"QUESTIONS :\n{qblock}\n\n--- {label} ---\n{texte}"
+    text, m = chat(system, user, model=QA_MODEL, temperature=0.0,
                    num_predict=400)
     hits: dict[int, str] = {}
     repondues: set[int] = set()
@@ -216,7 +216,13 @@ def check_scene(questions: list[str], scene: str) -> tuple[dict[int, str], dict]
     return hits, m
 
 
-def _confirm(question: str, scene: str) -> tuple[bool, dict]:
+def check_scene(questions: list[str], scene: str) -> tuple[dict[int, str], dict]:
+    """Répond aux questions de violation contre UNE scène de prose."""
+    return _ask(questions, scene, _ANSWER_SYS, "EXTRAIT")
+
+
+def _confirm(question: str, texte: str,
+             system: str = _CONFIRM_SYS) -> tuple[bool, dict]:
     """Contre-appel sur un OUI : une seule question, réponse en un mot.
 
     Le questionnaire groupé dilue l'attention et produit des OUI complaisants
@@ -224,8 +230,8 @@ def _confirm(question: str, scene: str) -> tuple[bool, dict]:
     Reposée seule et en mode sévère, la même question est tranchée nettement.
     Un OUI non confirmé n'est pas une violation.
     """
-    user = f"QUESTION : {question}\n\n--- EXTRAIT ---\n{scene}"
-    text, m = chat(_CONFIRM_SYS, user, model=QA_MODEL, temperature=0.0,
+    user = f"QUESTION : {question}\n\n--- EXTRAIT ---\n{texte}"
+    text, m = chat(system, user, model=QA_MODEL, temperature=0.0,
                    num_predict=8)
     return bool(re.search(r"\bOUI\b", text, re.I)), m
 
@@ -290,3 +296,99 @@ def check_facts(facts: list[str], scenes: list[str]) -> tuple[str, list[dict]]:
                       "vérificateur) : "
                       + ", ".join(str(i) for i in muettes) + "]")
     return "\n".join(lignes), metrics
+
+
+# --- Vérification du PLAN, AVANT d'écrire -------------------------------------
+#
+# La cohérence par faits arrive après la rédaction : elle CONSTATE, elle ne
+# prévient pas. Or un plan qui contredit la bible condamne d'avance les quatorze
+# minutes d'écriture qui suivent — et sur scène, on ne réécrit pas.
+#
+# Constaté au run du 2026-08-06 : le plan a programmé « Élara découvre les
+# détournements de Kael » alors qu'un fait de la bible dit « Kael redoute
+# qu'Élara découvre les registres ». Formulé comme une crainte de Kael, le fait
+# n'était pas techniquement violé et le rapport final a validé — un coup de
+# chance de formulation, pas un filet.
+#
+# Le protocole est le même que pour les scènes (faits → questions de violation
+# → LECTURE), appliqué à un texte de quatre lignes : deux appels Qwen, quelques
+# secondes. La différence tient au régime du texte lu : un plan ANNONCE des
+# événements, il ne les met pas en scène. « Le texte montre-t-il… » devient
+# « le plan prévoit-il… ».
+
+_PLAN_ANSWER_SYS = (
+    "Tu lis un PLAN DE CHAPITRE : une ligne par scène, chacune résumant les "
+    "événements PRÉVUS. Tu n'es pas critique littéraire : aucun commentaire, "
+    "aucune suggestion. Une ligne par question, format EXACT :\n"
+    "Qn : OUI — « citation littérale d'une ligne du plan »\n"
+    "Qn : NON\n\n"
+    "RÈGLES : réponds OUI uniquement si une ligne du plan PRÉVOIT "
+    "explicitement l'événement décrit par la question, avec les personnes "
+    "nommées dans la question. Un événement seulement possible, sous-entendu, "
+    "ou simplement ressemblant = NON. Quand tu réponds OUI, recopie la ligne "
+    "du plan. Dans tous les autres cas : NON, sans citation."
+)
+
+_CONFIRM_PLAN_SYS = (
+    "Tu es un vérificateur SÉVÈRE. On te donne une question et un plan de "
+    "chapitre. Tu réponds par UN SEUL MOT : OUI ou NON.\n"
+    "OUI seulement si le plan prévoit explicitement l'événement ENTIER décrit "
+    "par la question : les bonnes personnes, l'action annoncée noir sur blanc. "
+    "Un sous-entendu, une possibilité, une action ressemblante : NON. En cas "
+    "de doute : NON."
+)
+
+
+def check_plan(facts: list[str],
+               beats: list[str]) -> tuple[list[tuple[int, str, str]], str, list[dict]]:
+    """Confronte un plan de scènes aux faits de la bible AVANT rédaction.
+
+    Retourne (violations, rapport, métriques) où chaque violation est
+    (n° de fait, fait, ligne du plan fautive). Les mêmes garde-fous que sur la
+    prose s'appliquent — citation retrouvée dans le plan, puis contre-appel
+    sévère : un plan légitime qui « ressemble » à une violation ne doit pas
+    déclencher une replanification, elle coûte un rechargement de nemo.
+    """
+    metrics: list[dict] = []
+    if not facts or not beats:
+        return [], "Plan non vérifié (pas de faits ou pas de plan).", metrics
+
+    questions, mq = derive_questions(facts)
+    metrics.extend(mq)
+    if not any(questions):
+        return [], "Plan non vérifié (aucune question dérivée des faits).", metrics
+
+    plan_txt = "\n".join(f"{i + 1}. {b}" for i, b in enumerate(beats))
+    hits, m = _ask(questions, plan_txt, _PLAN_ANSWER_SYS, "PLAN")
+    metrics.append(m)
+    if not m.get("repondues"):
+        return [], "Plan non vérifié (le vérificateur a dérivé).", metrics
+
+    violations: list[tuple[int, str, str]] = []
+    doutes: list[str] = []
+    for n, detail in hits.items():
+        if not 1 <= n <= len(facts):
+            continue
+        citation = _sourced(detail, plan_txt)
+        if not citation:
+            doutes.append(f"    fait {n} : {detail or '(OUI sans citation)'} "
+                          "[citation introuvable dans le plan]")
+            continue
+        confirme, mc = _confirm(questions[n - 1], plan_txt, _CONFIRM_PLAN_SYS)
+        metrics.append(mc)
+        if confirme:
+            violations.append((n, facts[n - 1], citation))
+        else:
+            doutes.append(f"    fait {n} : « {citation} » "
+                          "[non confirmé au contre-appel]")
+
+    lignes = [f"{len(facts)} faits confrontés au plan."]
+    for n, fait, citation in violations:
+        lignes.append(f"  PLAN CONTREDIT le fait {n} — {fait}")
+        lignes.append(f"    → « {citation} »")
+    if not violations:
+        lignes.append("  aucune contradiction : le plan respecte la bible.")
+    if doutes:
+        lignes.append("  [signalements écartés :]")
+        lignes.extend(doutes)
+    return violations, "\n".join(lignes), metrics

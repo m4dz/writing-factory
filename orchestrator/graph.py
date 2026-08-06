@@ -19,7 +19,12 @@ from langgraph.graph import StateGraph, START, END
 from llm import chat, unload
 from retrieval import assemble_system_prompt
 from style import delint
-from qa import repair, derive_facts, check_facts
+from qa import QA_MODEL, repair, derive_facts, check_facts, check_plan
+
+# Une seule reprise du plan. La replanification coûte un rechargement de nemo
+# (13 GB) : au-delà, on perdrait plus de temps de scène qu'on n'en sauverait, et
+# un modèle qui rate deux fois la contrainte ne la comprendra pas à la troisième.
+MAX_PLAN_ATTEMPTS = 2
 
 
 # --- État du graphe ----------------------------------------------------------
@@ -27,7 +32,9 @@ from qa import repair, derive_facts, check_facts
 class ChapterState(TypedDict):
     brief: str            # objectif du chapitre (entrée humaine)
     characters: list[str] # doc_ids des personnages présents
+    facts: list[str]      # invariants dérivés de la bible (contraignent le plan)
     plan: list[str]       # beats de scènes (sortie du nœud plan)
+    plan_report: str      # confrontation du plan aux faits, AVANT rédaction
     idx: int              # index de la scène en cours d'écriture
     scenes: list[str]     # prose brute, une entrée par scène
     reviewed: list[str]   # prose après relecture (nemo)
@@ -39,13 +46,29 @@ class ChapterState(TypedDict):
 
 # --- Nœuds -------------------------------------------------------------------
 
-def plan_node(state: ChapterState) -> dict:
-    """Découpe le chapitre en 3-5 beats de scènes concrets."""
-    system = assemble_system_prompt(
-        characters=state["characters"], scene_brief=state["brief"]
-    )
-    user = (
-        f"Objectif du chapitre : {state['brief']}\n\n"
+def _parse_beats(text: str) -> list[str]:
+    """Extrait les lignes numérotées « 1. … » d'une réponse de plan."""
+    beats = [
+        re.sub(r"^\s*\d+[.)]\s*", "", line).strip()
+        for line in text.splitlines()
+        if re.match(r"^\s*\d+[.)]\s", line)
+    ]
+    return [b for b in beats if b]
+
+
+def _plan_user(brief: str, facts: list[str], feedback: str) -> str:
+    """Prompt de planification, avec les invariants de la bible en contrainte."""
+    contraintes = ""
+    if facts:
+        listing = "\n".join(f"  - {f}" for f in facts)
+        contraintes = (
+            "\nCONTRAINTES INVIOLABLES tirées de la bible du récit. Le plan ne "
+            "doit RIEN prévoir qui les contredise — ni une révélation, ni un "
+            f"aveu, ni une découverte qu'elles excluent :\n{listing}\n"
+        )
+    return (
+        f"Objectif du chapitre : {brief}\n"
+        f"{contraintes}\n"
         "Propose un plan de 3 ou 4 scènes MAXIMUM. Une ligne par scène :\n"
         "1. [lieu] ce qui se passe concrètement — l'état NOUVEAU à la fin.\n\n"
         "RÈGLE ABSOLUE : chaque scène fait AVANCER l'intrigue vers un moment "
@@ -53,16 +76,96 @@ def plan_node(state: ChapterState) -> dict:
         "moment d'une autre. Un événement (une révélation, une découverte) "
         "n'arrive QUE dans UNE seule scène. Si deux scènes se ressemblent, "
         "fusionne-les. Ne rédige pas les scènes, juste le plan."
+        f"{feedback}"
     )
-    text, m = chat(system, user, num_predict=500, temperature=0.5)
-    # Parse : on ne garde que les lignes numérotées « 1. … ».
-    beats = [
-        re.sub(r"^\s*\d+[.)]\s*", "", line).strip()
-        for line in text.splitlines()
-        if re.match(r"^\s*\d+[.)]\s", line)
-    ]
-    beats = [b for b in beats if b]
-    return {"plan": beats, "idx": 0, "scenes": [], "metrics": [m], "warnings": []}
+
+
+def _plan_feedback(violations: list[tuple[int, str, str]]) -> str:
+    """Reproche adressé au planificateur : la contrainte violée, et où."""
+    lignes = "\n".join(
+        f"  - tu avais prévu « {citation} », ce qui contredit : {fait}"
+        for _, fait, citation in violations
+    )
+    return (
+        "\n\nTON PLAN PRÉCÉDENT ÉTAIT REFUSÉ. Il programmait des événements "
+        f"interdits par la bible :\n{lignes}\n"
+        "Refais le plan en atteignant l'objectif du chapitre AUTREMENT : garde "
+        "la tension, mais n'organise pas ces événements-là."
+    )
+
+
+def plan_node(state: ChapterState) -> dict:
+    """Dérive les invariants de la bible, puis planifie SOUS cette contrainte.
+
+    L'ordre des modèles est dicté par la mémoire, pas par l'élégance : les
+    faits sont dérivés par Qwen (4,8 GB) AVANT que nemo (13 GB) ne chauffe, et
+    chaque bascule décharge le précédent. Les deux ensemble font 17,8 GB sur
+    19,3 GB — la pression exacte qui a fait paniquer la machine.
+
+    Pourquoi vérifier le plan ici plutôt que se fier au rapport de cohérence
+    final : celui-ci arrive après quatorze minutes de rédaction. Il constate,
+    il ne prévient pas, et sur scène on ne réécrit pas. Un plan tient en quatre
+    lignes : le confronter coûte quelques secondes, le corriger coûte un
+    rechargement de nemo — sans commune mesure avec un chapitre à jeter.
+    """
+    metrics: list[dict] = []
+    warnings: list[str] = []
+
+    facts, mf = derive_facts(state["characters"])
+    metrics.append(mf)
+    unload(QA_MODEL)  # place nette avant de charger nemo
+
+    beats: list[str] = []
+    rapport = "Plan non vérifié (aucun fait dérivé de la bible)."
+    feedback = ""
+    for attempt in range(1, MAX_PLAN_ATTEMPTS + 1):
+        system = assemble_system_prompt(
+            characters=state["characters"], scene_brief=state["brief"]
+        )
+        text, m = chat(system, _plan_user(state["brief"], facts, feedback),
+                       num_predict=500, temperature=0.5)
+        metrics.append(m)
+        # Le plan passe au lint comme la prose : un token collé dans un beat
+        # (« maisonly », observé au run du 2026-08-06) contamine ensuite le
+        # brief de la scène, donc le prompt d'écriture. La réparation par Qwen
+        # n'intervient qu'en fin de pipeline, bien trop tard pour un brief.
+        text, w = delint(text)
+        warnings.extend(f"plan (tentative {attempt}): {x}" for x in w)
+        candidat = _parse_beats(text)
+        # Un plan illisible n'est pas une violation : on garde le précédent
+        # s'il existait, sinon on laisse la suite du graphe s'en apercevoir.
+        if candidat:
+            beats = candidat
+        if not facts or not beats:
+            break
+
+        unload()  # nemo → Qwen pour la vérification
+        violations, rapport, mv = check_plan(facts, beats)
+        metrics.extend(mv)
+        # Tracer la tentative : un plan refusé PUIS corrigé est le moment le
+        # plus parlant du dispositif, et sans cette ligne le rapport final est
+        # indiscernable d'un plan bon du premier coup.
+        rapport = f"tentative {attempt}/{MAX_PLAN_ATTEMPTS} — {rapport}"
+        if not violations or attempt == MAX_PLAN_ATTEMPTS:
+            if violations:
+                rapport += (
+                    "\n  [replanification épuisée — le chapitre est écrit "
+                    "malgré la contradiction, à arbitrer à la main]"
+                )
+            break
+        warnings.append(
+            f"plan (tentative {attempt}) refusé : "
+            + "; ".join(f"contredit « {fait} »" for _, fait, _ in violations)
+        )
+        feedback = _plan_feedback(violations)
+        unload(QA_MODEL)  # Qwen → nemo pour la reprise
+
+    # L'écriture veut nemo seul : Qwen a pu rester chaud après la vérification.
+    unload(QA_MODEL)
+    return {
+        "plan": beats, "facts": facts, "plan_report": rapport,
+        "idx": 0, "scenes": [], "metrics": metrics, "warnings": warnings,
+    }
 
 
 def write_node(state: ChapterState) -> dict:
@@ -198,11 +301,17 @@ def coherence_node(state: ChapterState) -> dict:
     bascule en critique d'atelier (suggestions, réécriture) et ne rend plus les
     verdicts. Sur une entrée courte, il tient le format. Et un fait n'est violé
     que si une scène le CONTREDIT — le non-mentionné n'est pas une faute.
+    Les faits sont ceux DÉJÀ dérivés par le nœud de plan : mêmes invariants
+    pour contraindre le plan et pour juger le résultat, sinon le rapport final
+    sanctionnerait un chapitre au nom de règles que la planification n'a jamais
+    reçues. Économie accessoire : un appel Qwen de moins.
     C'est la « strate 4 » finale montrée sur scène."""
     metrics = list(state["metrics"])
 
-    facts, mf = derive_facts(state["characters"])
-    metrics.append(mf)
+    facts = state.get("facts") or []
+    if not facts:  # nœud de plan court-circuité (test unitaire, reprise)
+        facts, mf = derive_facts(state["characters"])
+        metrics.append(mf)
     if not facts:
         return {"coherence": "Aucun fait dérivé de la bible.", "metrics": metrics}
 

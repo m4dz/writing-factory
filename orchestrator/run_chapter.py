@@ -50,6 +50,12 @@ def main() -> None:
     for i, beat in enumerate(final["plan"], 1):
         print(f"  {i}. {beat}")
 
+    print("\n  invariants de la bible imposés au plan :")
+    for f in final.get("facts", []):
+        print(f"    - {f}")
+    print(f"\n  contrôle du plan AVANT rédaction :\n"
+          + "\n".join(f"  {l}" for l in final.get("plan_report", "").splitlines()))
+
     print("\n" + "#" * 78)
     print("CHAPITRE (après relecture + réparation linguistique)")
     print("#" * 78)

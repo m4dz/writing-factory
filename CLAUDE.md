@@ -120,15 +120,42 @@ podman-compose.yml        # openwebui + chromadb + indexer (profil tools)
       17 appels, 8855 tokens, **877 s (14,6 min)** — sous les 25 min. Aucun
       `ctx_truncated`, aucun `done_reason: length`, `ctx_need` plafonne à 0,60 :
       la fenêtre de 8192 est confortable, la troncature silencieuse est bien
-      éteinte. **Zéro fuite d'anglais** — la conclusion « nemo leake » du
-      benchmark était donc au moins en partie un artefact de `num_ctx=4096`
-      implicite. Un seul défaut de génération (token collé
+      éteinte. Zéro fuite d'anglais sur CE tirage — mais le run suivant en a
+      produit trois (`of`, `the`, `sentantProbablement`) : `num_ctx` n'était
+      donc PAS la cause des fuites, nemo leake bel et bien, et c'est la
+      réparation par Qwen qui tient la ligne (texte final propre dans les deux
+      cas). Ne pas conclure sur un tirage unique. Un seul défaut de génération
+      (token collé
       `confessionUnexpected`), réparé par Qwen. Cohérence : 4 faits tenus,
       3 signalements tous écartés par le contre-appel ou la vérification de
       citation — aucun faux positif n'est passé. Mémoire : nemo 13,1 GB +
       embed 0,4 GB chauds pendant l'écriture, `unload()` confirmé au passage
       QA (Qwen 4,8 GB seul). Swap monté à 8 GB alloués / 600 MB libres sans
       incident, disque à 217 GB : aucune panique.
+- [x] **Faits de la bible en CONTRAINTE du plan (2026-08-06, 13 h).** Le nœud
+      de plan dérive d'abord les invariants (Qwen), planifie sous contrainte
+      explicite (nemo), puis le plan est confronté aux faits AVANT d'écrire —
+      même protocole que la cohérence (faits → questions de violation →
+      lecture), appliqué à quatre lignes : ~13 s. Une replanification au plus
+      (`MAX_PLAN_ATTEMPTS = 2`), au-delà on écrit quand même en signalant.
+      Les faits dérivés une seule fois sont réutilisés par le rapport final :
+      mêmes invariants pour contraindre et pour juger.
+      * Validé en test ciblé : le plan fautif du run précédent (« Élara
+        découvre les détournements ») est attrapé, un plan propre passe.
+      * Validé en run complet : la première tentative a été REFUSÉE, la
+        seconde est passée, le chapitre final tient les 5 faits. Le dispositif
+        a donc travaillé pour de vrai, pas seulement en test.
+      * Coût : ~2 min (dérivation 16 s, vérification 13 s, et surtout un
+        rechargement de nemo à la replanification) contre 14 s avant.
+      * **Run 2 : 1212 s (20,2 min) pour 4 scènes, 31 appels.** La marge sur
+        les 25 min tombe à ~5 min, et c'est le PLAN À 4 SCÈNES qui coûte, pas
+        la vérification (~4 min de rédaction/relecture/QA supplémentaires).
+        Pour la scène, imposer 3 scènes plutôt que « 3 ou 4 » est le levier
+        évident.
+      * L'appel d'écriture de la scène 3 a fini en `length` (1400/1400 tokens,
+        scène coupée net) : `num_predict=1400` ne suffit pas toujours pour
+        ~600 mots demandés. La relecture a donc travaillé sur un texte amputé.
+        À traiter.
 - [ ] Mode acteur (roleplay) + mémoire conversationnelle rolling summary
 - [ ] Intégration frontend (OpenWebUI via pipelines, ou interface dédiée —
       non tranché)
@@ -136,8 +163,8 @@ podman-compose.yml        # openwebui + chromadb + indexer (profil tools)
 
 ## Prochaine étape convenue
 
-Cohérence réglée (2026-08-06). Chantiers restants, par ordre d'urgence
-pour la scène :
+Cohérence réglée, puis contrainte du plan par les faits (2026-08-06).
+Chantiers restants, par ordre d'urgence pour la scène :
 
 1. **Mode acteur (roleplay)** + mémoire conversationnelle à deux niveaux
    (N derniers échanges + rolling summary indexé, taggé par personnage).
@@ -196,16 +223,18 @@ pour la scène :
 
 ## Points de vigilance connus
 
-- **Le nœud de planification ne reçoit PAS les faits de la bible** (constaté au
-  run du 2026-08-06). Il a planifié un chapitre où Élara découvre le
-  détournement de Kael, alors que le fait 3 dit « Kael redoute qu'Élara
-  découvre les registres ». Formulé comme une crainte de Kael, le fait n'est
-  pas violé, et la cohérence a eu raison de valider — mais c'est un coup de
-  chance de formulation. Le plan peut torpiller la bible en amont, et la phase
-  de cohérence arrive après 14 minutes de rédaction : elle constate, elle ne
-  prévient pas. Piste : passer les faits (`derive_facts`) comme CONTRAINTES au
-  prompt de plan, puis vérifier le plan (3 lignes, une seconde de Qwen) avant
-  d'écrire une seule scène.
+- **Le lint doit s'appliquer AUSSI au plan**, pas seulement à la prose (leçon
+  du run 2 : le token collé `maisonly` est passé du plan au brief de la scène 4,
+  donc au prompt d'écriture). La réparation par Qwen n'arrive qu'en fin de
+  pipeline : bien trop tard pour un brief. Corrigé — ne pas régresser.
+- **Ne jamais conclure sur un seul run.** « Zéro fuite d'anglais » au run 1
+  m'a fait écrire que `num_ctx=4096` expliquait les fuites ; le run 2 en a
+  produit trois. Deux tirages d'un modèle à température 0,7 ne prouvent pas la
+  même chose qu'un protocole.
+- **Marge de temps resserrée** : 20,2 min sur les 25 au run 2, contre 14,6 au
+  run 1. Le facteur dominant est le nombre de scènes retenues par le plan
+  (4 contre 3), pas la QA. Le prompt de plan dit « 3 ou 4 scènes MAXIMUM » :
+  pour la scène, le passer à 3 fermes est le levier le plus direct.
 - Le rapport de lint mélangeait les alertes d'écriture/relecture (état AVANT
   réparation) avec ce qui subsiste réellement. Corrigé dans `run_chapter.py` —
   ne pas régresser : sur scène, une alerte périmée se lit comme une panne.
