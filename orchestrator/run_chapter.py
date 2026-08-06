@@ -37,9 +37,9 @@ def main() -> None:
         print(f"  {i}. {beat}")
 
     print("\n" + "#" * 78)
-    print("CHAPITRE (après relecture)")
+    print("CHAPITRE (après relecture + réparation linguistique)")
     print("#" * 78)
-    for i, scene in enumerate(final["reviewed"], 1):
+    for i, scene in enumerate(final["repaired"], 1):
         print(f"\n--- Scène {i} ---\n{scene}")
 
     print("\n" + "#" * 78)

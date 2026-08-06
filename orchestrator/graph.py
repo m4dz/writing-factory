@@ -19,6 +19,7 @@ from langgraph.graph import StateGraph, START, END
 from llm import chat
 from retrieval import assemble_system_prompt
 from style import delint
+from qa import repair, derive_facts, check_facts
 
 
 # --- État du graphe ----------------------------------------------------------
@@ -29,8 +30,9 @@ class ChapterState(TypedDict):
     plan: list[str]       # beats de scènes (sortie du nœud plan)
     idx: int              # index de la scène en cours d'écriture
     scenes: list[str]     # prose brute, une entrée par scène
-    reviewed: list[str]   # prose après relecture
-    coherence: str        # rapport de cohérence
+    reviewed: list[str]   # prose après relecture (nemo)
+    repaired: list[str]   # prose après réparation linguistique (Qwen QA)
+    coherence: str        # rapport de cohérence fait par fait (Qwen QA)
     metrics: list[dict]   # timing par appel LLM (compte à rebours / profilage)
     warnings: list[str]   # alertes du lint de style (fuites, tokens corrompus)
 
@@ -160,35 +162,53 @@ def review_node(state: ChapterState) -> dict:
     return {"reviewed": reviewed, "metrics": metrics, "warnings": warns}
 
 
-def coherence_node(state: ChapterState) -> dict:
-    """Passe de cohérence : confronte le chapitre aux faits de la bible.
+def repair_node(state: ChapterState) -> dict:
+    """Réparation linguistique (Qwen) : réécrit les fuites d'anglais laissées
+    par nemo, phrase par phrase, sans toucher au sens ni au style.
 
-    Ne réécrit pas — produit un rapport (contradictions, incohérences
-    causales). C'est la « strate 4 » finale montrée sur scène."""
-    system = assemble_system_prompt(
-        characters=state["characters"], scene_brief=state["brief"],
-        include_scenes=False,
-    )
-    chapitre = "\n\n".join(state["reviewed"])
-    user = (
-        "Tu es relecteur de cohérence. Tu ne racontes RIEN, tu n'écris AUCUNE "
-        "prose narrative (pas de suite d'histoire, interdit). Tu confrontes le "
-        "chapitre aux faits des fiches et tu réponds EXACTEMENT dans l'un des "
-        "deux formats, rien d'autre :\n"
-        "  • soit une liste d'incohérences, une par ligne préfixée « - » "
-        "(fait contredit, personnage qui sait ce qu'il devrait ignorer, voix "
-        "qui dérape) ;\n"
-        "  • soit la phrase exacte : Aucune incohérence détectée.\n\n"
-        f"--- CHAPITRE ---\n{chapitre}"
-    )
-    text, m = chat(system, user, num_predict=500, temperature=0.1)
-    # Ancrage dur : si le modèle repart en prose (ni liste, ni phrase exacte),
-    # on le signale plutôt que de laisser passer une hallucination narrative.
-    stripped = text.strip()
-    if not (stripped.startswith("-") or stripped.startswith("Aucune")):
-        text = ("[nœud cohérence : sortie non conforme, prose ignorée]\n"
-                "Aucune incohérence détectée.")
-    return {"coherence": text, "metrics": state["metrics"] + [m]}
+    C'est ici qu'Ollama bascule du modèle auteur (nemo) au modèle QA (Qwen) —
+    un seul swap pour toute la phase QA qui suit."""
+    repaired: list[str] = []
+    metrics = list(state["metrics"])
+    warns = list(state["warnings"])
+    for i, scene in enumerate(state["reviewed"]):
+        text, m = repair(scene)
+        metrics.append(m)
+        # Garde-fou : une réparation ne doit pas escamoter la scène.
+        if len(text.split()) < 0.6 * len(scene.split()):
+            text = scene
+        # Re-lint pour tracer ce qui resterait (anglais tenace, tokens collés).
+        text, w = delint(text)
+        warns.extend(f"réparation scène {i + 1}: {x}" for x in w)
+        repaired.append(text)
+    return {"repaired": repaired, "metrics": metrics, "warnings": warns}
+
+
+def coherence_node(state: ChapterState) -> dict:
+    """Cohérence FAIT PAR FAIT (Qwen) : dérive les faits structurants des
+    fiches, puis vérifie chacun contre le chapitre en un appel dédié — bien
+    plus fiable que la critique ouverte multi-faits (où nemo hallucinait).
+    C'est la « strate 4 » finale montrée sur scène."""
+    metrics = list(state["metrics"])
+    chapitre = "\n\n".join(state["repaired"])
+
+    facts, mf = derive_facts(state["characters"])
+    metrics.append(mf)
+    if not facts:
+        return {"coherence": "Aucun fait dérivé de la bible.", "metrics": metrics}
+
+    rapport, mc = check_facts(facts, chapitre)
+    metrics.append(mc)
+    # Garde-fou : si le vérificateur n'a pas produit de lignes « FAIT … »,
+    # il a dérivé (critique d'atelier, réécriture) — on ne laisse pas passer.
+    conformes = [l for l in rapport.splitlines() if re.match(r"\s*FAIT\s*\d", l, re.I)]
+    if not conformes:
+        rapport = ("[nœud cohérence : sortie non conforme au format de "
+                   "vérification, ignorée]\nFaits soumis :\n"
+                   + "\n".join(f"  - {f}" for f in facts))
+    else:
+        rapport = "\n".join(conformes)
+    return {"coherence": rapport, "metrics": metrics}
 
 
 # --- Assemblage du graphe ----------------------------------------------------
@@ -198,11 +218,13 @@ def build_graph():
     g.add_node("plan", plan_node)
     g.add_node("write", write_node)
     g.add_node("review", review_node)
+    g.add_node("repair", repair_node)
     g.add_node("coherence", coherence_node)
 
     g.add_edge(START, "plan")
     g.add_edge("plan", "write")
     g.add_conditional_edges("write", route_after_write, ["write", "review"])
-    g.add_edge("review", "coherence")
+    g.add_edge("review", "repair")
+    g.add_edge("repair", "coherence")
     g.add_edge("coherence", END)
     return g.compile()
