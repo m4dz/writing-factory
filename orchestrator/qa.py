@@ -37,31 +37,84 @@ def repair(text: str) -> tuple[str, dict]:
                 num_predict=budget)
 
 
-# --- Cohérence fait par fait -------------------------------------------------
+# --- Cohérence : faits → questions de violation → réponses par scène ---------
+#
+# Trois échecs successifs ont dessiné le protocole qui suit :
+#
+#   1. Vérifier les faits sur le CHAPITRE entier (~2000 mots) fait basculer
+#      Qwen en critique d'atelier : il suggère des réécritures au lieu de
+#      rendre des verdicts. → découper par SCÈNE (entrée courte).
+#   2. Demander OUI/NON sur un fait range le « non mentionné » dans NON :
+#      faux positifs sur presque tous les faits. → une étiquette ABSENT aide,
+#      mais ne suffit pas.
+#   3. Classer un fait ABSTRAIT (surtout négatif : « X ignore Y », « X n'avoue
+#      jamais ») reste hors de portée d'un 7B : il a lu l'aveu complet de Kael
+#      et l'a classé CONFORME au fait « Élara ignore ». C'est une tâche
+#      d'inférence (entailment), pas de lecture.
+#
+# D'où le protocole retenu : on convertit d'abord chaque fait en QUESTION
+# D'ÉVÉNEMENT dont la réponse OUI signale la violation (« Le texte montre-t-il
+# Élara découvrant que… ? »). Répondre « ce texte montre-t-il X ? » est de la
+# lecture, pas de l'inférence — un 7B y arrive. Chaque OUI doit être appuyé par
+# une citation, vérifiée ensuite dans le texte par le code (garde-fou contre
+# les citations paraphrasées ou recopiées depuis le fait lui-même).
 
 _FACTS_SYS = (
     "Tu extrais des FAITS VÉRIFIABLES de fiches de personnages : ce que chaque "
-    "personnage sait ou ignore, les faits établis du passé, les contraintes. "
-    "Tu rends une liste, un fait par ligne, préfixé « - », sans commentaire. "
-    "Maximum 6 faits, les plus structurants."
+    "personnage sait ou ignore, les faits établis du passé, les contraintes de "
+    "caractère durables. Tu rends une liste, un fait par ligne, préfixé « - », "
+    "sans commentaire. Maximum 6 faits, les plus structurants.\n\n"
+    "N'EXTRAIS PAS ce qui a vocation à CHANGER pendant le chapitre : la "
+    "position courante dans le récit (« vient d'arriver à… »), l'objectif "
+    "immédiat, l'état émotionnel du moment. Ce ne sont pas des invariants : le "
+    "chapitre est précisément là pour les faire évoluer.\n\n"
+    "EXEMPLES à NE PAS extraire : « Marie vient d'arriver au village », "
+    "« Marie cherche à ouvrir le coffre », « Marie est tendue ».\n"
+    "EXEMPLES à extraire : « Marie ignore que Paul l'a trahie », « Marie a "
+    "perdu sa sœur dans l'incendie », « Marie refuse toujours de porter une "
+    "arme »."
 )
 
-_CHECK_SYS = (
-    "Tu es un VÉRIFICATEUR FACTUEL, pas un critique littéraire. Interdiction "
-    "absolue de commenter la qualité, de suggérer des améliorations ou de "
-    "réécrire quoi que ce soit. Tu vérifies mécaniquement des faits, une ligne "
-    "par fait, format EXACT :\n"
-    "FAIT n : OUI — <preuve dans le texte>\n"
-    "FAIT n : NON — <ce que le texte dit et qui contredit>\n\n"
-    "EXEMPLE —\n"
-    "FAITS :\n1. Marie ignore que Paul ment.\n2. Il pleut sur la ville.\n"
-    "--- CHAPITRE ---\nMarie sourit à Paul, pleine de confiance. Le soleil "
-    "inondait la place.\n"
-    "RÉPONSE ATTENDUE :\n"
-    "FAIT 1 : OUI — Marie reste confiante, rien n'indique qu'elle sait.\n"
-    "FAIT 2 : NON — le texte dit que le soleil inondait la place.\n\n"
-    "Maintenant, traite les faits réels ci-dessous de la même façon."
+_QUESTIONS_SYS = (
+    "Tu transformes des FAITS d'une bible de roman en QUESTIONS de "
+    "vérification. Pour chaque fait, écris UNE question fermée qui décrit "
+    "l'ÉVÉNEMENT CONCRET qui violerait ce fait — une question à laquelle on "
+    "répond OUI seulement si le texte MONTRE cet événement.\n"
+    "Format : une ligne par fait, « n. <question> », rien d'autre.\n\n"
+    "EXEMPLE —\nFAITS :\n1. Marie ignore que Paul ment.\n"
+    "2. Paul n'avoue jamais directement sa faute.\n3. Il pleut sur la ville.\n"
+    "RÉPONSE :\n"
+    "1. Le texte montre-t-il Marie découvrant ou apprenant que Paul ment ?\n"
+    "2. Le texte montre-t-il Paul avouant directement sa faute ?\n"
+    "3. Le texte décrit-il un temps sec ou ensoleillé ?"
 )
+
+_ANSWER_SYS = (
+    "Tu réponds à des questions de vérification sur un COURT EXTRAIT de roman. "
+    "Tu n'es pas critique littéraire : aucun commentaire, aucune suggestion. "
+    "Une ligne par question, format EXACT :\n"
+    "Qn : OUI — « citation littérale de l'extrait »\n"
+    "Qn : NON\n\n"
+    "RÈGLES : réponds OUI uniquement si l'extrait MONTRE explicitement ce que "
+    "décrit la question, ENTIÈREMENT — les personnes nommées dans la question "
+    "doivent être celles de l'extrait, et l'événement doit être accompli, pas "
+    "pressenti. Un indice, un soupçon, une découverte partielle, une allusion "
+    "ou une menace = NON. Quand tu réponds OUI, recopie la phrase de l'extrait "
+    "qui le montre. Dans tous les autres cas : NON, sans citation."
+)
+
+_CONFIRM_SYS = (
+    "Tu es un vérificateur SÉVÈRE. On te donne une question et un extrait de "
+    "roman. Tu réponds par UN SEUL MOT : OUI ou NON.\n"
+    "OUI seulement si l'extrait montre l'événement ENTIER décrit par la "
+    "question : les bonnes personnes, l'action accomplie, explicitement dans "
+    "le texte. Un indice, un soupçon, une intention, une action seulement "
+    "ressemblante : NON. En cas de doute : NON."
+)
+
+_ANSWER_RE = re.compile(r"Q\s*(\d+)\s*[:.\-–—]?\s*(OUI|NON)\b[\s:.\-–—]*(.*)", re.I)
+# Citation exigée pour un OUI : « … », " … " ou “ … ”.
+_QUOTE_RE = re.compile(r"[«\"“]\s*(.+?)\s*[»\"”]")
 
 
 def derive_facts(characters: list[str]) -> tuple[list[str], dict]:
@@ -77,12 +130,163 @@ def derive_facts(characters: list[str]) -> tuple[list[str], dict]:
     return [f for f in facts if f], m
 
 
-def check_facts(facts: list[str], chapter: str) -> tuple[str, dict]:
-    """Vérifie TOUS les faits en un appel numéroté (protocole validé au
-    benchmark : un seul appel groupé = format tenu, contrairement au
-    fait-par-fait qui dérive vers la critique d'atelier)."""
-    numbered = "\n".join(f"{i + 1}. {f}" for i, f in enumerate(facts))
-    user = f"FAITS :\n{numbered}\n\n--- CHAPITRE ---\n{chapter}"
-    text, m = chat(_CHECK_SYS, user, model=QA_MODEL, temperature=0.0,
-                   num_predict=700)
-    return text.strip(), m
+def _parse_questions(text: str, questions: list[str], indices: list[int]) -> None:
+    """Range les lignes « n. question » dans `questions` (numérotation locale
+    du prompt → indices réels passés dans `indices`). Modifie en place."""
+    for line in text.splitlines():
+        hit = re.match(r"\s*(\d+)\s*[.)]\s*(.+)", line)
+        if not hit:
+            continue
+        pos = int(hit.group(1)) - 1
+        if 0 <= pos < len(indices) and not questions[indices[pos]]:
+            questions[indices[pos]] = hit.group(2).strip()
+
+
+def derive_questions(facts: list[str]) -> tuple[list[str], list[dict]]:
+    """Convertit chaque fait en question dont le OUI vaut violation.
+
+    Retourne une liste alignée sur `facts`. Le modèle saute parfois un fait en
+    fin de liste : on repasse une fois sur les manquants (appel court) plutôt
+    que de laisser un fait sans vérification.
+    """
+    metrics: list[dict] = []
+    questions = [""] * len(facts)
+    indices = list(range(len(facts)))
+    numbered = "\n".join(f"{i + 1}. {facts[i]}" for i in indices)
+    text, m = chat(_QUESTIONS_SYS, f"FAITS :\n{numbered}", model=QA_MODEL,
+                   temperature=0.1, num_predict=500)
+    metrics.append(m)
+    _parse_questions(text, questions, indices)
+
+    manquants = [i for i, q in enumerate(questions) if not q]
+    if manquants:
+        numbered = "\n".join(f"{k + 1}. {facts[i]}" for k, i in enumerate(manquants))
+        text, m = chat(_QUESTIONS_SYS, f"FAITS :\n{numbered}", model=QA_MODEL,
+                       temperature=0.1, num_predict=300)
+        metrics.append(m)
+        _parse_questions(text, questions, manquants)
+    return questions, metrics
+
+
+def _norm(s: str) -> str:
+    """Normalise pour comparer une citation au texte source."""
+    return re.sub(r"\s+", " ", s.replace("’", "'")).strip().lower()
+
+
+def _sourced(detail: str, scene: str) -> str | None:
+    """Retourne la citation SI elle figure vraiment dans la scène, sinon None.
+
+    Garde-fou programmatique : le modèle recopie parfois le fait au lieu du
+    texte, ou paraphrase. Un signalement non sourcé n'est pas une violation.
+    """
+    q = _QUOTE_RE.search(detail)
+    if not q:
+        return None
+    frag = q.group(1).strip()
+    if len(frag) < 12:          # citation trop courte = non discriminante
+        return None
+    return frag if _norm(frag)[:60] in _norm(scene) else None
+
+
+def check_scene(questions: list[str], scene: str) -> tuple[dict[int, str], dict]:
+    """Répond aux questions de violation contre UNE scène (entrée courte).
+
+    Retourne {n° de question: citation brute} pour les seuls OUI — dict vide
+    si la scène est propre OU si le vérificateur a dérivé (distingué par
+    l'appelant, qui sait si des lignes conformes ont été produites).
+    """
+    posees = [(i + 1, q) for i, q in enumerate(questions) if q]
+    qblock = "\n".join(f"Q{n} : {q}" for n, q in posees)
+    user = f"QUESTIONS :\n{qblock}\n\n--- EXTRAIT ---\n{scene}"
+    text, m = chat(_ANSWER_SYS, user, model=QA_MODEL, temperature=0.0,
+                   num_predict=400)
+    hits: dict[int, str] = {}
+    repondues: set[int] = set()
+    for line in text.splitlines():
+        hit = _ANSWER_RE.search(line)
+        if not hit:
+            continue
+        n = int(hit.group(1))
+        if n in repondues:
+            continue
+        repondues.add(n)
+        if hit.group(2).upper() == "OUI":
+            hits[n] = hit.group(3).strip()
+    m["repondues"] = len(repondues)
+    return hits, m
+
+
+def _confirm(question: str, scene: str) -> tuple[bool, dict]:
+    """Contre-appel sur un OUI : une seule question, réponse en un mot.
+
+    Le questionnaire groupé dilue l'attention et produit des OUI complaisants
+    (« comptant mentalement les pierres » lu comme une délégation de tâche).
+    Reposée seule et en mode sévère, la même question est tranchée nettement.
+    Un OUI non confirmé n'est pas une violation.
+    """
+    user = f"QUESTION : {question}\n\n--- EXTRAIT ---\n{scene}"
+    text, m = chat(_CONFIRM_SYS, user, model=QA_MODEL, temperature=0.0,
+                   num_predict=8)
+    return bool(re.search(r"\bOUI\b", text, re.I)), m
+
+
+def check_facts(facts: list[str], scenes: list[str]) -> tuple[str, list[dict]]:
+    """Vérifie les faits scène par scène et agrège en un rapport de chapitre.
+
+    Un fait est CONTREDIT dès qu'une scène montre l'événement de violation AVEC
+    une citation retrouvée dans le texte. Les OUI non sourcés sont relégués en
+    signalements à vérifier à la main ; les scènes où le vérificateur n'a rien
+    rendu d'exploitable sont listées plutôt que comptées comme propres.
+    """
+    metrics: list[dict] = []
+    questions, mq = derive_questions(facts)
+    metrics.extend(mq)
+    if not any(questions):
+        return "Aucune question de vérification dérivée des faits.", metrics
+
+    violations: dict[int, list[tuple[int, str]]] = {}
+    doutes: list[str] = []
+    muettes: list[int] = []
+
+    for i, scene in enumerate(scenes, 1):
+        hits, m = check_scene(questions, scene)
+        metrics.append(m)
+        if not m.get("repondues"):
+            muettes.append(i)
+            continue
+        for n, detail in hits.items():
+            citation = _sourced(detail, scene)
+            if not citation:
+                doutes.append(f"    fait {n}, scène {i} : "
+                              f"{detail or '(OUI sans citation)'} "
+                              f"[citation introuvable dans la scène]")
+                continue
+            confirme, mc = _confirm(questions[n - 1], scene)
+            metrics.append(mc)
+            if confirme:
+                violations.setdefault(n, []).append((i, citation))
+            else:
+                doutes.append(f"    fait {n}, scène {i} : « {citation} » "
+                              f"[non confirmé au contre-appel]")
+
+    lignes: list[str] = []
+    for n, fait in enumerate(facts, 1):
+        if not questions[n - 1]:
+            lignes.append(f"FAIT {n} : NON VÉRIFIÉ (pas de question) — {fait}")
+        elif n in violations:
+            ou = ", ".join(f"scène {i}" for i, _ in violations[n])
+            lignes.append(f"FAIT {n} : CONTREDIT ({ou}) — {fait}")
+            lignes.extend(f"    → scène {i} : « {c} »" for i, c in violations[n])
+        else:
+            lignes.append(f"FAIT {n} : tenu — {fait}")
+
+    if doutes:
+        lignes.append("")
+        lignes.append("[signalements écartés faute de citation vérifiable :]")
+        lignes.extend(doutes)
+    if muettes:
+        lignes.append("")
+        lignes.append("[scènes sans réponse exploitable (dérive du "
+                      "vérificateur) : "
+                      + ", ".join(str(i) for i in muettes) + "]")
+    return "\n".join(lignes), metrics

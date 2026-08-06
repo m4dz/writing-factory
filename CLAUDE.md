@@ -97,7 +97,7 @@ podman-compose.yml        # openwebui + chromadb + indexer (profil tools)
 - [x] podman-compose : ChromaDB (port 8000) + indexeur (profil tools)
 - [x] Indexeur idempotent testé (parsing/chunking validés hors connexion)
 - [x] query_test.py pour valider le retrieval
-- [x] Validation sur machine réelle (Ollama 0.0.0.0:11434 + ChromaDB) :
+- [x] Validation sur machine réelle (Ollama 127.0.0.1:11434 + ChromaDB) :
       connectivité conteneur→Ollama OK sans `--add-host`, embeddings 768d,
       index/query/purge/persistance validés. Bug purge sur bible vide corrigé.
 - [~] Peupler le premier personnage principal : fiches SCAFFOLD temporaires
@@ -112,7 +112,23 @@ podman-compose.yml        # openwebui + chromadb + indexer (profil tools)
 - [x] Modèle QA/lint tranché : **Qwen 2.5 7B** (benchmark, cf. section Modèles),
       phase POST-génération (swap nemo→Qwen unique, ~26 tok/s).
       * `repair()` : réécrit les fuites d'anglais de nemo → VALIDÉ, lint propre.
-      * cohérence par faits : EN COURS, voir Prochaine étape.
+      * cohérence par faits : VALIDÉ sur fixture (protocole faits → questions
+        de violation → réponses par scène, cf. Notes d'architecture). ~21 s
+        pour 5 faits × 4 scènes.
+- [x] **Run bout-en-bout post-correctifs (2026-08-06, 12 h 15)** : machine
+      redémarrée, agent launchd en place, `NUM_CTX=8192`. Chapitre 3 scènes,
+      17 appels, 8855 tokens, **877 s (14,6 min)** — sous les 25 min. Aucun
+      `ctx_truncated`, aucun `done_reason: length`, `ctx_need` plafonne à 0,60 :
+      la fenêtre de 8192 est confortable, la troncature silencieuse est bien
+      éteinte. **Zéro fuite d'anglais** — la conclusion « nemo leake » du
+      benchmark était donc au moins en partie un artefact de `num_ctx=4096`
+      implicite. Un seul défaut de génération (token collé
+      `confessionUnexpected`), réparé par Qwen. Cohérence : 4 faits tenus,
+      3 signalements tous écartés par le contre-appel ou la vérification de
+      citation — aucun faux positif n'est passé. Mémoire : nemo 13,1 GB +
+      embed 0,4 GB chauds pendant l'écriture, `unload()` confirmé au passage
+      QA (Qwen 4,8 GB seul). Swap monté à 8 GB alloués / 600 MB libres sans
+      incident, disque à 217 GB : aucune panique.
 - [ ] Mode acteur (roleplay) + mémoire conversationnelle rolling summary
 - [ ] Intégration frontend (OpenWebUI via pipelines, ou interface dédiée —
       non tranché)
@@ -120,56 +136,147 @@ podman-compose.yml        # openwebui + chromadb + indexer (profil tools)
 
 ## Prochaine étape convenue
 
-**Cohérence par faits (nœud `coherence_node`, Qwen) : NE MARCHE PAS ENCORE.**
-Sur un CHAPITRE COMPLET (~2000 mots), Qwen-7B dérive systématiquement vers la
-critique d'atelier littéraire (« voici des suggestions… », réécrit la scène)
-au lieu de rendre les verdicts `FAIT n : OUI/NON`. Trois formulations testées
-(strict, appel groupé, few-shot avec exemple) N'ONT PAS renversé ce biais. Le
-garde-fou détecte la non-conformité et l'ignore proprement (pas de pollution),
-mais on n'a pas de vraie analyse de cohérence.
+Cohérence réglée (2026-08-06). Chantiers restants, par ordre d'urgence
+pour la scène :
 
-Diagnostic ferme : c'est la **longueur de l'entrée** qui bascule Qwen en mode
-éditeur. Le benchmark isolé (`derive_facts`/`check_facts`) tenait le format sur
-une entrée COURTE. → **Fix suivant à implémenter : vérifier fait par SCÈNE**
-(entrées courtes, condition prouvée) et non sur le chapitre entier. Logique :
-un fait n'est violé que si une scène le CONTREDIT (non-mentionné = OK, évite les
-faux NON). ~4 appels courts, Qwen rapide. Voir `qa.py::check_facts` à adapter.
-
-Autres chantiers ouverts : mode acteur + mémoire rolling summary, frontend,
-habillage démo (compte à rebours). Et peupler le canon (fiches réelles) en
-remplacement des SCAFFOLD.
+1. **Mode acteur (roleplay)** + mémoire conversationnelle à deux niveaux
+   (N derniers échanges + rolling summary indexé, taggé par personnage).
+2. **Habillage démo** : compte à rebours, affichage de progression du graphe.
+3. **Frontend** (OpenWebUI via pipelines ou interface dédiée — non tranché).
+4. **Peupler le canon** : remplacer les fiches SCAFFOLD par les fiches réelles.
+5. **Stabilité machine** (crashes pendant les runs) — cf. Points de vigilance ;
+   c'est le vrai risque jour J, un backend qui tombe à la 12ᵉ minute.
 
 ## Notes d'architecture (orchestrateur)
 
 - `orchestrator/` tourne en **venv host** (pas conteneur) pour l'itération
   rapide ; conteneurisation = étape packaging démo. Joint Ollama et ChromaDB
   en `localhost`.
+- **Cohérence (`qa.py`) : faits → QUESTIONS DE VIOLATION → réponses par scène.**
+  Trois échecs ont dicté ce protocole. (a) Vérifier sur le chapitre entier
+  (~2000 mots) fait basculer Qwen en critique d'atelier. (b) Un binaire
+  OUI/NON range le « non mentionné » dans NON → faux positifs partout ; une
+  étiquette ABSENT aide mais ne suffit pas. (c) Classer un fait ABSTRAIT, et
+  surtout NÉGATIF (« Élara ignore que… », « Kael n'avoue jamais »), reste hors
+  de portée d'un 7B : il a lu l'aveu complet de Kael et l'a classé CONFORME au
+  fait « Élara ignore ». C'est de l'inférence (entailment), pas de la lecture.
+  → On convertit chaque fait en question d'événement dont le OUI vaut
+  violation (« Le texte montre-t-il Élara découvrant que… ? »), puis on la pose
+  scène par scène. Répondre « ce texte montre-t-il X ? » EST de la lecture.
+  Chaque OUI doit citer le texte, et le CODE vérifie que la citation s'y trouve
+  vraiment (le modèle recopie parfois le fait au lieu de la scène) ; sinon le
+  signalement est relégué en « à vérifier à la main », jamais compté comme
+  violation. Deux filtres complètent le dispositif, tous deux nés de faux
+  positifs observés sur un vrai chapitre : (i) `derive_facts` exclut
+  explicitement l'ÉTAT TRANSITOIRE des fiches (« vient d'arriver à… »,
+  objectif immédiat, émotion du moment) — ce sont justement les choses que le
+  chapitre doit faire évoluer, les vérifier revient à sanctionner le récit
+  d'avancer ; (ii) chaque OUI subit un CONTRE-APPEL (`_confirm`) qui repose la
+  question SEULE, en mode sévère, réponse en un mot — le questionnaire groupé
+  dilue l'attention et produit des OUI complaisants (« comptant mentalement
+  les pierres » lu comme une délégation de tâche). Coût : ~8 s. Leçon
+  générale, réutilisable pour le mode acteur : donner au petit modèle une
+  tâche de LECTURE, jamais d'INFÉRENCE.
 - Retrieval à deux stratégies (`retrieval.py`) : DÉTERMINISTE par id pour les
   chunks d'écriture des personnages présents (voix, état courant, psychologie),
   SÉMANTIQUE top-k pour lieu et scènes précédentes.
-- Le service Ollama (brew) est régénéré au `brew services start` : les vars
-  `OLLAMA_HOST=0.0.0.0` (accès conteneur) et `OLLAMA_MAX_LOADED_MODELS=2`
-  (éviter le swap nemo↔embed) ne persistent pas dans le plist. Sans elles,
-  l'indexeur conteneur ne joint pas Ollama, et l'orchestrateur swappe les
-  modèles à chaque nœud (mitigé par un timeout embed large de 180s).
+- **Ollama écoute sur `127.0.0.1` SEULEMENT** (`scripts/local.ollama.plist`,
+  2026-08-06). On a longtemps cru que l'indexeur conteneurisé imposait
+  `0.0.0.0` : faux avec podman 5 (applehv + gvproxy).
+  `host.containers.internal` résout vers `192.168.127.254`, qui n'est pas une
+  interface de l'hôte mais gvproxy lui-même ; gvproxy compose ensuite la
+  connexion DEPUIS l'hôte et atteint donc le loopback. Vérifié de bout en
+  bout : hôte 200, LAN `192.168.6.17:11434` refusé, conteneur → `/api/embed`
+  768 dims OK. Enjeu réel : sur le WiFi de la conférence, `0.0.0.0` exposait
+  l'API Ollama sans authentification à tout le réseau.
+- Le service Ollama de brew est régénéré au `brew services start`, ce qui
+  efface les vars ajoutées à la main — d'où l'agent launchd du projet. Ne pas
+  revenir à `brew services` (les deux agents se disputeraient le port 11434,
+  celui de brew ayant `RunAtLoad`).
 
 ## Points de vigilance connus
 
+- **Le nœud de planification ne reçoit PAS les faits de la bible** (constaté au
+  run du 2026-08-06). Il a planifié un chapitre où Élara découvre le
+  détournement de Kael, alors que le fait 3 dit « Kael redoute qu'Élara
+  découvre les registres ». Formulé comme une crainte de Kael, le fait n'est
+  pas violé, et la cohérence a eu raison de valider — mais c'est un coup de
+  chance de formulation. Le plan peut torpiller la bible en amont, et la phase
+  de cohérence arrive après 14 minutes de rédaction : elle constate, elle ne
+  prévient pas. Piste : passer les faits (`derive_facts`) comme CONTRAINTES au
+  prompt de plan, puis vérifier le plan (3 lignes, une seconde de Qwen) avant
+  d'écrire une seule scène.
+- Le rapport de lint mélangeait les alertes d'écriture/relecture (état AVANT
+  réparation) avec ce qui subsiste réellement. Corrigé dans `run_chapter.py` —
+  ne pas régresser : sur scène, une alerte périmée se lit comme une panne.
+- Sortie de `run_chapter.py` bufferisée dès qu'on redirige (`> run.log`) : le
+  log reste à 0 octet pendant les 15 minutes de génération. Lancer avec
+  `python -u` pour suivre en direct — et c'est le vrai sujet de l'habillage
+  démo (progression du graphe, compte à rebours).
+
 - `host.containers.internal` peut nécessiter `--add-host=...:host-gateway`
-  selon la version de Podman.
+  selon la version de Podman. Inutile ici : podman 5.7.1 le résout tout seul
+  vers gvproxy (`192.168.127.254`), vérifié sur cette machine.
 - Le chemin de persistance de l'image ChromaDB varie selon les versions
   (`/data` vs `/chroma/chroma`) — vérifier que les données survivent à un
   restart.
 - Budget temps de la démo : profiler tôt la génération complète d'un
   chapitre sur la machine de scène. C'est LA contrainte dure du projet.
-- **Stabilité machine** : plusieurs crashes du MacBook pendant les runs
-  (session dev), qui vident `/tmp` et coupent Ollama/ChromaDB. Sur un backend
-  jour J censé tourner ~35 min sans surveillance, c'est un risque à investiguer
-  (thermique ? pression mémoire du modèle 13 GB ?) AVANT la scène.
+- **Stabilité machine — ÉLUCIDÉ (2026-08-06).** Les crashes en session de
+  tests étaient des kernel panics `watchdog timeout: no checkins from
+  watchdogd in 91 seconds`. Cause racine : **disque à 99 % (6 GB libres)**,
+  donc macOS incapable d'agrandir le swap (`13 swapfiles and LOW swap space`
+  dans le paniclog) sous la pression d'un modèle de 13 GB sur 18 GB unifiés.
+  Le pageout stalle, watchdogd n'est plus ordonnancé, panic. Ce n'est ni
+  thermique ni un bug Ollama. Correctifs appliqués :
+  * Purge disque : 9 GB → 127 GB libres (LM Studio 52 GB supprimé, cache
+    HuggingFace 18 GB, 5 modèles Ollama inutilisés 54 GB). `~/.ollama` = 31 GB,
+    strictement les 4 modèles du projet.
+  * `orchestrator/preflight.py` : refuse de démarrer si disque < 20 GB, si 2+
+    LLM sont chauds simultanément (`/api/ps`), ou si le swap est saturé ET le
+    disque sous 40 GB. Branché dans `run_chapter.py`, contournable par
+    `--skip-preflight` (dev only). Deux subtilités apprises à l'usage :
+    (i) un swap saturé n'est mortel que si le disque ne permet plus de
+    l'agrandir — c'est la CONJONCTION qui a fait paniquer la machine, donc la
+    saturation seule n'est qu'un avertissement ; (ii) après un redémarrage
+    macOS n'a alloué AUCUN swapfile, `total = free = 0` — ne regarder que
+    `free` faisait conclure « swap saturé, redémarrez » juste après un
+    redémarrage. On lit donc `total` autant que `free`.
+  * `scripts/local.ollama.plist` : agent launchd du projet, remplace
+    `brew services`. Fixe `OLLAMA_MAX_LOADED_MODELS=2` (sans quoi Ollama
+    autorise 3 modèles chauds = 27+ GB demandés) et `OLLAMA_NUM_PARALLEL=1`.
+  * Fait (2026-08-06, 12 h) : redémarrage effectué (swap remis à zéro), agent
+    launchd installé et vérifié (`launchctl print gui/501/local.ollama` montre
+    bien les cinq variables), `brew services` désactivé. Préflight vert :
+    217 GB libres, aucun swapfile, aucun LLM chaud.
+  * Le ménage disque a emporté `orchestrator/.venv` : il se recrée en une
+    minute (`python3 -m venv orchestrator/.venv` + `pip install -r
+    orchestrator/requirements.txt`). Le volume `data/chromadb` a survécu
+    (collection `bible`, 8 chunks), le conteneur se rallume par
+    `podman start stackfictionalwriting_chromadb_1`.
+- **`num_ctx` était implicite à 4096** (`llm.py` ne le passait pas). Or un
+  appel d'écriture pèse 2-3k tokens de prompt + 1400 générés → jusqu'à 4400.
+  Au dépassement, Ollama fait GLISSER la fenêtre et ampute le DÉBUT du prompt
+  système, c'est-à-dire `FRENCH_GUARD` puis les faits de la bible — sans
+  aucune erreur. **Piste sérieuse pour les fuites d'anglais et les ratés de
+  cohérence attribués à nemo.** Corrigé : `NUM_CTX=8192` explicite.
+  À VÉRIFIER au prochain run : si les fuites disparaissent, la conclusion
+  « nemo leake » du benchmark est à réviser.
+  * ⚠ `ctx_fill` (= `prompt_eval_count / num_ctx`) **ne peut pas** servir
+    d'alarme : Ollama tronque PUIS ne rapporte que ce qu'il a évalué, donc le
+    ratio est plafonné à 1 par construction. Vérifié : prompt de ~3800 tokens
+    envoyé avec `num_ctx=512` → `prompt_eval_count: 258`, `ctx_fill 0.54`.
+    Les deux signaux fiables, désormais dans les métriques : `ctx_need`
+    (estimation client du prompt + `num_predict`, sur `num_ctx`) et
+    `ctx_truncated` (Ollama dit avoir lu < 75 % de ce qu'on a envoyé).
+- **Déchargement de nemo au passage écriture → QA** (`llm.unload()`, appelé
+  par `repair_node`). `OLLAMA_MAX_LOADED_MODELS=2` AUTORISE nemo (13 GB) +
+  Qwen (4,8 GB) chauds ensemble = 17,8 GB sur 19,3 GB : la limite compte les
+  modèles, pas les gigaoctets, et 2 modèles suffisent à recréer la pression
+  qui a fait paniquer la machine. nemo n'a plus rien à produire à ce stade.
 - Après un `brew services start ollama`, le plist est régénéré : les vars
-  `OLLAMA_HOST=0.0.0.0` / `OLLAMA_MAX_LOADED_MODELS=2` ajoutées manuellement
-  sautent (bind repasse à 127.0.0.1). L'orchestrateur en venv host s'en moque
-  (localhost), mais l'indexeur CONTENEUR non → à re-régler pour la démo.
+  ajoutées manuellement sautent (bind repasse à 127.0.0.1). C'est la raison
+  d'être de `scripts/local.ollama.plist` — ne pas revenir à `brew services`.
 
 ## Style de travail du propriétaire
 

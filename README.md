@@ -68,10 +68,14 @@ L'indexation est idempotente : chunks mis à jour, chunks orphelins purgés.
 
 - **L'indexeur ne joint pas Ollama** : vérifier que
   `host.containers.internal` résout depuis un conteneur
-  (`podman run --rm alpine ping -c1 host.containers.internal`). Selon la
+  (`podman run --rm alpine getent hosts host.containers.internal`). Selon la
   version de Podman, il faut parfois ajouter
-  `--add-host=host.containers.internal:host-gateway` ou utiliser
-  l'IP de la machine.
+  `--add-host=host.containers.internal:host-gateway`.
+  En revanche, **ne pas** binder Ollama sur `0.0.0.0` pour régler ça : avec
+  podman 5 (gvproxy), le nom résout vers `192.168.127.254` et gvproxy compose
+  la connexion depuis l'hôte, donc un Ollama sur `127.0.0.1` est parfaitement
+  joignable. Ouvrir sur toutes les interfaces exposerait l'API sans
+  authentification au réseau local.
 - **ChromaDB ne persiste pas** : selon la version de l'image, le répertoire
   de persistance peut être `/data` ou `/chroma/chroma`. Le compose fixe
   `PERSIST_DIRECTORY=/data` ; si les données disparaissent au redémarrage,

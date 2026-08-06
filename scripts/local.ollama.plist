@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Agent launchd Ollama appartenant au projet.
+
+  Pourquoi ne pas utiliser `brew services` : brew RÉGÉNÈRE son plist à chaque
+  `brew services start`, ce qui efface les variables d'environnement ajoutées
+  à la main. On l'a constaté deux fois (OLLAMA_HOST repassé à 127.0.0.1, donc
+  indexeur conteneur incapable de joindre Ollama). Sur une machine de scène,
+  une config qui saute au redémarrage n'est pas une config.
+
+  Installation :
+    brew services stop ollama
+    cp scripts/local.ollama.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.ollama.plist
+
+  Vérification :
+    launchctl print gui/$(id -u)/local.ollama | grep -A8 environment
+
+  Désinstallation :
+    launchctl bootout gui/$(id -u)/local.ollama
+    rm ~/Library/LaunchAgents/local.ollama.plist
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>local.ollama</string>
+
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/homebrew/opt/ollama/bin/ollama</string>
+		<string>serve</string>
+	</array>
+
+	<key>EnvironmentVariables</key>
+	<dict>
+		<!-- LOOPBACK SEUL. On a longtemps cru que l'indexeur conteneurisé
+		     imposait 0.0.0.0 : c'est faux avec podman 5 (applehv + gvproxy).
+		     host.containers.internal résout vers 192.168.127.254, qui n'est
+		     pas une interface de l'hôte mais gvproxy lui-même ; gvproxy
+		     compose ensuite la connexion DEPUIS l'hôte, donc il atteint le
+		     loopback. Vérifié : serveur hôte bindé 127.0.0.1 uniquement,
+		     joint depuis un conteneur en HTTP 200.
+		     Enjeu : sur le WiFi de la conférence, 0.0.0.0 exposait l'API
+		     Ollama sans authentification à tout le réseau. -->
+		<key>OLLAMA_HOST</key>
+		<string>127.0.0.1</string>
+
+		<!-- LE réglage critique. Par défaut Ollama garde jusqu'à 3 modèles
+		     chauds : nemo 13 GB + mistral-small 14 GB dépassent les 18 GB de
+		     mémoire unifiée, la machine part en swap et panique (watchdog
+		     timeout observé). 2 = un LLM + nomic-embed (370 MB), pas plus. -->
+		<key>OLLAMA_MAX_LOADED_MODELS</key>
+		<string>2</string>
+
+		<!-- Un seul slot de génération concurrent : chaque slot duplique le
+		     KV cache. Le pipeline est séquentiel de toute façon. -->
+		<key>OLLAMA_NUM_PARALLEL</key>
+		<string>1</string>
+
+		<key>OLLAMA_FLASH_ATTENTION</key>
+		<string>1</string>
+
+		<!-- KV cache quantifié : divise par ~2 le coût mémoire du contexte,
+		     ce qui rend NUM_CTX=8192 abordable (cf. orchestrator/llm.py). -->
+		<key>OLLAMA_KV_CACHE_TYPE</key>
+		<string>q8_0</string>
+	</dict>
+
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+
+	<key>StandardOutPath</key>
+	<string>/opt/homebrew/var/log/ollama.log</string>
+	<key>StandardErrorPath</key>
+	<string>/opt/homebrew/var/log/ollama.log</string>
+	<key>WorkingDirectory</key>
+	<string>/opt/homebrew/var</string>
+</dict>
+</plist>

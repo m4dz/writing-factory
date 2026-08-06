@@ -16,7 +16,7 @@ from typing import TypedDict
 
 from langgraph.graph import StateGraph, START, END
 
-from llm import chat
+from llm import chat, unload
 from retrieval import assemble_system_prompt
 from style import delint
 from qa import repair, derive_facts, check_facts
@@ -167,10 +167,16 @@ def repair_node(state: ChapterState) -> dict:
     par nemo, phrase par phrase, sans toucher au sens ni au style.
 
     C'est ici qu'Ollama bascule du modèle auteur (nemo) au modèle QA (Qwen) —
-    un seul swap pour toute la phase QA qui suit."""
+    un seul swap pour toute la phase QA qui suit. On décharge nemo AVANT :
+    nemo (13 GB) + Qwen (4,8 GB) chauds ensemble, c'est 17,8 GB sur 19,3 GB,
+    exactement la pression mémoire qui a fait paniquer la machine. nemo n'a
+    plus rien à produire à ce stade."""
     repaired: list[str] = []
     metrics = list(state["metrics"])
     warns = list(state["warnings"])
+    if not unload():
+        warns.append("QA : déchargement de nemo refusé par Ollama (co-résidence "
+                     "nemo + Qwen, pression mémoire)")
     for i, scene in enumerate(state["reviewed"]):
         text, m = repair(scene)
         metrics.append(m)
@@ -185,29 +191,23 @@ def repair_node(state: ChapterState) -> dict:
 
 
 def coherence_node(state: ChapterState) -> dict:
-    """Cohérence FAIT PAR FAIT (Qwen) : dérive les faits structurants des
-    fiches, puis vérifie chacun contre le chapitre en un appel dédié — bien
-    plus fiable que la critique ouverte multi-faits (où nemo hallucinait).
+    """Cohérence par FAITS (Qwen) : dérive les faits structurants des fiches,
+    puis les vérifie SCÈNE PAR SCÈNE avant d'agréger.
+
+    Le découpage par scène n'est pas cosmétique : sur le chapitre entier, Qwen
+    bascule en critique d'atelier (suggestions, réécriture) et ne rend plus les
+    verdicts. Sur une entrée courte, il tient le format. Et un fait n'est violé
+    que si une scène le CONTREDIT — le non-mentionné n'est pas une faute.
     C'est la « strate 4 » finale montrée sur scène."""
     metrics = list(state["metrics"])
-    chapitre = "\n\n".join(state["repaired"])
 
     facts, mf = derive_facts(state["characters"])
     metrics.append(mf)
     if not facts:
         return {"coherence": "Aucun fait dérivé de la bible.", "metrics": metrics}
 
-    rapport, mc = check_facts(facts, chapitre)
-    metrics.append(mc)
-    # Garde-fou : si le vérificateur n'a pas produit de lignes « FAIT … »,
-    # il a dérivé (critique d'atelier, réécriture) — on ne laisse pas passer.
-    conformes = [l for l in rapport.splitlines() if re.match(r"\s*FAIT\s*\d", l, re.I)]
-    if not conformes:
-        rapport = ("[nœud cohérence : sortie non conforme au format de "
-                   "vérification, ignorée]\nFaits soumis :\n"
-                   + "\n".join(f"  - {f}" for f in facts))
-    else:
-        rapport = "\n".join(conformes)
+    rapport, mc = check_facts(facts, state["repaired"])
+    metrics.extend(mc)
     return {"coherence": rapport, "metrics": metrics}
 
 
