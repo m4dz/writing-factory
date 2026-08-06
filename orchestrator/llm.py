@@ -70,12 +70,35 @@ def chat(
     Les métriques (tok/s génération, prefill, durée) servent le compte à
     rebours et le profilage de la contrainte des 25 minutes de scène.
     """
+    return chat_turns(
+        system, [{"role": "user", "content": user}],
+        model=model, temperature=temperature, num_predict=num_predict,
+        num_ctx=num_ctx, timeout=timeout,
+    )
+
+
+def chat_turns(
+    system: str,
+    turns: list[dict],
+    *,
+    model: str = AUTHOR_MODEL,
+    temperature: float = 0.8,
+    num_predict: int = 1200,
+    num_ctx: int = NUM_CTX,
+    timeout: float = 900.0,
+) -> tuple[str, dict]:
+    """Chat MULTI-TOURS : `turns` est une liste de {role, content} déjà ordonnée.
+
+    Nécessaire pour le mode acteur, où le modèle doit voir l'échange en cours
+    comme un dialogue et non comme un bloc de texte reformaté. La garde
+    française est prépendue au système, comme partout ailleurs.
+    """
     payload = json.dumps(
         {
             "model": model,
             "messages": [
                 {"role": "system", "content": f"{FRENCH_GUARD}\n\n{system}"},
-                {"role": "user", "content": user},
+                *turns,
             ],
             "stream": False,
             "options": {
@@ -109,7 +132,9 @@ def chat(
     # 3,3 caractères par token : calibré contre le compte réel d'Ollama sur un
     # prompt français de 4065 tokens (chars/3.5 le sous-estimait de 6 %, et
     # une estimation basse est le mauvais sens de l'erreur pour une alarme).
-    est = int((len(FRENCH_GUARD) + len(system) + len(user) + 8) / 3.3)
+    # ~8 caractères de balisage de rôle par message (`<|im_start|>user\n`…).
+    corps = sum(len(t.get("content", "")) + 8 for t in turns)
+    est = int((len(FRENCH_GUARD) + len(system) + corps + 8) / 3.3)
     metrics = {
         "wall_s": round(wall, 1),
         "gen_toks": ec,

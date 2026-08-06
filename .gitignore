@@ -4,3 +4,10 @@ __pycache__/
 *.pyc
 # Environnement virtuel de l'orchestrateur (dev host, non versionné)
 orchestrator/.venv/
+
+# Souvenirs de sessions de roleplay : Markdown canonique pour la MACHINE qui les
+# a produits, pas canon partagé du récit. Ils naissent d'une conversation locale
+# et sont réindexables à volonté. Si l'un d'eux devient de la vérité du monde, sa
+# place est dans bible/, pas ici.
+sessions/*/
+!sessions/.gitkeep

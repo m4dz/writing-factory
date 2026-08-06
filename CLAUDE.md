@@ -197,23 +197,51 @@ podman-compose.yml        # openwebui + chromadb + indexer (profil tools)
         en `length`** : nemo émet parfois son EOS en pleine phrase. Le filet est
         donc utile hors troncature, mais il retirait du texte sans dire lequel —
         corrigé, l'avertissement cite désormais l'extrait supprimé.
-- [ ] Mode acteur (roleplay) + mémoire conversationnelle rolling summary
+- [x] **Mode acteur (roleplay) — première version (2026-08-07).**
+      `orchestrator/roleplay.py` (module) + `chat_character.py` (REPL).
+      `llm.chat_turns()` ajouté pour le multi-tours ; `retrieval.acting_context`
+      charge SIX chunks (voix, psychologie, état courant, histoire, relations,
+      comportement) là où l'écriture n'en charge que trois — un acteur se fait
+      interroger sur son passé, et « je ne sais pas » sur sa propre biographie
+      EST une sortie de personnage. Prompt système ~3,5k caractères, `ctx_need`
+      plafonne à 0,19 : large marge.
+      * **Aucun swap de modèle en session** : le résumé glissant est produit par
+        nemo, pas par Qwen. L'arbitrage est l'INVERSE du pipeline auteur — là,
+        un swap unique se paie sur vingt minutes ; ici, l'utilisateur attend sa
+        réponse, recharger 13 GB au milieu d'un dialogue coûterait plus que tout
+        le reste.
+      * Mémoire à deux niveaux : N derniers échanges verbatim (`RP_KEEP_TURNS`,
+        6 par défaut), le surplus fondu dans un résumé glissant. À la fermeture,
+        le résumé est écrit en Markdown sous `sessions/<personnage>/` PUIS indexé
+        dans une collection Chroma **séparée** (`sessions`). Séparée parce que
+        l'indexeur de la bible purge les chunks orphelins : un souvenir logé
+        dans `bible` disparaîtrait au premier réindexage. Le sens du flux du
+        projet (Markdown d'abord, index dérivé) vaut aussi pour la mémoire.
+      * Coût mesuré : 10-18 s par réplique (~90-140 tokens), 36 s quand une
+        reprise se déclenche. Session de 7 tours + résumés : 160 s.
+      * `sessions/*/` est gitignoré : ces souvenirs sont canoniques pour la
+        machine qui les a produits, pas pour le récit partagé. Ce qui devient
+        vérité du monde a sa place dans `bible/`.
+- [ ] Peupler le canon : remplacer les fiches SCAFFOLD par les fiches réelles
 - [ ] Intégration frontend (OpenWebUI via pipelines, ou interface dédiée —
       non tranché)
 - [ ] Habillage démo : compte à rebours, affichage de la progression
 
 ## Prochaine étape convenue
 
-Cohérence réglée, puis contrainte du plan par les faits (2026-08-06).
-Chantiers restants, par ordre d'urgence pour la scène :
+Mode auteur bouclé et mesuré (17,0 min), mode acteur en première version
+(2026-08-07). Chantiers restants, par ordre d'urgence pour la scène :
 
-1. **Mode acteur (roleplay)** + mémoire conversationnelle à deux niveaux
-   (N derniers échanges + rolling summary indexé, taggé par personnage).
-2. **Habillage démo** : compte à rebours, affichage de progression du graphe.
+1. **Habillage démo** : compte à rebours, affichage de progression du graphe.
+   C'est ce que le public regarde pendant les dix-sept minutes de génération, et
+   aujourd'hui il n'y a RIEN à voir — la sortie n'arrive qu'à la fin.
+2. **Répétition en conditions réelles**, machine au repos, run au premier plan.
+   C'est là qu'on saura si 3-4 scènes est le bon calibre et si la marge tient.
 3. **Frontend** (OpenWebUI via pipelines ou interface dédiée — non tranché).
 4. **Peupler le canon** : remplacer les fiches SCAFFOLD par les fiches réelles.
-5. **Stabilité machine** (crashes pendant les runs) — cf. Points de vigilance ;
-   c'est le vrai risque jour J, un backend qui tombe à la 12ᵉ minute.
+   Tout ce qui est validé jusqu'ici tourne sur du contenu jetable.
+5. **Mode acteur, deuxième passe** : mémoire longue à l'épreuve de plusieurs
+   sessions, et gestion des anachronismes (cf. Points de vigilance).
 
 ## Notes d'architecture (orchestrateur)
 
@@ -295,6 +323,32 @@ Chantiers restants, par ordre d'urgence pour la scène :
   qu'avec un disque plein ») : macOS agrandit bel et bien le swap, mais une
   machine qui vit sur son swap n'est pas une machine sur laquelle on chronomètre
   une démo.
+- **LE PROMPT NE SUFFIT PAS À TENIR UN PERSONNAGE (2026-08-07).** Premier test
+  du mode acteur, avec des interdits explicites et nommés dans le prompt système
+  (« tu ne mentionnes jamais l'intelligence artificielle, un modèle, un
+  prompt ») : nemo a répondu **« je suis simplement un programme informatique
+  conçu pour simuler des conversations »** à trois questions de provocation sur
+  sept. Deux enseignements et un piège :
+  * Ma propre consigne ouvrait la porte : « tu ne comprends pas la question et
+    tu le dis à ta manière » invite littéralement « je ne comprends pas cette
+    question », qui est l'amorce du registre assistant. Les tournures
+    d'assistant sont maintenant interdites NOMMÉMENT.
+  * Le remède qui marche est le même que partout ailleurs ici : un garde-fou
+    dans le CODE. `hors_role()` détecte les marqueurs, `say()` relance UNE fois
+    en citant la faute au modèle, et une réplique encore fautive est rendue à
+    l'écran mais **exclue de la mémoire**. Résultat : zéro sortie de personnage
+    sur les mêmes provocations.
+  * **Le piège, c'est la mémoire.** Au premier test, le résumé glissant a
+    enregistré l'aveu (« car elle est une intelligence artificielle ») et
+    l'aurait rechargé à chaque session suivante : une sortie de rôle non filtrée
+    ne fait pas un incident, elle fait une CROYANCE persistante du personnage.
+  * Donner des exemples de répliques les fait RECOPIER mot pour mot (deux
+    spectateurs posant la même question obtenaient la même ligne scriptée) : les
+    exemples sont désormais formulés comme des attitudes, pas comme du texte.
+  * Limites qui restent : le modèle ne comprend pas vraiment un anachronisme, il
+    improvise autour ; et il lui arrive de prononcer le mot inconnu
+    (« je n'ai que faire des smartphones »). Le personnage tient, sa
+    compréhension est approximative.
 - **Le lint doit s'appliquer AUSSI au plan**, pas seulement à la prose (leçon
   du run 2 : le token collé `maisonly` est passé du plan au brief de la scène 4,
   donc au prompt d'écriture). La réparation par Qwen n'arrive qu'en fin de

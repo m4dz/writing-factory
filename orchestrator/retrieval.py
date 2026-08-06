@@ -30,6 +30,22 @@ COLLECTION = os.environ.get("CHROMA_COLLECTION", "bible")
 # sans servir la rédaction immédiate d'une scène.
 WRITING_SECTIONS = ["voix_et_expression", "etat_narratif_courant", "psychologie"]
 
+# Chunks qui comptent pour INCARNER un personnage (mode acteur). La liste est
+# plus large que celle d'écriture, et ce n'est pas une négligence : écrire une
+# scène n'exige pas la biographie du personnage, alors qu'un interlocuteur lui
+# posera des questions sur son passé et ses proches. Répondre « je ne sais pas »
+# à propos de sa propre histoire EST une sortie de personnage.
+ACTING_SECTIONS = [
+    "voix_et_expression", "psychologie", "etat_narratif_courant",
+    "histoire", "relations", "comportement_et_presentation",
+]
+
+# Mémoire de conversation du mode acteur. Collection SÉPARÉE de `bible` : la
+# bible est dérivée du Markdown canonique et l'indexeur y purge les chunks
+# orphelins, ce qui effacerait une mémoire de session au premier réindexage.
+# Le sens du flux reste le même — Markdown d'abord (sessions/), index ensuite.
+SESSIONS_COLLECTION = os.environ.get("CHROMA_SESSIONS", "sessions")
+
 _client = None
 
 
@@ -69,6 +85,47 @@ def character_context(doc_id: str) -> str:
     found = {i: d for i, d in zip(got["ids"], got["documents"])}
     blocks = [found[i] for i in ids if i in found]
     return "\n\n".join(blocks)
+
+
+def acting_context(doc_id: str) -> str:
+    """Chunks nécessaires pour INCARNER un personnage (cf. ACTING_SECTIONS)."""
+    ids = [f"{doc_id}::{section}" for section in ACTING_SECTIONS]
+    got = _chroma().get_collection(COLLECTION).get(ids=ids, include=["documents"])
+    found = {i: d for i, d in zip(got["ids"], got["documents"])}
+    return "\n\n".join(found[i] for i in ids if i in found)
+
+
+def sessions_collection():
+    """Collection de mémoire conversationnelle, créée à la demande.
+
+    `get_or_create` et non `get` : la première session d'un personnage ne peut
+    pas exiger qu'un indexeur soit passé avant elle.
+    """
+    return _chroma().get_or_create_collection(
+        SESSIONS_COLLECTION, metadata={"hnsw:space": "cosine"}
+    )
+
+
+def session_memories(doc_id: str, *, n: int = 3) -> list[str]:
+    """Résumés des dernières sessions de roleplay d'un personnage.
+
+    Récupérés par MÉTADONNÉE (doc_id) puis triés par horodatage décroissant, pas
+    par similarité : en début de session on ne sait pas encore de quoi on va
+    parler, donc « les plus récents » bat « les plus proches d'une requête »
+    qu'on n'a pas. Le retrieval sémantique reprend la main en cours de session.
+    """
+    try:
+        got = sessions_collection().get(
+            where={"doc_id": doc_id}, include=["documents", "metadatas"]
+        )
+    except Exception:      # collection absente ou Chroma muet : pas de mémoire
+        return []
+    paires = sorted(
+        zip(got.get("metadatas") or [], got.get("documents") or []),
+        key=lambda p: (p[0] or {}).get("horodatage", ""),
+        reverse=True,
+    )
+    return [doc for _, doc in paires[:n]]
 
 
 def semantic_context(query: str, *, doc_type: str, n: int = 3) -> list[str]:
