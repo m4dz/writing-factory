@@ -19,9 +19,12 @@ talk : une œuvre dont la fabrique est locale est inauditable.
 - La démo est lancée en début de talk et récoltée **~25 minutes** plus tard
   (budget abaissé de 35' à 25' — 2026-08-06) : la génération complète d'un
   chapitre (plan de scènes + rédaction) doit tenir dans ce budget sur un
-  MacBook Apple Silicon. État actuel : pipeline à ~17 min (run de référence 2026-08-06) → on passe
-  encore, mais la marge s'est resserrée, à surveiller (les mentions « / 35 min »
-  ailleurs dans ce fichier sont historiques).
+  MacBook Apple Silicon. État actuel : **17,0 min** au run de référence
+  (2026-08-06, 4 scènes, machine au repos, lancement au premier plan) → 8 min
+  de marge. Mais cette marge suppose une machine SANS entretien macOS en cours :
+  les deux runs lancés pendant `mediaanalysisd` ont dépassé 32 et 49 minutes.
+  Le vrai risque de scène est là, pas dans le pipeline (les mentions
+  « / 35 min » ailleurs dans ce fichier sont historiques).
 - Un compte à rebours est affiché pendant la génération.
 - Le pipeline montré sur scène : plan de scènes → écriture → relecture →
   cohérence (c'est la « strate 4 » du talk, LangGraph).
