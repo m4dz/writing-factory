@@ -16,19 +16,29 @@ Trois signaux, du plus déterminant au plus indicatif :
    swapfile. C'est la condition exacte du panic observé.
 2. SWAP — un swap déjà saturé signale une machine qui n'a pas digéré la
    session précédente. Un redémarrage est le seul remède (macOS ne rend pas
-   les swapfiles à chaud). C'est BLOQUANT, et ça ne l'a pas toujours été :
-   j'avais d'abord raisonné que la saturation n'était dangereuse qu'avec un
-   disque plein, puisque macOS peut sinon allouer un swapfile de plus. Il le
-   fait — et la machine se met à ramper au lieu de tomber. Mesuré au troisième
-   run d'affilée sans redémarrage : swap passé de 5 à 10 GB intégralement
-   consommé, 56 MB de RAM libre, `free_swap="0 B"` côté Ollama, et des trous de
-   quatre à huit MINUTES sans un seul appel, modèle chargé et inactif — le
-   processus attendait ses pages. Un chapitre qui déborde de 25 minutes parce
-   que la machine pagine est un échec de démo aussi net qu'un panic. Un run
-   par démarrage, donc.
-3. CO-RÉSIDENCE DE MODÈLES — deux LLM chauds (nemo 13 GB + small 14 GB) ne
+   les swapfiles à chaud). C'est BLOQUANT : un modèle de 13 GB sur 18 GB
+   unifiés n'a aucune marge sur une machine qui vit déjà sur son swap. Ça ne
+   l'a pas toujours été — j'avais d'abord raisonné que la saturation n'était
+   dangereuse qu'avec un disque plein, puisque macOS peut sinon allouer un
+   swapfile de plus. Il le fait, mais ce n'est pas une machine sur laquelle on
+   chronomètre une démo.
+
+3. ENTRETIEN macOS — le risque le plus concret, et le dernier trouvé. Deux runs
+   ont montré des trous de cinq à dix-huit MINUTES entre deux appels au modèle,
+   avec 0,8 s de CPU consommé en 49 minutes : le processus dormait. Cause :
+   `mediaanalysisd` à 197-227 % de CPU, réveillé par le redémarrage, contre un
+   processus de génération à `nice 5`. À noter, parce que je me suis trompé
+   d'abord : j'ai attribué ces trous à la pagination avant que le second run,
+   sur machine fraîche et swap vide, ne reproduise le même motif. Deux
+   symptômes simultanés ne font pas une cause.
+4. CO-RÉSIDENCE DE MODÈLES — deux LLM chauds (nemo 13 GB + small 14 GB) ne
    tiennent pas dans 18 GB. Sans `OLLAMA_MAX_LOADED_MODELS=2`, Ollama en
    autorise trois. L'API `/api/ps` dit l'état réel, elle ne ment pas.
+
+La pression mémoire est rapportée en plus, d'après le verdict de macOS lui-même
+(`kern.memorystatus_vm_pressure_level`) et non d'après un comptage de pages
+maison — cf. `_pressure_level`, où la première version alertait sur une machine
+parfaitement saine.
 """
 
 import json
@@ -46,16 +56,30 @@ OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 MIN_DISK_GB = float(os.environ.get("PREFLIGHT_MIN_DISK_GB", "20"))
 MIN_SWAP_FREE_GB = float(os.environ.get("PREFLIGHT_MIN_SWAP_FREE_GB", "2"))
 
-# RAM réellement disponible. En dessous, un run ne génère plus : il attend des
-# pages. Avertissement seulement — au moment du préflight, un modèle encore
-# chaud fait légitimement chuter ce chiffre.
-MIN_RAM_FREE_GB = float(os.environ.get("PREFLIGHT_MIN_RAM_FREE_GB", "2"))
+# Pression mémoire : on s'en remet au verdict de macOS (cf. _pressure_level),
+# pas à un comptage de pages maison. 1 = normal, 2 = warn, 4 = critique.
+PRESSURE_BLOCK = 4
 
 # Au-delà, un modèle chargé n'est plus un embedder mais un vrai LLM qui
 # dispute la mémoire au modèle auteur. nomic-embed pèse 370 MB.
 EMBED_SIZE_LIMIT_GB = 2.0
 
 DATA_VOLUME = "/System/Volumes/Data"
+
+# Démons d'entretien macOS qui se réveillent après un redémarrage ou une grosse
+# copie et monopolisent CPU, mémoire et disque pendant des dizaines de minutes.
+# Mesuré le 2026-08-06 : `mediaanalysisd` à 197 % de CPU (deux cœurs) pendant un
+# run, avec des trous de dix-sept minutes entre deux appels au modèle. Le
+# processus de génération, lancé en tâche de fond, tourne à `nice 5` : il perd
+# systématiquement l'arbitrage. C'est le risque de scène le plus concret —
+# la machine décide d'indexer la photothèque pendant la keynote.
+NOISY_DAEMONS = (
+    "mediaanalysisd", "photoanalysisd", "photolibraryd", "mdworker",
+    "mds_stores", "mds", "backupd", "cloudphotod", "corespotlightd",
+    "AssetCacheLocatorService", "syspolicyd",
+)
+DAEMON_WARN_CPU = float(os.environ.get("PREFLIGHT_DAEMON_WARN_CPU", "30"))
+DAEMON_BLOCK_CPU = float(os.environ.get("PREFLIGHT_DAEMON_BLOCK_CPU", "80"))
 
 
 class PreflightError(RuntimeError):
@@ -110,13 +134,35 @@ def _swap_gb() -> dict[str, float] | None:
     return values if {"total", "used", "free"} <= values.keys() else None
 
 
-def _ram_free_gb() -> float | None:
-    """RAM immédiatement disponible en Go, via `vm_stat`. None si illisible.
+def _pressure_level() -> int | None:
+    """Niveau de pression mémoire SELON macOS : 1 normal, 2 warn, 4 critique.
 
-    On somme les pages libres ET spéculatives (lecture anticipée, récupérables
-    sans coût). Les pages « inactive » sont volontairement EXCLUES : sur une
-    machine déjà en swap, les récupérer suppose de la pagination, c'est-à-dire
-    précisément l'attente qu'on cherche à détecter.
+    C'est le verdict du système lui-même (celui qui pilote jetsam), et il vaut
+    mieux que tout comptage de pages fait à la main. Première version de ce
+    contrôle : je sommais les pages « free + speculative » de `vm_stat` en
+    excluant « inactive », au motif que les récupérer suppose de la pagination.
+    Faux — l'essentiel des pages inactives sont du cache fichier PROPRE, que le
+    noyau libère sans rien écrire. Sur une machine fraîchement redémarrée et
+    parfaitement saine, ce calcul annonçait 0,45 GB disponibles quand macOS
+    rapportait 79 % de mémoire libre et une pression normale. Exactement le
+    piège du contrôle de swap : alerter juste après un redémarrage.
+    """
+    try:
+        out = subprocess.run(
+            ["sysctl", "-n", "kern.memorystatus_vm_pressure_level"],
+            capture_output=True, text=True, timeout=5, check=True,
+        ).stdout
+        return int(out.strip())
+    except (subprocess.SubprocessError, OSError, ValueError):
+        return None
+
+
+def _ram_available_gb() -> float | None:
+    """Mémoire récupérable sans pagination, en Go — chiffre INDICATIF du log.
+
+    Pages libres + spéculatives + inactives + purgeables. Sert à donner un ordre
+    de grandeur dans le rapport, pas à décider : c'est `_pressure_level` qui
+    tranche.
     """
     try:
         out = subprocess.run(
@@ -128,14 +174,47 @@ def _ram_free_gb() -> float | None:
     taille = re.search(r"page size of (\d+) bytes", out)
     if not taille:
         return None
-    page = int(taille.group(1))
     total = 0
-    for cle in ("Pages free", "Pages speculative"):
+    for cle in ("Pages free", "Pages speculative", "Pages inactive",
+                "Pages purgeable"):
         hit = re.search(rf"{cle}:\s+(\d+)", out)
-        if not hit:
-            return None
-        total += int(hit.group(1))
-    return total * page / 1e9
+        if hit:
+            total += int(hit.group(1))
+    return total * int(taille.group(1)) / 1e9
+
+
+def _busy_daemons() -> list[tuple[str, float]] | None:
+    """Démons d'entretien macOS actuellement gourmands. None si `ps` illisible.
+
+    Retourne [(nom, %cpu)] trié décroissant, pour les seuls processus de
+    `NOISY_DAEMONS` au-dessus du seuil d'avertissement. Le `%cpu` de `ps` est
+    une moyenne sur la vie du processus, pas un instantané : un démon qui vient
+    de se réveiller est donc sous-estimé — l'erreur va dans le bon sens pour un
+    contrôle, jamais vers la fausse alerte.
+    """
+    try:
+        out = subprocess.run(
+            ["ps", "-Ao", "pcpu,comm", "-r"],
+            capture_output=True, text=True, timeout=10, check=True,
+        ).stdout
+    except (subprocess.SubprocessError, OSError):
+        return None
+
+    trouves: list[tuple[str, float]] = []
+    for line in out.splitlines()[1:]:
+        parts = line.split(None, 1)
+        if len(parts) != 2:
+            continue
+        try:
+            cpu = float(parts[0])
+        except ValueError:
+            continue
+        if cpu < DAEMON_WARN_CPU:
+            break  # `-r` trie par CPU décroissant : plus rien au-dessus du seuil
+        nom = parts[1].rsplit("/", 1)[-1].strip()
+        if nom in NOISY_DAEMONS:
+            trouves.append((nom, cpu))
+    return trouves
 
 
 def _loaded_llms() -> list[dict] | None:
@@ -188,15 +267,41 @@ def preflight(*, strict: bool = True) -> list[str]:
             "génération, modèle chargé et inactif, budget de scène explosé."
         )
 
-    ram = _ram_free_gb()
-    if ram is None:
-        warnings.append("RAM : état illisible (vm_stat).")
-    elif ram < MIN_RAM_FREE_GB:
-        warnings.append(
-            f"RAM : {ram:.2f} GB immédiatement disponibles "
-            f"(< {MIN_RAM_FREE_GB:.0f} GB). Normal si un modèle est déjà chaud ; "
-            "alarmant sinon."
+    niveau = _pressure_level()
+    if niveau is None:
+        warnings.append("Pression mémoire : état illisible (sysctl).")
+    elif niveau >= PRESSURE_BLOCK:
+        blocking.append(
+            "Pression mémoire CRITIQUE selon macOS "
+            f"(kern.memorystatus_vm_pressure_level = {niveau}). Le système est "
+            "déjà en train de récupérer de la mémoire de force ; une génération "
+            "de vingt minutes va paginer au lieu de générer. REDÉMARRER."
         )
+    elif niveau >= 2:
+        warnings.append(
+            f"Pression mémoire élevée selon macOS (niveau {niveau}). Fermer ce "
+            "qui n'est pas nécessaire avant de lancer."
+        )
+
+    demons = _busy_daemons()
+    if demons is None:
+        warnings.append("Démons d'entretien : état illisible (ps).")
+    elif demons:
+        detail = ", ".join(f"{nom} {cpu:.0f} %" for nom, cpu in demons)
+        pire = max(cpu for _, cpu in demons)
+        if pire >= DAEMON_BLOCK_CPU:
+            blocking.append(
+                f"Entretien macOS en cours : {detail}. Le processus de "
+                "génération tourne à nice 5 et perdra l'arbitrage : trous de "
+                "plusieurs minutes entre deux appels au modèle, budget de scène "
+                "explosé. ATTENDRE que ça retombe (`ps -Ao %cpu,comm -r | head`) "
+                "— après un redémarrage, l'analyse média peut tourner longtemps."
+            )
+        else:
+            warnings.append(
+                f"Entretien macOS actif : {detail}. Surveiller — au-delà de "
+                f"{DAEMON_BLOCK_CPU:.0f} % ça fausse toute mesure de temps."
+            )
 
     llms = _loaded_llms()
     if llms is None:
@@ -223,7 +328,9 @@ def report() -> str:
     """Résumé lisible de l'état machine, pour le log de démo."""
     disk = _disk_free_gb()
     swap = _swap_gb()
-    ram = _ram_free_gb()
+    ram = _ram_available_gb()
+    niveau = _pressure_level()
+    demons = _busy_daemons()
     llms = _loaded_llms()
     if swap is None:
         swap_txt = "?"
@@ -235,10 +342,16 @@ def report() -> str:
         ", ".join(m.get("name", "?") for m in llms) if llms
         else ("aucun" if llms is not None else "?")
     )
-    ram_txt = f"{ram:.2f} GB" if ram is not None else "?"
+    ram_txt = f"{ram:.1f} GB" if ram is not None else "?"
+    niveau_txt = {1: "normale", 2: "élevée", 4: "critique"}.get(niveau, "?")
+    demons_txt = (
+        ", ".join(f"{n} {c:.0f} %" for n, c in demons) if demons
+        else ("aucun" if demons is not None else "?")
+    )
     return (
-        f"disque {disk:.1f} GB libres | swap {swap_txt} | RAM libre {ram_txt} | "
-        f"LLM chauds : {llm_txt}"
+        f"disque {disk:.1f} GB libres | swap {swap_txt} | "
+        f"mémoire récupérable {ram_txt}, pression {niveau_txt} | "
+        f"entretien macOS : {demons_txt} | LLM chauds : {llm_txt}"
     )
 
 

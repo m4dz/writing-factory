@@ -246,21 +246,37 @@ Chantiers restants, par ordre d'urgence pour la scène :
 
 ## Points de vigilance connus
 
-- **UN RUN PAR DÉMARRAGE. Leçon du run 3 (2026-08-06, 17 h 30), la plus
-  importante de la journée.** Troisième run d'affilée sans redémarrage : swap
-  passé de 5 à 10 GB intégralement consommé, **56 MB de RAM libre**
-  (`vm_stat` : 3496 pages), `free_swap="0 B"` dans le log Ollama. Le run a
-  dépassé 32 minutes sans finir, avec des **trous de quatre à huit minutes sans
-  un seul appel réseau**, nemo chargé et inactif : le processus python
-  lui-même était paginé, il attendait ses pages au lieu de générer. Les appels
-  d'écriture, eux, tenaient leur vitesse normale (1 min 56, 1 min 29). Deux
-  conséquences : les mesures de temps d'un run non-initial ne valent RIEN, et
-  un chapitre qui déborde parce que la machine pagine est un échec de scène
-  aussi net qu'un kernel panic. J'avais raisonné ce matin qu'un swap saturé
-  n'était dangereux qu'avec un disque plein, puisque macOS peut sinon allouer
-  un swapfile de plus. Il le fait — et la machine rampe au lieu de tomber. Le
-  raisonnement était juste sur le panic, faux sur la démo. Le préflight bloque
-  désormais sur la saturation seule.
+- **L'ENTRETIEN macOS EST LE PREMIER RISQUE DE SCÈNE (2026-08-06, 21 h).**
+  Deux runs successifs ont produit des **trous de 5 à 18 minutes entre deux
+  appels au modèle**, modèle chaud, processus à 0,8 s de CPU consommé en
+  49 minutes — il dormait sur une socket, il ne calculait pas. Les appels de
+  génération, eux, tenaient leur vitesse nominale (1 min 46, 1 min 16,
+  1 min 30). Cause : `mediaanalysisd` à **197-227 % de CPU** (deux cœurs),
+  réveillé par le redémarrage, plus `apfsd` — contre un processus de génération
+  lancé en tâche de fond, donc à `nice 5`, qui perd l'arbitrage.
+  * **J'ai d'abord attribué ces trous à la PAGINATION** (swap saturé, 56 MB de
+    RAM libre au run 3). C'était faux : le run 4 a reproduit exactement le même
+    motif sur une machine fraîchement redémarrée, swap à zéro au départ et
+    14 GB de mémoire libre annoncés par Ollama. La saturation du swap était
+    réelle mais concomitante, pas causale. Leçon de méthode : deux symptômes
+    simultanés ne font pas une cause, et le signal qui tranchait était le
+    temps CPU du processus (0,8 s), pas les compteurs mémoire.
+  * Le préflight bloque désormais sur les démons d'entretien (`NOISY_DAEMONS`,
+    seuil 80 % de CPU) — il aurait refusé de lancer les runs 3 ET 4.
+  * **Aucune mesure de temps ne vaut quelque chose pendant l'entretien.**
+    Vérifier `ps -Ao %cpu,comm -r | head` avant de chronométrer, et laisser
+    `mediaanalysisd` finir (il peut tourner longtemps après un redémarrage ou
+    un gros transfert).
+  * **Lancer le run au PREMIER PLAN** (terminal, `nice 0`). Un lancement
+    détaché (`nohup … & disown`) hérite d'une priorité basse : à ce niveau,
+    n'importe quel démon le double.
+- **UN RUN PAR DÉMARRAGE.** Le swap ne se rend pas à chaud : après un run,
+  `vm.swapusage` reste saturé et le préflight bloque, à raison — la machine n'a
+  plus de marge pour un modèle de 13 GB sur 18 GB unifiés. Ce blocage a
+  d'ailleurs remplacé un raisonnement erroné du matin (« saturé n'est dangereux
+  qu'avec un disque plein ») : macOS agrandit bel et bien le swap, mais une
+  machine qui vit sur son swap n'est pas une machine sur laquelle on chronomètre
+  une démo.
 - **Le lint doit s'appliquer AUSSI au plan**, pas seulement à la prose (leçon
   du run 2 : le token collé `maisonly` est passé du plan au brief de la scène 4,
   donc au prompt d'écriture). La réparation par Qwen n'arrive qu'en fin de
