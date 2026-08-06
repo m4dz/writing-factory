@@ -35,7 +35,7 @@ talk : une œuvre dont la fabrique est locale est inauditable.
   - *Retrieval/orchestration* : LangGraph, RAG contextuel dynamique — le
     contexte est assemblé à la requête (fiches des personnages présents,
     lieu, scènes précédentes pertinentes) en un prompt système de 2-3k tokens.
-  - *Modèles* : deux rôles, pas plus. « Auteur » = **`mistral-nemo`
+  - *Modèles* : trois rôles. « Auteur » = **`mistral-nemo`
     (Q8_0, 12B)**, tranché au benchmark sur M3 Pro 18 GB : ~10 tok/s →
     chapitre complet ~20 min (2× de marge sur les 35 min), leak anglais
     quasi nul. Mistral-small 24B a une prose supérieure (place les deux
@@ -44,6 +44,11 @@ talk : une œuvre dont la fabrique est locale est inauditable.
     reste l'option qualité pour l'écriture HORS-démo (non chronométrée).
     « Acteur » (roleplay) = même modèle nemo, prompt système interdisant
     la sortie de personnage (modèle chaud partagé, pas de reload).
+    « QA/lint » = **`qwen2.5:7b-instruct`** (Q4_K_M, ~4,7 GB, ~26 tok/s),
+    tranché au benchmark : d'un autre lignage que nemo (pas sa tendance au
+    leak), fiable en FR, bon suivi de format. Phase POST-génération → un seul
+    swap nemo→Qwen, pas de co-résidence. Réparation linguistique validée ;
+    cohérence par faits encore à fiabiliser (cf. Prochaine étape).
 - **Ollama hors conteneur** (accès GPU Apple Silicon direct), joint depuis
   les conteneurs via `http://host.containers.internal:11434`.
   Embeddings : `nomic-embed-text` (768 dims, cosine).
@@ -96,10 +101,15 @@ podman-compose.yml        # openwebui + chromadb + indexer (profil tools)
       (Élara, Kael, forge, scène) dans `bible/`, marquées à remplacer par le
       canon issu de la conversation littéraire dédiée.
 - [x] Modèle auteur tranché : mistral-nemo Q8_0 (benchmark, cf. section Modèles).
-- [x] Orchestrateur LangGraph (mode auteur) : `orchestrator/`, pipeline complet
-      plan → écriture (boucle) → relecture → cohérence, RAG dynamique assemblé
-      à la requête. Tourne bout-en-bout, chapitre 5 scènes en ~10 min (3,5× de
-      marge sur les 35 min). Défauts qualité à corriger (voir Prochaine étape).
+- [x] Orchestrateur LangGraph (mode auteur) : `orchestrator/`, pipeline
+      plan → écriture (boucle) → relecture → réparation → cohérence, RAG
+      dynamique assemblé à la requête. Bout-en-bout, chapitre 4-5 scènes en
+      ~12-19 min (marge large sur les 35 min). Répétition, écho RAG et
+      troncature réglés.
+- [x] Modèle QA/lint tranché : **Qwen 2.5 7B** (benchmark, cf. section Modèles),
+      phase POST-génération (swap nemo→Qwen unique, ~26 tok/s).
+      * `repair()` : réécrit les fuites d'anglais de nemo → VALIDÉ, lint propre.
+      * cohérence par faits : EN COURS, voir Prochaine étape.
 - [ ] Mode acteur (roleplay) + mémoire conversationnelle rolling summary
 - [ ] Intégration frontend (OpenWebUI via pipelines, ou interface dédiée —
       non tranché)
@@ -107,22 +117,24 @@ podman-compose.yml        # openwebui + chromadb + indexer (profil tools)
 
 ## Prochaine étape convenue
 
-Deux limites de qualité RÉSISTENT (ce sont des limites du modèle nemo, pas des
-bugs du pipeline — troncature, répétition et écho RAG sont réglés, cf. commits) :
+**Cohérence par faits (nœud `coherence_node`, Qwen) : NE MARCHE PAS ENCORE.**
+Sur un CHAPITRE COMPLET (~2000 mots), Qwen-7B dérive systématiquement vers la
+critique d'atelier littéraire (« voici des suggestions… », réécrit la scène)
+au lieu de rendre les verdicts `FAIT n : OUI/NON`. Trois formulations testées
+(strict, appel groupé, few-shot avec exemple) N'ONT PAS renversé ce biais. Le
+garde-fou détecte la non-conformité et l'ignore proprement (pas de pollution),
+mais on n'a pas de vraie analyse de cohérence.
 
-1. **Leak anglais niveau PHRASE** : nemo décroche parfois sur une phrase
-   entière en anglais (« meant for the maintenance of the building… »). Le
-   post-filtre mot-à-mot de `style.py` ne répare pas ça.
-2. **Cohérence** : nemo refuse la tâche de critique, repart en prose (le
-   garde-fou l'intercepte mais on n'a pas de vraie analyse).
+Diagnostic ferme : c'est la **longueur de l'entrée** qui bascule Qwen en mode
+éditeur. Le benchmark isolé (`derive_facts`/`check_facts`) tenait le format sur
+une entrée COURTE. → **Fix suivant à implémenter : vérifier fait par SCÈNE**
+(entrées courtes, condition prouvée) et non sur le chapitre entier. Logique :
+un fait n'est violé que si une scène le CONTREDIT (non-mentionné = OK, évite les
+faux NON). ~4 appels courts, Qwen rapide. Voir `qa.py::check_facts` à adapter.
 
-Piste retenue (à benchmarker AVANT d'acter, même rigueur que le choix auteur) :
-un **3ᵉ modèle « QA/lint » d'un autre lignage** (candidat : **Qwen 2.5/3**,
-fiable en FR + bon suivi de format). Il traiterait les deux : passe de
-réparation linguistique (réécrire l'anglais en FR) ET cohérence en checklist
-(oui/non par fait de la bible). Le lint est une phase POST-génération → Ollama
-swappe nemo→Qwen une fois, pas de co-résidence mémoire. À valider : Qwen bat-il
-nemo sur ces 2 tâches, pour un coût temps négligeable ?
+Autres chantiers ouverts : mode acteur + mémoire rolling summary, frontend,
+habillage démo (compte à rebours). Et peupler le canon (fiches réelles) en
+remplacement des SCAFFOLD.
 
 ## Notes d'architecture (orchestrateur)
 
@@ -147,6 +159,14 @@ nemo sur ces 2 tâches, pour un coût temps négligeable ?
   restart.
 - Budget temps de la démo : profiler tôt la génération complète d'un
   chapitre sur la machine de scène. C'est LA contrainte dure du projet.
+- **Stabilité machine** : plusieurs crashes du MacBook pendant les runs
+  (session dev), qui vident `/tmp` et coupent Ollama/ChromaDB. Sur un backend
+  jour J censé tourner ~35 min sans surveillance, c'est un risque à investiguer
+  (thermique ? pression mémoire du modèle 13 GB ?) AVANT la scène.
+- Après un `brew services start ollama`, le plist est régénéré : les vars
+  `OLLAMA_HOST=0.0.0.0` / `OLLAMA_MAX_LOADED_MODELS=2` ajoutées manuellement
+  sautent (bind repasse à 127.0.0.1). L'orchestrateur en venv host s'en moque
+  (localhost), mais l'indexeur CONTENEUR non → à re-régler pour la démo.
 
 ## Style de travail du propriétaire
 
