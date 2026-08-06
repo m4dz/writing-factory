@@ -19,7 +19,7 @@ talk : une œuvre dont la fabrique est locale est inauditable.
 - La démo est lancée en début de talk et récoltée **~25 minutes** plus tard
   (budget abaissé de 35' à 25' — 2026-08-06) : la génération complète d'un
   chapitre (plan de scènes + rédaction) doit tenir dans ce budget sur un
-  MacBook Apple Silicon. État actuel : pipeline à ~12-19 min → on passe
+  MacBook Apple Silicon. État actuel : pipeline à ~17 min (run de référence 2026-08-06) → on passe
   encore, mais la marge s'est resserrée, à surveiller (les mentions « / 35 min »
   ailleurs dans ce fichier sont historiques).
 - Un compte à rebours est affiché pendant la génération.
@@ -179,6 +179,21 @@ podman-compose.yml        # openwebui + chromadb + indexer (profil tools)
       * Piège de typographie : la fin de phrase française admet une espace
         avant le guillemet fermant (« Va-t'en. »). L'oublier faisait classer un
         dialogue correctement terminé comme une phrase en cours.
+- [x] **Run de référence (2026-08-06, 22 h 56) : 1022 s — 17,0 min**, 4 scènes,
+      24 appels, 11050 tokens, 23,9 tok/s moyens. Machine fraîchement
+      redémarrée, aucun démon d'entretien, run lancé AU PREMIER PLAN (`nice 0`,
+      vérifié par `ps`). Cadence d'écriture régulière (1m55, 1m33, 1m45, 1m29)
+      **sans aucun trou** : le motif pathologique des runs 3 et 4 disparaît avec
+      le démon. C'est le seul chiffre comparable aux 14,6 min du run 1, et il
+      laisse 8 min de marge sur les 25.
+      * Plan validé du PREMIER coup contre 3 faits (pas de replanification).
+      * Cohérence : 3 faits tenus, 2 signalements écartés au contre-appel.
+      * Texte final sans aucune alerte de lint. Une fuite (`the`) et deux fins
+        pendantes rattrapées en amont.
+      * Le filet de coupe a tiré sur deux scènes **alors qu'aucun appel n'a fini
+        en `length`** : nemo émet parfois son EOS en pleine phrase. Le filet est
+        donc utile hors troncature, mais il retirait du texte sans dire lequel —
+        corrigé, l'avertissement cite désormais l'extrait supprimé.
 - [ ] Mode acteur (roleplay) + mémoire conversationnelle rolling summary
 - [ ] Intégration frontend (OpenWebUI via pipelines, ou interface dédiée —
       non tranché)

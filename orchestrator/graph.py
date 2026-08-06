@@ -129,7 +129,17 @@ def _generate_whole(system: str, user: str, *, num_predict: int,
     if ends_mid_sentence(text):
         coupe = trim_to_sentence(text)
         if coupe != text:
-            warns.append(f"{label} : fin coupée à la dernière phrase complète")
+            # Dire CE QU'ON RETIRE, pas seulement qu'on a retiré. Au run du
+            # 2026-08-06, le filet a tiré sur deux scènes dont aucune n'avait
+            # été coupée par `num_predict` (nemo émet parfois son EOS en pleine
+            # phrase) : sans l'extrait, impossible de distinguer un fragment
+            # pendant légitimement supprimé d'une vraie fin de scène mal
+            # reconnue par la détection de ponctuation.
+            retire = text[len(coupe):].strip()
+            warns.append(
+                f"{label} : fin coupée à la dernière phrase complète, "
+                f"{len(retire)} caractères retirés — « {retire[:80]} »"
+            )
             text = coupe
         else:
             warns.append(f"{label} : texte encore amputé, aucune coupe propre "
