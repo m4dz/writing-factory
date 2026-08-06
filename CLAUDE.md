@@ -152,10 +152,33 @@ podman-compose.yml        # openwebui + chromadb + indexer (profil tools)
         la vérification (~4 min de rédaction/relecture/QA supplémentaires).
         Pour la scène, imposer 3 scènes plutôt que « 3 ou 4 » est le levier
         évident.
-      * L'appel d'écriture de la scène 3 a fini en `length` (1400/1400 tokens,
-        scène coupée net) : `num_predict=1400` ne suffit pas toujours pour
-        ~600 mots demandés. La relecture a donc travaillé sur un texte amputé.
-        À traiter.
+- [x] **Amputation par `num_predict` traitée (2026-08-06, 14 h).** Constat :
+      l'écriture de la scène 3 du run 2 a fini en `length` (1400/1400), coupée
+      en plein mot ; la relecture a travaillé sur un texte tronqué et la scène
+      suivante a hérité d'un état narratif inachevé. Ollama ne signale rien
+      d'autre que `done_reason: "length"`.
+      * **Monter `num_predict` a été écarté** : un modèle qui n'a pas fini à
+        1400 tokens ne finira pas davantage à 1800, il occupe l'espace offert.
+        Ça déplace le plafond sans supprimer le cas.
+      * **Retenu : continuation (une au plus) + coupe propre en filet**
+        (`_generate_whole` dans `graph.py`). On renvoie la queue du texte avec
+        consigne de terminer, on recolle ; si le modèle dépasse encore, on
+        tronque à la dernière phrase complète (`trim_to_sentence`) plutôt que
+        de laisser un mot coupé. Le filet n'est jamais le premier recours : il
+        rend une scène sans l'état final que le plan lui demandait.
+      * Coût : un appel seulement quand le cas se produit (~50-70 s mesurés).
+        Le chemin normal est inchangé.
+      * Deux pièges du recollement, trouvés au test et corrigés : le modèle
+        reprend souvent par une phrase NEUVE au lieu de finir la précédente
+        (« …dans un coin de la pièce Elle s'en approcha ») — on ferme le
+        fragment orphelin, par des points de suspension devant une réplique
+        (« Il hésita, puis… / — Tu mens ») et par un point devant une majuscule
+        ordinaire ; et il recopie parfois toute la queue, dont il faut retirer
+        le chevauchement AU CARACTÈRE près (un pas plus grossier laisse un
+        résidu au milieu du texte).
+      * Piège de typographie : la fin de phrase française admet une espace
+        avant le guillemet fermant (« Va-t'en. »). L'oublier faisait classer un
+        dialogue correctement terminé comme une phrase en cours.
 - [ ] Mode acteur (roleplay) + mémoire conversationnelle rolling summary
 - [ ] Intégration frontend (OpenWebUI via pipelines, ou interface dédiée —
       non tranché)
@@ -233,8 +256,10 @@ Chantiers restants, par ordre d'urgence pour la scène :
   même chose qu'un protocole.
 - **Marge de temps resserrée** : 20,2 min sur les 25 au run 2, contre 14,6 au
   run 1. Le facteur dominant est le nombre de scènes retenues par le plan
-  (4 contre 3), pas la QA. Le prompt de plan dit « 3 ou 4 scènes MAXIMUM » :
-  pour la scène, le passer à 3 fermes est le levier le plus direct.
+  (4 contre 3), pas la QA. **Arbitrage du propriétaire (2026-08-06) : on RESTE
+  sur 3-4 scènes** — trois scènes risquent de faire court, et le vrai juge sera
+  la répétition en conditions réelles. À mesurer là, pas à corriger par le
+  prompt.
 - Le rapport de lint mélangeait les alertes d'écriture/relecture (état AVANT
   réparation) avec ce qui subsiste réellement. Corrigé dans `run_chapter.py` —
   ne pas régresser : sur scène, une alerte périmée se lit comme une panne.

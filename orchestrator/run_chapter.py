@@ -75,8 +75,13 @@ def main() -> None:
     # réparation par Qwen. Les afficher pêle-mêle fait passer un défaut corrigé
     # pour un défaut vivant — sur scène, c'est un faux aveu de panne.
     warns = final.get("warnings", [])
-    residuel = [w for w in warns if w.startswith("réparation ")]
-    amont = [w for w in warns if not w.startswith("réparation ")]
+    def _residuel(w: str) -> bool:
+        # « réparation … » = relevé APRÈS la passe Qwen, donc encore présent.
+        # « à reprendre à la main » = la continuation et la coupe propre ont
+        # toutes deux échoué : c'est le seul cas où du texte sort amputé.
+        return w.startswith("réparation ") or "à reprendre à la main" in w
+    residuel = [w for w in warns if _residuel(w)]
+    amont = [w for w in warns if not _residuel(w)]
     if residuel:
         print("  SUBSISTE dans le texte final :")
         for w in residuel:
@@ -112,10 +117,11 @@ def main() -> None:
         print(f"\n  ⚠ Fenêtre serrée (> 90 %) sur les appels {serre} : "
               "prompt estimé + num_predict frôle NUM_CTX.")
 
-    print("\n  détail par appel (« length » = génération coupée, "
-          "need > 1.00 = fenêtre insuffisante) :")
+    print("\n  détail par appel (« length » = génération coupée — une "
+          "continuation a été relancée, cf. lint ; need > 1.00 = fenêtre "
+          "insuffisante) :")
     for i, m in enumerate(final["metrics"]):
-        flag = "  <-- TRONQUÉ" if m.get("done_reason") == "length" else ""
+        flag = "  <-- COUPÉ (continuation)" if m.get("done_reason") == "length" else ""
         if m.get("ctx_truncated"):
             flag += "  <-- PROMPT AMPUTÉ"
         print(f"    #{i}  {m['gen_toks']:>4}/{m.get('num_predict', '?')} tok  "

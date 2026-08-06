@@ -46,6 +46,42 @@ _SUSPECT_EN = re.compile(
 _GARBAGE = re.compile(r"\b\w*[a-zà-ÿ][A-Z]\w*\b")
 
 
+# Fin de phrase française. Le guillemet fermant peut suivre la ponctuation
+# APRÈS une espace — c'est la typographie française (« Va-t'en. » et non
+# « Va-t'en.»), et l'oublier faisait classer un dialogue correctement terminé
+# comme une phrase en cours.
+_FIN_PHRASE = re.compile(r"[.!?…](?:\s*[»\"'])?\s*$")
+_PONCTUATION_FINALE = re.compile(r"[.!?…](?:\s*[»\"'])?(?=\s|$)")
+
+
+def ends_mid_sentence(text: str) -> bool:
+    """Vrai si le texte s'arrête en plein milieu d'une phrase.
+
+    Signature d'une génération coupée par `num_predict` : Ollama rend le texte
+    tel quel, sans marqueur autre que `done_reason: "length"`.
+    """
+    return not _FIN_PHRASE.search(text.rstrip())
+
+
+def trim_to_sentence(text: str) -> str:
+    """Coupe à la dernière phrase complète — filet de dernier recours.
+
+    Utilisé seulement quand une continuation n'a pas suffi : mieux vaut une
+    scène qui s'arrête un peu tôt qu'un mot coupé en deux. Le texte est rendu
+    INCHANGÉ si la coupe emporterait plus d'un quart du texte (cas pathologique
+    d'un passage sans aucune ponctuation finale) : ce filet ne doit jamais
+    détruire plus qu'il ne répare.
+    """
+    t = text.rstrip()
+    if not ends_mid_sentence(t):
+        return t
+    fins = list(_PONCTUATION_FINALE.finditer(t))
+    if not fins:
+        return text
+    coupe = t[: fins[-1].end()].rstrip()
+    return coupe if len(coupe) >= 0.75 * len(t) else text
+
+
 def delint(text: str) -> tuple[str, list[str]]:
     """Nettoie les fuites 1:1 et retourne (texte_corrigé, avertissements).
 

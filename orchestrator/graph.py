@@ -18,13 +18,19 @@ from langgraph.graph import StateGraph, START, END
 
 from llm import chat, unload
 from retrieval import assemble_system_prompt
-from style import delint
+from style import delint, ends_mid_sentence, trim_to_sentence
 from qa import QA_MODEL, repair, derive_facts, check_facts, check_plan
 
 # Une seule reprise du plan. La replanification coûte un rechargement de nemo
 # (13 GB) : au-delà, on perdrait plus de temps de scène qu'on n'en sauverait, et
 # un modèle qui rate deux fois la contrainte ne la comprendra pas à la troisième.
 MAX_PLAN_ATTEMPTS = 2
+
+# Une seule continuation par génération coupée. Monter `num_predict` ne résout
+# rien — un modèle qui n'a pas fini à 1400 tokens remplira aussi bien 1800 :
+# il occupe l'espace offert. La continuation, elle, ne coûte que quand le cas
+# se produit (une scène sur quatre au run du 2026-08-06, ~50 s).
+MAX_CONTINUATIONS = 1
 
 
 # --- État du graphe ----------------------------------------------------------
@@ -45,6 +51,91 @@ class ChapterState(TypedDict):
 
 
 # --- Nœuds -------------------------------------------------------------------
+
+def _recoller(debut: str, suite: str) -> str:
+    """Recolle une continuation en supprimant le chevauchement.
+
+    Le modèle recommence volontiers par la dernière phrase qu'il vient
+    d'écrire, malgré la consigne : on cherche le plus long préfixe de la suite
+    déjà présent dans la queue du début et on l'ôte.
+
+    La jointure demande un peu de soin. Si la coupe est tombée en pleine phrase
+    et que la suite ouvre une phrase NEUVE au lieu de finir la précédente
+    (observé : « …dans un coin de la pièce Elle s'en approcha »), le fragment
+    reste orphelin. On le ferme plutôt que de le supprimer — le supprimer
+    coûterait une phrase entière de récit :
+      * devant une réplique (tiret cadratin, guillemet), les points de
+        suspension, qui sont la ponctuation française de la parole ou de la
+        pensée interrompue. Un point donnerait « Il hésita, puis. — Tu mens » ;
+      * devant une majuscule ordinaire, un point simple.
+    """
+    s = suite.lstrip()
+    queue = debut[-800:]
+    # Chevauchement EXACT, cherché au caractère près : un pas plus grossier
+    # laisse un résidu de découpe au milieu du texte (« du marteau u qui »).
+    # 30 caractères minimum pour ne pas confondre une coïncidence avec une
+    # recopie.
+    for k in range(min(len(queue), len(s)), 29, -1):
+        if s.startswith(queue[-k:]):
+            s = s[k:].lstrip()
+            break
+
+    d = debut.rstrip()
+    if not ends_mid_sentence(d):
+        return d + "\n\n" + s
+    if s[:1] in "—–-«\"":
+        return d + "…\n\n" + s
+    if s[:1].isupper():
+        return d + ". " + s
+    return d + " " + s
+
+
+def _generate_whole(system: str, user: str, *, num_predict: int,
+                    temperature: float, label: str) -> tuple[str, list[dict], list[str]]:
+    """Génère un texte ENTIER : relance si `num_predict` a coupé la génération.
+
+    Ollama ne signale l'amputation que par `done_reason: "length"` — le texte
+    revient coupé en plein mot, sans erreur. Observé au run du 2026-08-06 sur
+    une scène (1400/1400 tokens) : la relecture a ensuite travaillé sur un
+    texte tronqué, et la scène suivante a hérité d'un état narratif inachevé.
+
+    Deux dispositifs, dans cet ordre : une continuation (le texte est rendu
+    entier), puis en filet une coupe à la dernière phrase complète si le modèle
+    dépasse encore. Le filet n'est jamais le premier recours : il rend une
+    scène qui s'arrête tôt, donc sans l'état final que le plan lui demandait.
+    """
+    text, m = chat(system, user, num_predict=num_predict, temperature=temperature)
+    metrics = [m]
+    warns: list[str] = []
+
+    for _ in range(MAX_CONTINUATIONS):
+        if m.get("done_reason") != "length":
+            break
+        suite_user = (
+            f"{user}\n\n=== CE QUI EST DÉJÀ ÉCRIT (fin du texte) ===\n"
+            f"{text[-600:]}\n\n"
+            "Ta génération a été coupée en cours de route. REPRENDS EXACTEMENT "
+            "là où le texte s'arrête — sans le répéter, sans le résumer, sans "
+            "recommencer — et TERMINE en quelques paragraphes. Écris seulement "
+            "la suite."
+        )
+        suite, m = chat(system, suite_user,
+                        num_predict=max(300, num_predict // 3),
+                        temperature=temperature)
+        metrics.append(m)
+        text = _recoller(text, suite)
+        warns.append(f"{label} : génération coupée, continuation demandée")
+
+    if ends_mid_sentence(text):
+        coupe = trim_to_sentence(text)
+        if coupe != text:
+            warns.append(f"{label} : fin coupée à la dernière phrase complète")
+            text = coupe
+        else:
+            warns.append(f"{label} : texte encore amputé, aucune coupe propre "
+                         "possible (à reprendre à la main)")
+    return text, metrics, warns
+
 
 def _parse_beats(text: str) -> list[str]:
     """Extrait les lignes numérotées « 1. … » d'une réponse de plan."""
@@ -206,13 +297,15 @@ def write_node(state: ChapterState) -> dict:
         "la continuité stricte. Montre la tension sans la nommer, fais entendre "
         "les voix distinctes. Prose seule, sans titre ni méta-commentaire."
     )
-    text, m = chat(system, user, num_predict=1400, temperature=0.7)
+    text, ms, wg = _generate_whole(system, user, num_predict=1400,
+                                   temperature=0.7, label=f"scène {idx + 1}")
     text, w = delint(text)
     return {
         "scenes": state["scenes"] + [text],
         "idx": idx + 1,
-        "metrics": state["metrics"] + [m],
-        "warnings": state["warnings"] + [f"scène {idx + 1}: {x}" for x in w],
+        "metrics": state["metrics"] + ms,
+        "warnings": state["warnings"] + wg
+        + [f"scène {idx + 1}: {x}" for x in w],
     }
 
 
@@ -254,8 +347,11 @@ def review_node(state: ChapterState) -> dict:
             "pas de titre).\n\n"
             f"--- SCÈNE À RÉÉCRIRE ---\n{scene}"
         )
-        text, m = chat(system, user, num_predict=budget, temperature=0.5)
-        metrics.append(m)
+        text, ms, wg = _generate_whole(system, user, num_predict=budget,
+                                       temperature=0.5,
+                                       label=f"relecture scène {i + 1}")
+        metrics.extend(ms)
+        warns.extend(wg)
         # Garde-fou anti-destruction : relecture trop courte -> on garde l'original.
         if len(text.split()) < 0.6 * len(scene.split()):
             text = scene
