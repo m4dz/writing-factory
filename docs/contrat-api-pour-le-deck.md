@@ -1,4 +1,8 @@
-# Surface HTTP de la machine de génération — état réel au 2026-08-07
+# Surface HTTP de la machine de génération — état réel au 2026-08-07 (rév. 2)
+
+> **Rév. 2** : `/audio` est branché et le marqueur de bascule existe. La
+> révision 1 disait le contraire — si vous l'avez lue, ces deux points ont
+> changé, le reste est inchangé.
 
 > **À qui ça s'adresse** : la session Code du dépôt `talk`, pour appliquer le
 > changement openspec `remote-integration-contract` (jusqu'ici marqué
@@ -23,7 +27,7 @@ Variables : `API_HOST`, `API_PORT` (8420), `API_CORS_ORIGIN` (`*` par défaut),
 |---|---|---|---|---|
 | `generate()` | `POST /generate` | `202` | — | **OK** |
 | `chapter()` | `GET /chapter` | `200 text/markdown; charset=utf-8` | `204` | **OK** (sans le marqueur, voir plus bas) |
-| `audio()` | `GET /audio` | `200 audio/wav` | `204` | **route OK, rend toujours 204** (TTS pas branché) |
+| `audio()` | `GET /audio` | `200 audio/wav` | `204` | **OK** (mono 24 kHz) |
 | `status()` | `GET /status` | `200 application/json` | — | **OK, enrichi** |
 
 CORS : `Access-Control-Allow-Origin` (défaut `*`), `Allow-Methods: GET, POST,
@@ -108,33 +112,48 @@ toucher au contrat.
 - `budget_s` : mon budget interne (1500 s). Informatif — **votre compte à
   rebours reste autonome**, il ne doit jamais dépendre de mes réponses.
 
-## Ce qui n'est pas encore vrai
+## Les deux marqueurs du chapitre
 
-**`GET /audio` rend toujours `204`.** L'étape TTS n'est pas branchée. Votre
-fallback silencieux est donc le chemin nominal pour l'audio à cette heure — ce
-qui est un bon terrain d'essai pour le vérifier.
+`GET /chapter` rend le chapitre **entier**, avec deux commentaires HTML posés par
+du code (jamais par le modèle — un LLM les mettrait ailleurs à chaque tirage) :
 
-**`GET /chapter` ne contient pas encore `<!-- BASCULE -->`.** Le marqueur sera
-posé **par le code**, pas par le modèle : c'est la charnière du tour de magie, un
-marqueur placé par un LLM serait aléatoire.
+```markdown
+Elara poussa la porte de la forge. L'air sentait la suie froide.
+
+<!-- BASCULE -->
+
+Elle compta trois pas avant de toucher l'enclume fendue…
+…
+<!-- FIN AUDIO -->
+
+(suite du chapitre, non lue par le clone)
+```
+
+- **`<!-- BASCULE -->` tombe après la DEUXIÈME PHRASE du chapitre.** Décision du
+  speaker, pour un repère de scène reproductible : il lit deux phrases à voix
+  nue, puis lance l'audio. `GET /audio` commence exactement là.
+- **`<!-- FIN AUDIO -->`** marque où la voix clonée s'arrête. **Additif** : vous
+  pouvez l'ignorer. Il existe parce que l'audio est borné alors que le chapitre
+  servi est entier — si vous voulez indiquer visuellement où la lecture s'arrête,
+  la borne est là. Aucun effet sur le rendu si vous n'en faites rien.
 
 ## Le point de timing qui vous concerne
 
-Le run de référence mesuré (machine au repos, 4 scènes) : **1022 s, soit 17,0
-min** pour la génération seule. Il reste le TTS.
+Mesures sur la machine, pas des estimations :
 
-Et là, une contrainte que le contrat ne pouvait pas voir : le runbook TTS donne
-~1× temps réel. Si la bascule tombe après le premier paragraphe, le clone doit
-lire ~2300 mots, soit **~15 min d'audio et ~15 min de calcul** — 32 min contre
-28' au compteur, et une lecture de quinze minutes dans une keynote de cinquante.
+| Étape | Mesuré |
+|---|---|
+| Génération du chapitre (4 scènes) | **17,0 min** (1022 s) |
+| Rendu voix clonée (550 mots) | **~1,8 min** (1,57× temps réel, 190 mots/min) |
+| **Total** | **~19 min** contre 28' au compteur → ~9 min de marge |
 
-Décision prise côté machine : **la lecture clonée est bornée à ~3-4 min
-(450-600 mots)**, le pipeline posera la bascule ET bornera l'extrait rendu en
-audio. Cible totale ~21 min, marge ~7 min sur les 28'.
+La lecture clonée est **bornée à ~550 mots** (≈ 2,9 min d'audio), et non au
+chapitre entier : celui-ci ferait 12,6 min d'écoute, injouable dans une keynote
+de cinquante minutes.
 
 Conséquence pour vous : rien à changer si votre section 7 lit un extrait. Si le
-deck prévoyait de lire tout le chapitre en voix clonée, c'est le moment de le
-dire — c'est un désaccord de conception, pas un détail d'implémentation.
+deck prévoyait de faire lire tout le chapitre par le clone, dites-le — c'est un
+désaccord de conception, pas un détail d'implémentation.
 
 ## Points ouverts, côté vous
 
