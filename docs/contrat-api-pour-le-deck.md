@@ -26,7 +26,7 @@ Variables : `API_HOST`, `API_PORT` (8420), `API_CORS_ORIGIN` (`*` par défaut),
 | Op client | HTTP | Prêt | Pas prêt | État |
 |---|---|---|---|---|
 | `generate()` | `POST /generate` | `202` | — | **OK** |
-| `chapter()` | `GET /chapter` | `200 text/markdown; charset=utf-8` | `204` | **OK** (sans le marqueur, voir plus bas) |
+| `chapter()` | `GET /chapter` | `200 text/markdown; charset=utf-8` | `204` | **OK** (avec les marqueurs, voir plus bas) |
 | `audio()` | `GET /audio` | `200 audio/wav` | `204` | **OK** (mono 24 kHz) |
 | `status()` | `GET /status` | `200 application/json` | — | **OK, enrichi** |
 
