@@ -281,19 +281,48 @@ podman-compose.yml        # openwebui + chromadb + indexer (profil tools)
 Le contrat HTTP vient du talk et est gelé (cf. « API de démo » ci-dessus).
 Trois décisions du propriétaire complètent la cible :
 
+- **TTS dans le MÊME venv que l'orchestrateur** (`orchestrator/tts.py`), pas en
+  sous-processus vers le venv du dépôt TTS. `mlx-audio` déclare
+  `Requires-Python: >=3.10` et s'importe sans broncher sur notre 3.10.9
+  (vérifié) : le `python3.11` du RUNBOOK est un choix d'installation, pas une
+  contrainte. Un seul venv à recréer le jour J. Coût : +542 MB de paquets
+  (mlx, transformers, scipy), sans torch. Import PARESSEUX dans la fonction de
+  rendu — le serveur vit des heures et ne synthétise qu'une fois.
+  * **On n'importe PAS `../TTS/lire_chapitre.py`.** Sa boucle de rendu est
+    enfermée dans `main()`, et son `charger_texte()` appelle `sys.exit()` :
+    dans un serveur, `SystemExit` est une `BaseException`, elle traverse
+    `except Exception`, tue le thread en silence et laisse le job bloqué en
+    « generating » pour toujours. Ce que les deux dépôts partagent, c'est la
+    VOIX (`TTS/voix/`) et l'identifiant du modèle, pas du code : les deux sont
+    des clients minces de `mlx_audio`. `TTS/RUNBOOK.md` reste la référence des
+    paramètres — si l'un bouge là-bas, il bouge ici.
+  * Un échec de TTS ne fait PAS échouer le job : le chapitre est valide et
+    servi, seul `/audio` reste en 204. Le contrat gèle un fallback PAR
+    RESSOURCE — replier sur les deux parce que la voix a manqué serait perdre
+    du bon travail.
 - **Mode acteur : notre propre `POST /chat` + une page dédiée servie par l'API**,
   pas OpenWebUI. Raison : notre mémoire est STATEFUL côté serveur (résumé
   glissant, souvenirs indexés) alors que le contrat OpenAI est
   stateless-avec-historique-complet — OpenWebUI renverrait tout l'historique à
   chaque tour et contournerait le résumeur. Bonus : une page à nous peut
   s'afficher en iframe dans une slide. `chat_character.py` reste le plan B.
-- **Lecture clonée BORNÉE à ~3-4 min (450-600 mots), pas tout le chapitre.**
-  L'arithmétique l'impose : le TTS tourne à ~1× temps réel (RUNBOOK), donc un
-  chapitre entier de 4 scènes (~2400 mots) demanderait un quart d'heure d'audio
-  ET un quart d'heure de calcul — 17 + 15 = 32 min contre 28' au compteur du
-  deck, sans parler d'une lecture de quinze minutes dans une keynote de
-  cinquante. Le pipeline devra donc poser `<!-- BASCULE -->` ET borner l'extrait
-  rendu en audio. Cible : ~21 min au total, marge ~7 min.
+- **Bascule après la DEUXIÈME PHRASE, posée par le code** (`chapitre.py`).
+  Repère strictement reproductible : sur scène, il lit deux phrases puis lance
+  l'audio. Ma proposition initiale (« frontière de paragraphe ») dépendait du
+  découpage de nemo, donc variait d'un run à l'autre — inutilisable comme repère.
+- **Lecture clonée BORNÉE à ~550 mots**, pas tout le chapitre. MESURÉ sur cette
+  machine (et non repris du RUNBOOK) : **1,57× temps réel** modèle chaud, débit
+  de lecture **190 mots/min**. Donc 550 mots = 2,9 min d'audio pour 1,8 min de
+  calcul → **~19 min au total, 9 min de marge** sur les 28' du compteur.
+  * Le premier rendu mesuré donnait 0,93× : il portait l'échauffement des
+    noyaux Metal. Ne pas conclure sur un segment de six secondes.
+  * ⚠ J'avais justifié le bornage par « 15 min de calcul pour tout le
+    chapitre » : c'était FAUX (8 min au facteur réel). La décision tient sur le
+    TEMPS D'ÉCOUTE — 12,6 min de lecture dans une keynote de 50, c'est non — qui
+    était de toute façon l'argument solide.
+  * `chapitre.py` pose aussi `<!-- FIN AUDIO -->`, additif : il dit au deck où
+    s'arrête la voix clonée. Le chapitre servi reste ENTIER, c'est la pièce à
+    conviction de la démo.
 - **Notifications téléphone par Telegram, coupées par défaut, charge utile
   verrouillée** : phase, pourcentage, code d'erreur — JAMAIS le texte du
   chapitre ni un extrait de la bible. C'est une exception assumée à la règle

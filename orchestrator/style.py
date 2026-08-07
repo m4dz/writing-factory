@@ -54,6 +54,17 @@ _FIN_PHRASE = re.compile(r"[.!?…](?:\s*[»\"'])?\s*$")
 _PONCTUATION_FINALE = re.compile(r"[.!?…](?:\s*[»\"'])?(?=\s|$)")
 
 
+def sentence_ends(text: str) -> list[int]:
+    """Positions (fin exclusive) de chaque phrase complète du texte.
+
+    Sert au placement du marqueur de bascule et au bornage de l'extrait audio.
+    Même détection que `trim_to_sentence` — une seule définition de « fin de
+    phrase » dans le projet, sinon le marqueur et la coupe ne tomberaient pas
+    aux mêmes endroits.
+    """
+    return [m.end() for m in _PONCTUATION_FINALE.finditer(text)]
+
+
 def ends_mid_sentence(text: str) -> bool:
     """Vrai si le texte s'arrête en plein milieu d'une phrase.
 

@@ -38,8 +38,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import progress
+from chapitre import assembler
 from graph import build_graph
+from llm import unload
 from preflight import PreflightError, preflight, report
+from qa import QA_MODEL
+from tts import rendre_chapitre
 
 HOST = os.environ.get("API_HOST", "0.0.0.0")
 PORT = int(os.environ.get("API_PORT", "8420"))
@@ -121,8 +125,10 @@ class Job:
                 config={"recursion_limit": 50},
             )
             self._ecrire_chapitre(final)
+            audio = self._rendre_audio()
             with self.lock:
                 self.resultat = {
+                    "audio": audio,
                     "scenes": len(final.get("repaired") or []),
                     "warnings": final.get("warnings") or [],
                     "coherence": final.get("coherence") or "",
@@ -149,11 +155,42 @@ class Job:
         progress.note(f"ÉCHEC : {raison}")
 
     def _ecrire_chapitre(self, final: dict) -> None:
-        """Écrit le Markdown du chapitre sur disque (source de `GET /chapter`)."""
+        """Écrit le Markdown du chapitre sur disque (source de `GET /chapter`).
+
+        C'est ici que le marqueur de bascule est posé — par le code, jamais par
+        le modèle (cf. `chapitre.py`).
+        """
         SORTIE.mkdir(parents=True, exist_ok=True)
         scenes = final.get("repaired") or final.get("scenes") or []
-        corps = "\n\n".join(scenes)
-        CHAPITRE_MD.write_text(corps, encoding="utf-8")
+        CHAPITRE_MD.write_text(assembler(scenes), encoding="utf-8")
+
+    def _rendre_audio(self) -> dict | None:
+        """Synthétise l'extrait post-bascule. Retourne les métriques, ou None.
+
+        Un échec de TTS ne fait PAS échouer le job. Le chapitre, lui, est valide
+        et écrit : le deck doit pouvoir afficher le vrai texte tout en repliant
+        sur son audio embarqué. Le contrat gèle un fallback PAR RESSOURCE — se
+        rabattre sur les deux parce que la voix a manqué serait perdre du bon
+        travail pour rien.
+        """
+        with self.lock:
+            self.etat = "tts"
+        # Qwen n'a plus rien à faire à ce stade, et 4,8 GB de rendus au modèle de
+        # voix valent mieux qu'un swap. Même logique que la bascule nemo → Qwen.
+        unload(QA_MODEL)
+        try:
+            metriques = rendre_chapitre(
+                CHAPITRE_MD.read_text(encoding="utf-8"), CHAPITRE_WAV
+            )
+            progress.note(
+                f"audio prêt : {metriques['audio_s']:.0f} s de lecture en "
+                f"{metriques['calcul_s']:.0f} s (×{metriques['facteur_temps_reel']} "
+                "temps réel)"
+            )
+            return metriques
+        except Exception as exc:                        # noqa: BLE001
+            progress.note(f"TTS indisponible : {exc} — chapitre servi sans audio")
+            return None
 
     # --- lecture -------------------------------------------------------------
 
