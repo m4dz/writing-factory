@@ -81,6 +81,12 @@ NOISY_DAEMONS = (
 DAEMON_WARN_CPU = float(os.environ.get("PREFLIGHT_DAEMON_WARN_CPU", "30"))
 DAEMON_BLOCK_CPU = float(os.environ.get("PREFLIGHT_DAEMON_BLOCK_CPU", "80"))
 
+# Modèle de la sonde de génération. Le PLUS PETIT du projet : on vérifie que le
+# serveur sait lancer un llama-server, pas que nemo tient en mémoire — et
+# charger 4,8 GB coûte dix secondes contre une trentaine pour 13 GB.
+# Vider la variable désactive la sonde.
+PROBE_MODEL = os.environ.get("PREFLIGHT_PROBE_MODEL", "qwen2.5:7b-instruct")
+
 
 class PreflightError(RuntimeError):
     """Condition machine incompatible avec une génération longue."""
@@ -217,6 +223,39 @@ def _busy_daemons() -> list[tuple[str, float]] | None:
     return trouves
 
 
+def _probe_generation(model: str, timeout: float = 120.0) -> str | None:
+    """Fait RÉELLEMENT générer un token. Retourne None si tout va bien, sinon la
+    raison de l'échec.
+
+    Sans cette sonde, le contrôle d'Ollama se limitait à `/api/ps`, qui répond
+    200 avec une liste vide quand rien n'est chargé — indiscernable d'une
+    machine saine. Or après une MISE EN VEILLE, le démon Ollama survit mais ne
+    parvient plus à lancer `llama-server` : « timed out waiting for llama-server
+    to start », et TOUTES les requêtes rendent 500. Mesuré le 2026-08-07 après
+    une nuit de veille. Un préflight qui ne fait pas générer un token ne dit rien
+    de ce qui compte. Remède : `launchctl kickstart -k gui/$(id -u)/local.ollama`.
+    """
+    # `keep_alive: 0` : la sonde rend la mémoire qu'elle emprunte. Sans ça elle
+    # laisserait le modèle chaud, et le run démarrerait avec deux modèles en
+    # co-résidence — la pression mémoire que ce préflight existe pour empêcher.
+    payload = json.dumps({
+        "model": model, "prompt": "1", "stream": False, "keep_alive": 0,
+        "options": {"num_predict": 1},
+    }).encode()
+    req = urllib.request.Request(
+        f"{OLLAMA_URL}/api/generate", data=payload,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            json.loads(resp.read())
+        return None
+    except urllib.error.HTTPError as exc:
+        return f"HTTP {exc.code} sur /api/generate ({model})"
+    except (urllib.error.URLError, OSError, json.JSONDecodeError) as exc:
+        return f"{type(exc).__name__} sur /api/generate ({model}) : {exc}"
+
+
 def _loaded_llms() -> list[dict] | None:
     """Modèles actuellement chauds, embedders exclus. None si Ollama muet.
 
@@ -301,6 +340,16 @@ def preflight(*, strict: bool = True) -> list[str]:
             warnings.append(
                 f"Entretien macOS actif : {detail}. Surveiller — au-delà de "
                 f"{DAEMON_BLOCK_CPU:.0f} % ça fausse toute mesure de temps."
+            )
+
+    if PROBE_MODEL:
+        echec = _probe_generation(PROBE_MODEL)
+        if echec:
+            blocking.append(
+                f"Ollama ne GÉNÈRE pas : {echec}. Le démon écoute mais ne peut "
+                "plus lancer llama-server — typiquement après une mise en veille. "
+                "Remède : `launchctl kickstart -k gui/$(id -u)/local.ollama`. "
+                "Et empêcher la veille avant la scène (`caffeinate -is`)."
             )
 
     llms = _loaded_llms()

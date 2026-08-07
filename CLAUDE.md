@@ -225,18 +225,36 @@ podman-compose.yml        # openwebui + chromadb + indexer (profil tools)
 - [ ] Peupler le canon : remplacer les fiches SCAFFOLD par les fiches réelles
 - [ ] Intégration frontend (OpenWebUI via pipelines, ou interface dédiée —
       non tranché)
-- [ ] Habillage démo : compte à rebours, affichage de la progression
+- [x] **Habillage démo (2026-08-07)** : `orchestrator/progress.py`, actif PAR
+      DÉFAUT dans `run_chapter.py` (`--muet` pour mesurer sans).
+      * Le graphe ne connaît pas l'affichage : les nœuds appellent
+        `progress.phase()` / `note()` sur un puits global, inactif par défaut —
+        donc importer le graphe depuis un test n'affiche rien et ne coûte rien.
+      * **Streaming des tokens plutôt qu'un spinner.** Un compte à rebours qui
+        tourne pendant un appel de 1 min 45 prouve que le temps passe, pas que
+        la machine calcule. `llm.chat_turns(on_token=…)` active le mode streamé ;
+        SANS callback, la requête reste non-streamée, à l'octet près comme avant
+        — le pipeline a été mesuré dans ce mode, l'habillage ne doit pas rejouer
+        cette validation. Vérifié : mêmes clés de métriques, `prompt_toks`
+        identique à prompt égal, les fragments reçus reconstituent exactement le
+        texte final.
+      * Deux rendus : panneau d'une ligne réécrit en place sur un terminal
+        (throttle à 5 Hz — 9 redessins pour 40 tokens), lignes plates
+        horodatées dès que la sortie est redirigée. Une barre réécrite en place
+        remplirait un `> run.log` de milliers de `\r`, et c'est justement le cas
+        d'usage.
+- [ ] Frontend (OpenWebUI via pipelines, ou interface dédiée — non tranché)
 
 ## Prochaine étape convenue
 
 Mode auteur bouclé et mesuré (17,0 min), mode acteur en première version
 (2026-08-07). Chantiers restants, par ordre d'urgence pour la scène :
 
-1. **Habillage démo** : compte à rebours, affichage de progression du graphe.
-   C'est ce que le public regarde pendant les dix-sept minutes de génération, et
-   aujourd'hui il n'y a RIEN à voir — la sortie n'arrive qu'à la fin.
-2. **Répétition en conditions réelles**, machine au repos, run au premier plan.
-   C'est là qu'on saura si 3-4 scènes est le bon calibre et si la marge tient.
+1. **Répétition en conditions réelles**, machine au repos, run au premier plan,
+   veille désactivée. C'est là qu'on saura si 3-4 scènes est le bon calibre, si
+   la marge tient, et à quoi ressemble vraiment le panneau de progression sur
+   scène (il n'a été vérifié qu'en terminal simulé, pas sous les yeux de
+   quelqu'un pendant dix-sept minutes).
 3. **Frontend** (OpenWebUI via pipelines ou interface dédiée — non tranché).
 4. **Peupler le canon** : remplacer les fiches SCAFFOLD par les fiches réelles.
    Tout ce qui est validé jusqu'ici tourne sur du contenu jetable.
@@ -292,6 +310,23 @@ Mode auteur bouclé et mesuré (17,0 min), mode acteur en première version
 
 ## Points de vigilance connus
 
+- **LA MISE EN VEILLE CASSE OLLAMA, ET `/api/ps` NE LE DIT PAS (2026-08-07).**
+  Après une nuit de veille, le démon Ollama était toujours vivant (10 h
+  d'uptime, port ouvert, `/api/ps` → 200) mais INCAPABLE de charger un modèle :
+  `Load failed … error="timed out waiting for llama-server to start"`, et toutes
+  les requêtes de génération en 500. Le préflight ne regardait que `/api/ps`,
+  qui répond 200 avec une liste vide quand rien n'est chargé — indiscernable
+  d'une machine saine. Il mentait par omission.
+  * Remède immédiat : `launchctl kickstart -k gui/$(id -u)/local.ollama`
+    (vérifié, service rétabli).
+  * Le préflight fait désormais RÉELLEMENT générer un token
+    (`_probe_generation`, sur le petit modèle Qwen : on vérifie que le serveur
+    sait lancer un llama-server, pas que nemo tient en mémoire). La sonde passe
+    `keep_alive: 0` — sans quoi elle laisserait un modèle chaud et le run
+    démarrerait en co-résidence, exactement la pression mémoire que ce préflight
+    existe pour empêcher. Coût : ~10 s à froid, 0,7 s si le modèle est déjà là.
+  * **Avant la scène : empêcher la veille** (`caffeinate -is`, ou réglages
+    d'énergie). Un portable qui s'endort avant la démo la tue.
 - **L'ENTRETIEN macOS EST LE PREMIER RISQUE DE SCÈNE (2026-08-06, 21 h).**
   Deux runs successifs ont produit des **trous de 5 à 18 minutes entre deux
   appels au modèle**, modèle chaud, processus à 0,8 s de CPU consommé en

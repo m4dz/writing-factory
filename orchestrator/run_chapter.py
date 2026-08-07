@@ -10,6 +10,7 @@ Le profilage total est LA mesure qui compte : le chapitre doit tenir dans les
 import argparse
 import time
 
+import progress
 from graph import build_graph
 from preflight import PreflightError, preflight, report
 
@@ -25,6 +26,14 @@ def main() -> None:
         "--skip-preflight", action="store_true",
         help="Passer outre le contrôle machine (dev only, JAMAIS en scène)",
     )
+    p.add_argument(
+        "--muet", action="store_true",
+        help="Sans compte à rebours ni progression (mesure au plus juste)",
+    )
+    p.add_argument(
+        "--budget", type=float, default=progress.BUDGET_MIN,
+        help="Budget de scène en minutes pour le compte à rebours (défaut 25)",
+    )
     args = p.parse_args()
 
     # Un chapitre tourne ~20 min sans surveillance : mieux vaut refuser de
@@ -36,12 +45,21 @@ def main() -> None:
     except PreflightError as exc:
         raise SystemExit(f"\n{exc}\n\n  (--skip-preflight pour outrepasser)")
 
+    # Le compte à rebours est actif par DÉFAUT : c'est le mode de scène, et un
+    # écran figé pendant dix-sept minutes se lit comme une panne. `--muet` sert
+    # à mesurer sans le coût du streaming (quelques écritures par seconde).
+    suivi = progress.Progress(actif=not args.muet, budget_min=args.budget)
+    progress.install(suivi)
+
     graph = build_graph()
     t0 = time.time()
-    final = graph.invoke(
-        {"brief": args.brief, "characters": args.characters},
-        config={"recursion_limit": 50},  # la boucle d'écriture peut itérer
-    )
+    try:
+        final = graph.invoke(
+            {"brief": args.brief, "characters": args.characters},
+            config={"recursion_limit": 50},  # la boucle d'écriture peut itérer
+        )
+    finally:
+        suivi.fin()
     total = time.time() - t0
 
     print("\n" + "#" * 78)

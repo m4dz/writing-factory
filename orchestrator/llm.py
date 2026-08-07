@@ -55,6 +55,37 @@ def unload(model: str = AUTHOR_MODEL, timeout: float = 60.0) -> bool:
         return False
 
 
+def _read_stream(req, timeout: float, on_token) -> dict:
+    """Lit une réponse Ollama en streaming et rend la MÊME forme qu'un appel
+    non-streamé (dernier fragment + contenu complet recollé).
+
+    Ollama envoie du JSON délimité par des sauts de ligne : un objet par token,
+    puis un dernier objet `done: true` qui porte TOUS les compteurs. On recolle
+    le texte et on rend ce dernier objet enrichi, pour que le calcul de
+    métriques en aval soit identique dans les deux modes — sans quoi le
+    streaming aurait ses propres chiffres, donc ses propres bugs.
+    """
+    morceaux: list[str] = []
+    final: dict = {}
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        for ligne in resp:
+            ligne = ligne.strip()
+            if not ligne:
+                continue
+            try:
+                bloc = json.loads(ligne)
+            except json.JSONDecodeError:
+                continue
+            fragment = (bloc.get("message") or {}).get("content", "")
+            if fragment:
+                morceaux.append(fragment)
+                on_token(fragment, len(morceaux))
+            if bloc.get("done"):
+                final = bloc
+    final["message"] = {"content": "".join(morceaux)}
+    return final
+
+
 def chat(
     system: str,
     user: str,
@@ -64,8 +95,9 @@ def chat(
     num_predict: int = 1200,
     num_ctx: int = NUM_CTX,
     timeout: float = 900.0,
+    on_token=None,
 ) -> tuple[str, dict]:
-    """Un tour de chat non-streamé. Retourne (texte, métriques de timing).
+    """Un tour de chat. Retourne (texte, métriques de timing).
 
     Les métriques (tok/s génération, prefill, durée) servent le compte à
     rebours et le profilage de la contrainte des 25 minutes de scène.
@@ -73,7 +105,7 @@ def chat(
     return chat_turns(
         system, [{"role": "user", "content": user}],
         model=model, temperature=temperature, num_predict=num_predict,
-        num_ctx=num_ctx, timeout=timeout,
+        num_ctx=num_ctx, timeout=timeout, on_token=on_token,
     )
 
 
@@ -86,12 +118,20 @@ def chat_turns(
     num_predict: int = 1200,
     num_ctx: int = NUM_CTX,
     timeout: float = 900.0,
+    on_token=None,
 ) -> tuple[str, dict]:
     """Chat MULTI-TOURS : `turns` est une liste de {role, content} déjà ordonnée.
 
     Nécessaire pour le mode acteur, où le modèle doit voir l'échange en cours
     comme un dialogue et non comme un bloc de texte reformaté. La garde
     française est prépendue au système, comme partout ailleurs.
+
+    `on_token(fragment, cumul)` active le STREAMING. Sans callback, la requête
+    reste non-streamée, à l'octet près comme avant : le pipeline auteur a été
+    mesuré et validé dans ce mode, et l'habillage de démo ne doit pas rejouer
+    cette validation. Le streaming ne sert qu'à montrer le travail en cours —
+    les métriques finales sont identiques, Ollama les envoie dans son dernier
+    fragment.
     """
     payload = json.dumps(
         {
@@ -100,7 +140,7 @@ def chat_turns(
                 {"role": "system", "content": f"{FRENCH_GUARD}\n\n{system}"},
                 *turns,
             ],
-            "stream": False,
+            "stream": on_token is not None,
             "options": {
                 "temperature": temperature,
                 "num_predict": num_predict,
@@ -114,8 +154,11 @@ def chat_turns(
         headers={"Content-Type": "application/json"},
     )
     t0 = time.time()
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        data = json.loads(resp.read())
+    if on_token is None:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read())
+    else:
+        data = _read_stream(req, timeout, on_token)
     wall = time.time() - t0
 
     ec = data.get("eval_count", 0)

@@ -16,6 +16,7 @@ from typing import TypedDict
 
 from langgraph.graph import StateGraph, START, END
 
+import progress
 from llm import chat, unload
 from retrieval import assemble_system_prompt
 from style import delint, ends_mid_sentence, trim_to_sentence
@@ -104,13 +105,16 @@ def _generate_whole(system: str, user: str, *, num_predict: int,
     dépasse encore. Le filet n'est jamais le premier recours : il rend une
     scène qui s'arrête tôt, donc sans l'état final que le plan lui demandait.
     """
-    text, m = chat(system, user, num_predict=num_predict, temperature=temperature)
+    text, m = chat(system, user, num_predict=num_predict, temperature=temperature,
+                   on_token=progress.token_sink())
     metrics = [m]
     warns: list[str] = []
 
     for _ in range(MAX_CONTINUATIONS):
         if m.get("done_reason") != "length":
             break
+        progress.note(f"{label} : génération coupée à {num_predict} tokens, "
+                      "continuation demandée")
         suite_user = (
             f"{user}\n\n=== CE QUI EST DÉJÀ ÉCRIT (fin du texte) ===\n"
             f"{text[-600:]}\n\n"
@@ -121,7 +125,7 @@ def _generate_whole(system: str, user: str, *, num_predict: int,
         )
         suite, m = chat(system, suite_user,
                         num_predict=max(300, num_predict // 3),
-                        temperature=temperature)
+                        temperature=temperature, on_token=progress.token_sink())
         metrics.append(m)
         text = _recoller(text, suite)
         warns.append(f"{label} : génération coupée, continuation demandée")
@@ -212,19 +216,24 @@ def plan_node(state: ChapterState) -> dict:
     metrics: list[dict] = []
     warnings: list[str] = []
 
+    progress.phase("Invariants de la bible", "(Qwen)")
     facts, mf = derive_facts(state["characters"])
     metrics.append(mf)
+    progress.note(f"{len(facts)} faits dérivés, ils contraignent le plan")
     unload(QA_MODEL)  # place nette avant de charger nemo
 
     beats: list[str] = []
     rapport = "Plan non vérifié (aucun fait dérivé de la bible)."
     feedback = ""
     for attempt in range(1, MAX_PLAN_ATTEMPTS + 1):
+        progress.phase("Plan de scènes",
+                       f"(nemo, tentative {attempt}/{MAX_PLAN_ATTEMPTS})")
         system = assemble_system_prompt(
             characters=state["characters"], scene_brief=state["brief"]
         )
         text, m = chat(system, _plan_user(state["brief"], facts, feedback),
-                       num_predict=500, temperature=0.5)
+                       num_predict=500, temperature=0.5,
+                       on_token=progress.token_sink())
         metrics.append(m)
         # Le plan passe au lint comme la prose : un token collé dans un beat
         # (« maisonly », observé au run du 2026-08-06) contamine ensuite le
@@ -241,6 +250,7 @@ def plan_node(state: ChapterState) -> dict:
             break
 
         unload()  # nemo → Qwen pour la vérification
+        progress.phase("Contrôle du plan contre la bible", "(Qwen)")
         violations, rapport, mv = check_plan(facts, beats)
         metrics.extend(mv)
         # Tracer la tentative : un plan refusé PUIS corrigé est le moment le
@@ -254,10 +264,9 @@ def plan_node(state: ChapterState) -> dict:
                     "malgré la contradiction, à arbitrer à la main]"
                 )
             break
-        warnings.append(
-            f"plan (tentative {attempt}) refusé : "
-            + "; ".join(f"contredit « {fait} »" for _, fait, _ in violations)
-        )
+        refus = "; ".join(f"contredit « {fait} »" for _, fait, _ in violations)
+        warnings.append(f"plan (tentative {attempt}) refusé : {refus}")
+        progress.note(f"PLAN REFUSÉ — {refus}. Replanification.")
         feedback = _plan_feedback(violations)
         unload(QA_MODEL)  # Qwen → nemo pour la reprise
 
@@ -279,6 +288,7 @@ def write_node(state: ChapterState) -> dict:
     """
     idx = state["idx"]
     beat = state["plan"][idx]
+    progress.phase("Écriture", f"scène {idx + 1}/{len(state['plan'])} (nemo)")
     system = assemble_system_prompt(
         characters=state["characters"], scene_brief=beat, place_query=beat,
         include_scenes=False,  # continuité gérée par le threading explicite ci-dessous
@@ -345,6 +355,8 @@ def review_node(state: ChapterState) -> dict:
         include_scenes=False,
     )
     for i, scene in enumerate(state["scenes"]):
+        progress.phase("Relecture",
+                       f"scène {i + 1}/{len(state['scenes'])} (nemo)")
         # ~3,5 caractères par token en français ; on vise 1,6x la longueur
         # de la scène, borné, pour laisser la place à une réécriture complète.
         budget = min(2000, max(1200, int(len(scene) / 3) + 300))
@@ -383,10 +395,14 @@ def repair_node(state: ChapterState) -> dict:
     repaired: list[str] = []
     metrics = list(state["metrics"])
     warns = list(state["warnings"])
+    progress.phase("Bascule des modèles", "nemo déchargé, Qwen prend la main")
     if not unload():
         warns.append("QA : déchargement de nemo refusé par Ollama (co-résidence "
                      "nemo + Qwen, pression mémoire)")
+        progress.note("déchargement de nemo REFUSÉ — pression mémoire")
     for i, scene in enumerate(state["reviewed"]):
+        progress.phase("Réparation linguistique",
+                       f"scène {i + 1}/{len(state['reviewed'])} (Qwen)")
         text, m = repair(scene)
         metrics.append(m)
         # Garde-fou : une réparation ne doit pas escamoter la scène.
@@ -413,6 +429,7 @@ def coherence_node(state: ChapterState) -> dict:
     reçues. Économie accessoire : un appel Qwen de moins.
     C'est la « strate 4 » finale montrée sur scène."""
     metrics = list(state["metrics"])
+    progress.phase("Cohérence par faits", "(Qwen)")
 
     facts = state.get("facts") or []
     if not facts:  # nœud de plan court-circuité (test unitaire, reprise)
