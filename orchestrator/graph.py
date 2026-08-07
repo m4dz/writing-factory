@@ -288,7 +288,8 @@ def write_node(state: ChapterState) -> dict:
     """
     idx = state["idx"]
     beat = state["plan"][idx]
-    progress.phase("Écriture", f"scène {idx + 1}/{len(state['plan'])} (nemo)")
+    progress.phase("Écriture", f"scène {idx + 1}/{len(state['plan'])} (nemo)",
+                   i=idx + 1, n=len(state["plan"]))
     system = assemble_system_prompt(
         characters=state["characters"], scene_brief=beat, place_query=beat,
         include_scenes=False,  # continuité gérée par le threading explicite ci-dessous
@@ -356,7 +357,8 @@ def review_node(state: ChapterState) -> dict:
     )
     for i, scene in enumerate(state["scenes"]):
         progress.phase("Relecture",
-                       f"scène {i + 1}/{len(state['scenes'])} (nemo)")
+                       f"scène {i + 1}/{len(state['scenes'])} (nemo)",
+                       i=i + 1, n=len(state["scenes"]))
         # ~3,5 caractères par token en français ; on vise 1,6x la longueur
         # de la scène, borné, pour laisser la place à une réécriture complète.
         budget = min(2000, max(1200, int(len(scene) / 3) + 300))
@@ -402,7 +404,8 @@ def repair_node(state: ChapterState) -> dict:
         progress.note("déchargement de nemo REFUSÉ — pression mémoire")
     for i, scene in enumerate(state["reviewed"]):
         progress.phase("Réparation linguistique",
-                       f"scène {i + 1}/{len(state['reviewed'])} (Qwen)")
+                       f"scène {i + 1}/{len(state['reviewed'])} (Qwen)",
+                       i=i + 1, n=len(state["reviewed"]))
         text, m = repair(scene)
         metrics.append(m)
         # Garde-fou : une réparation ne doit pas escamoter la scène.

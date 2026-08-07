@@ -11,3 +11,4 @@ orchestrator/.venv/
 # place est dans bible/, pas ici.
 sessions/*/
 !sessions/.gitkeep
+output/

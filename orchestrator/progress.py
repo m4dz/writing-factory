@@ -32,6 +32,30 @@ BUDGET_MIN = float(os.environ.get("DEMO_BUDGET_MIN", "25"))
 _ANSI_EFFACE_LIGNE = "\x1b[2K"
 _ANSI_DEBUT_LIGNE = "\r"
 
+# Bandes d'avancement par phase, en fraction du travail total. Les bornes sont
+# grossières et c'est assumé : elles servent à faire progresser une barre pour
+# la salle, pas à prédire une fin. Elles vivent ICI et non dans les nœuds du
+# graphe, pour qu'on puisse les recaler après une répétition sans toucher au
+# pipeline. Mesures du run de référence (17,0 min, 4 scènes) : le plan pèse
+# ~2 min, l'écriture ~7, la relecture ~5, la QA ~3.
+BANDES = {
+    "Invariants de la bible": (0.00, 0.04),
+    "Plan de scènes": (0.04, 0.10),
+    "Contrôle du plan contre la bible": (0.10, 0.12),
+    "Écriture": (0.12, 0.55),
+    "Relecture": (0.55, 0.80),
+    "Bascule des modèles": (0.80, 0.81),
+    "Réparation linguistique": (0.81, 0.90),
+    "Cohérence par faits": (0.90, 0.97),
+    "Lecture en voix clonée": (0.97, 1.00),
+}
+
+# Phases telles que le deck les connaît (contrat gelé côté talk :
+# `GenStatus`). Notre granularité interne est plus fine ; on la projette.
+PHASES_DECK = {
+    "Lecture en voix clonée": "tts",
+}
+
 
 def _mmss(secondes: float) -> str:
     secondes = max(0, int(secondes))
@@ -59,19 +83,37 @@ class Progress:
         self.t0 = time.time()
         self.phase_courante = ""
         self.detail = ""
+        self.phase_deck = "generating"   # projection sur le contrat du deck
+        self.avancement = 0.0            # fraction 0..1, monotone
         self.gen_toks = 0          # tokens du chapitre entier
+        self.notes: list[str] = []       # événements marquants, pour /status
         self._toks_appel = 0       # tokens de l'appel en cours
         self._dernier_dessin = 0.0
         self._t_appel = 0.0
 
     # --- API appelée par le graphe -------------------------------------------
 
-    def phase(self, titre: str, detail: str = "") -> None:
-        """Change de phase (plan, écriture scène 2/4, relecture, QA…)."""
-        if not self.actif:
-            return
+    def phase(self, titre: str, detail: str = "", *,
+              i: int | None = None, n: int | None = None) -> None:
+        """Change de phase (plan, écriture scène 2/4, relecture, QA…).
+
+        `i`/`n` situent l'étape dans sa bande d'avancement (scène 2 sur 4). Les
+        nœuds les fournissent quand ils les connaissent ; sans eux, la phase
+        vaut le début de sa bande.
+
+        Ce calcul tourne MÊME si l'affichage est inactif : `/status` doit pouvoir
+        rendre un avancement quand le serveur HTTP n'écrit rien sur un terminal.
+        """
+        debut, fin = BANDES.get(titre, (self.avancement, self.avancement))
+        part = (i / n) if (i is not None and n) else 0.0
+        # Monotone : un avancement qui recule (replanification, phase inconnue)
+        # se lit comme un bug depuis la salle.
+        self.avancement = max(self.avancement, debut + (fin - debut) * part)
         self.phase_courante = titre
         self.detail = detail
+        self.phase_deck = PHASES_DECK.get(titre, "generating")
+        if not self.actif:
+            return
         self._toks_appel = 0
         self._t_appel = time.time()
         if self.interactif:
@@ -81,6 +123,11 @@ class Progress:
 
     def note(self, message: str) -> None:
         """Événement ponctuel digne d'être vu (replanification, réparation…)."""
+        # Conservées même en mode inactif : ce sont elles que `/status` et les
+        # notifications téléphone relaient, et le serveur HTTP n'a pas de
+        # terminal. Bornées, sinon un run long les accumule sans fin.
+        self.notes.append(message)
+        del self.notes[:-20]
         if not self.actif:
             return
         if self.interactif:
@@ -104,6 +151,26 @@ class Progress:
         if self.actif and self.interactif:
             self.flux.write(_ANSI_EFFACE_LIGNE + _ANSI_DEBUT_LIGNE)
             self.flux.flush()
+
+    def instantane(self) -> dict:
+        """État courant, pour `GET /status` et les notifications.
+
+        `phase` est la valeur du CONTRAT GELÉ côté deck
+        (`generating` | `tts` | `ready`, cf. talk/openspec remote-integration) ;
+        tout le reste est additif et le deck peut l'ignorer sans rien perdre —
+        c'est la condition pour enrichir l'affichage sans casser le contrat.
+        """
+        return {
+            "phase": self.phase_deck,
+            "ready": False,
+            "progress": round(self.avancement, 3),
+            "label": self.phase_courante,
+            "detail": self.detail,
+            "elapsed_s": int(time.time() - self.t0),
+            "budget_s": int(self.budget),
+            "gen_toks": self.gen_toks,
+            "notes": list(self.notes[-5:]),
+        }
 
     # --- rendu ---------------------------------------------------------------
 
@@ -150,8 +217,9 @@ def install(sink: Progress) -> None:
     SINK = sink
 
 
-def phase(titre: str, detail: str = "") -> None:
-    SINK.phase(titre, detail)
+def phase(titre: str, detail: str = "", *,
+          i: int | None = None, n: int | None = None) -> None:
+    SINK.phase(titre, detail, i=i, n=n)
 
 
 def note(message: str) -> None:

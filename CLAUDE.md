@@ -243,7 +243,68 @@ podman-compose.yml        # openwebui + chromadb + indexer (profil tools)
         horodatées dès que la sortie est redirigée. Une barre réécrite en place
         remplirait un `> run.log` de milliers de `\r`, et c'est justement le cas
         d'usage.
-- [ ] Frontend (OpenWebUI via pipelines, ou interface dédiée — non tranché)
+- [~] **API de démo (`orchestrator/api.py`) — contrat gelé par le talk.**
+      Le dépôt du talk portait déjà un changement openspec
+      (`changes/remote-integration-contract/`) marqué « BLOQUÉ : la surface
+      d'intégration côté machine n'existe pas encore ». Il FIGE le contrat, et
+      c'est nous qui bloquions. On l'implémente, on ne le rediscute pas.
+      * `POST /generate` → `202`, fire-and-forget, **idempotent** (un second
+        POST ne relance pas ; après un échec, en revanche, il relance).
+      * `GET /chapter` → `200 text/markdown` (contiendra `<!-- BASCULE -->`),
+        sinon `204`. `GET /audio` → `200 audio/wav`, sinon `204`.
+      * `GET /status` → `200 {phase, ready, …}`. `phase` ∈ `generating | tts |
+        ready | error` (le type `GenStatus` du deck) ; tous les autres champs
+        (`progress`, `label`, `detail`, `notes`, `elapsed_s`) sont ADDITIFS et
+        le deck peut les ignorer — c'est la condition pour enrichir le compte à
+        rebours sans toucher au contrat. Le compte à rebours du deck reste
+        AUTONOME : il ne dépend jamais de nos réponses.
+      * `http.server` de la bibliothèque standard, pas de FastAPI : quatre
+        routes, du CORS et un job unique en vol. Les dépendances restent
+        `langgraph` + `chromadb-client`.
+      * **Le deck ne doit jamais voir d'erreur** : préflight refusé, modèle
+        tombé, exception dans le graphe — tout devient `204` sur les ressources
+        et `phase: error` sur `/status`, jamais un 500. C'est le deck qui
+        bascule en silence sur ses assets embarqués.
+      * **Les artefacts vont sur DISQUE avant d'être servis** (`output/`) : si
+        l'API meurt après la génération, le chapitre survit et un redémarrage
+        le ressert. Le garder en mémoire de processus perdrait vingt minutes de
+        calcul sur un Ctrl-C.
+      * Vérifié : `204` avant génération, CORS sur `OPTIONS`, `202` deux fois de
+        suite avec `started: true` puis `false`, et un préflight refusé qui
+        atterrit en `phase: error` avec la raison dans `error` et `notes`.
+      * RESTE À FAIRE : marqueur `<!-- BASCULE -->` posé par le pipeline, étape
+        TTS (extrait borné, cf. ci-dessous), `POST /chat` + page du mode acteur,
+        notifications téléphone.
+
+## Intégration deck / TTS — décisions du 2026-08-07
+
+Le contrat HTTP vient du talk et est gelé (cf. « API de démo » ci-dessus).
+Trois décisions du propriétaire complètent la cible :
+
+- **Mode acteur : notre propre `POST /chat` + une page dédiée servie par l'API**,
+  pas OpenWebUI. Raison : notre mémoire est STATEFUL côté serveur (résumé
+  glissant, souvenirs indexés) alors que le contrat OpenAI est
+  stateless-avec-historique-complet — OpenWebUI renverrait tout l'historique à
+  chaque tour et contournerait le résumeur. Bonus : une page à nous peut
+  s'afficher en iframe dans une slide. `chat_character.py` reste le plan B.
+- **Lecture clonée BORNÉE à ~3-4 min (450-600 mots), pas tout le chapitre.**
+  L'arithmétique l'impose : le TTS tourne à ~1× temps réel (RUNBOOK), donc un
+  chapitre entier de 4 scènes (~2400 mots) demanderait un quart d'heure d'audio
+  ET un quart d'heure de calcul — 17 + 15 = 32 min contre 28' au compteur du
+  deck, sans parler d'une lecture de quinze minutes dans une keynote de
+  cinquante. Le pipeline devra donc poser `<!-- BASCULE -->` ET borner l'extrait
+  rendu en audio. Cible : ~21 min au total, marge ~7 min.
+- **Notifications téléphone par Telegram, coupées par défaut, charge utile
+  verrouillée** : phase, pourcentage, code d'erreur — JAMAIS le texte du
+  chapitre ni un extrait de la bible. C'est une exception assumée à la règle
+  d'or « aucune API cloud » : ce qui reste local, c'est la FABRIQUE de l'œuvre ;
+  ceci est le bipeur de l'opérateur. Son intérêt est justement d'être hors-bande
+  (cellulaire) quand le wifi de la conférence lâche — c'est-à-dire dans le cas
+  précis que la notification doit signaler.
+
+⚠ **Le budget de 25 min de notre CLAUDE.md ne couvre que la génération.** La
+vraie échéance est le compteur du deck (28') MOINS le temps de TTS. Avec la
+lecture bornée : 17 + ~4 = ~21 min.
 
 ## Prochaine étape convenue
 
