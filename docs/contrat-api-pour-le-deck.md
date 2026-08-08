@@ -1,8 +1,12 @@
 # Surface HTTP de la machine de génération — état réel au 2026-08-07 (rév. 2)
 
-> **Rév. 2** : `/audio` est branché et le marqueur de bascule existe. La
-> révision 1 disait le contraire — si vous l'avez lue, ces deux points ont
-> changé, le reste est inchangé.
+> **Rév. 3** — réponse à votre message du 2026-08-08. Trois changements de notre
+> côté : les deux marqueurs sont désormais GARANTIS présents, l'extrait audio
+> est ramené de 550 à 250 mots pour coller à vos 45-60 s, et une route
+> `POST /cancel` apparaît à cause d'une interaction avec votre politique de
+> reprise (voir la section dédiée — c'est le seul point qui demande votre avis).
+>
+> **Rév. 2** : `/audio` branché, marqueur de bascule posé.
 
 > **À qui ça s'adresse** : la session Code du dépôt `talk`, pour appliquer le
 > changement openspec `remote-integration-contract` (jusqu'ici marqué
@@ -132,10 +136,22 @@ Elle compta trois pas avant de toucher l'enclume fendue…
 - **`<!-- BASCULE -->` tombe après la DEUXIÈME PHRASE du chapitre.** Décision du
   speaker, pour un repère de scène reproductible : il lit deux phrases à voix
   nue, puis lance l'audio. `GET /audio` commence exactement là.
-- **`<!-- FIN AUDIO -->`** marque où la voix clonée s'arrête. **Additif** : vous
-  pouvez l'ignorer. Il existe parce que l'audio est borné alors que le chapitre
-  servi est entier — si vous voulez indiquer visuellement où la lecture s'arrête,
-  la borne est là. Aucun effet sur le rendu si vous n'en faites rien.
+- **`<!-- FIN AUDIO -->`** marque où la voix clonée s'arrête.
+
+**Les deux marqueurs sont GARANTIS présents**, y compris dans les cas
+dégénérés — chapitre de deux phrases, texte sans ponctuation finale, scènes
+vides. Votre règle (« un chapitre sans les deux marqueurs est traité comme non
+prêt ») nous a fait durcir ça : mon code ne posait `FIN AUDIO` que si la borne
+d'extrait était calculable, si bien qu'un chapitre court aurait fait disparaître
+le chapitre live **en silence**. Il y a maintenant un repli en fin de texte, et
+cinq cas limites sont couverts par un test.
+
+**Extrait ramené à 250 mots** (≈ 79 s à 190 mots/min mesurés), au lieu de 550.
+Vos 45 s à 1 min rendaient notre borne trois fois trop large : on synthétisait
+2,9 min d'audio pour ~1,8 min de calcul. La marge sur votre maximum est
+délibérée — un audio trop long se coupe en avançant d'une slide, un audio trop
+court laisse un trou. Réglable par `AUDIO_MOTS_MAX` si la répétition dit autre
+chose.
 
 ## Le point de timing qui vous concerne
 
@@ -181,6 +197,38 @@ d'écriture en cours — **jusqu'à deux minutes de silence sur scène**.
 **Conséquence pour le déroulé** : la démo d'acteur se joue AVANT le lancement du
 chapitre (section 3) ou APRÈS sa récolte (section 7), jamais entre les deux. Si
 le plan du talk la prévoit dans l'intervalle, il faut le savoir maintenant.
+
+## Votre politique de reprise — une interaction à trancher
+
+Vos réglages nous vont : `/status` et `/chapter` répondent en millisecondes (ils
+lisent un dict ou un fichier, jamais le modèle), donc **3 s de timeout est
+large**, et un sondage toutes les 10 s ne coûte rien.
+
+Le re-POST unique sur `phase: error` nous va aussi — chez nous, un POST après
+échec relance bien (l'idempotence interdit deux générations concurrentes, pas
+une reprise).
+
+**Mais il a une conséquence que vous ne pouvez pas voir depuis le deck.** À
+moins de trois minutes du décompte, la relance repart pour **dix-sept minutes**
+de génération, soit bien après la fin du talk. Or `POST /chat` refuse pendant
+qu'un chapitre se génère (même modèle, la machine n'en tient qu'un) : le mode
+acteur serait donc bloqué pendant tout ce temps, précisément quand on veut le
+montrer après la récolte.
+
+D'où **`POST /cancel`** : `{"cancelled": true|false, "state": …}`. L'arrêt prend
+effet à la frontière de nœud suivante — au pire après l'appel modèle en cours,
+46 s mesurées. Le job repasse à `idle` et la machine redevient disponible.
+
+Rien à faire de votre côté si ça vous va : c'est une sortie de secours
+d'opérateur, pas une opération du deck. Mais si vous préférez que la reprise
+tardive n'existe pas plutôt que d'avoir à l'annuler à la main, dites-le — le
+choix vous appartient, c'est votre décompte.
+
+## `phase` peut aussi valoir `idle`
+
+En plus de `error` (déjà signalé en rév. 1) : avant tout lancement, et après une
+annulation. C'est une valeur de votre `GenStatus`. Prétendre `generating` dans
+ces deux cas vous ferait attendre un chapitre que personne n'écrit.
 
 ## Points ouverts, côté vous
 

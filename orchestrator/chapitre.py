@@ -30,9 +30,14 @@ FIN_AUDIO = "<!-- FIN AUDIO -->"
 # Phrases lues à voix nue avant la bascule.
 PHRASES_AVANT_BASCULE = int(os.environ.get("BASCULE_APRES_PHRASES", "2"))
 
-# Budget de mots de la lecture clonée. ~150 mots/min en lecture posée → 550 mots
-# ≈ 3 min 40. C'est le paramètre à bouger si la répétition dit que c'est long.
-MOTS_AUDIO = int(os.environ.get("AUDIO_MOTS_MAX", "550"))
+# Budget de mots de la lecture clonée. Calé sur le BESOIN RÉEL du deck : la
+# section 7 ne joue que 45 s à 1 min de voix clonée, la coupe se faisant en
+# avançant d'une slide (session frontend, 2026-08-08). À 190 mots/min mesurés,
+# 250 mots ≈ 79 s — une marge délibérée sur leur maximum : un audio trop long se
+# coupe sans qu'on l'entende, un audio trop court laisse un trou sur scène.
+# Le premier calibrage (550 mots, 2,9 min) rendait trois fois trop d'audio et
+# coûtait 1,8 min de calcul au lieu de ~50 s.
+MOTS_AUDIO = int(os.environ.get("AUDIO_MOTS_MAX", "250"))
 
 
 def _fin_de_phrase_n(texte: str, n: int) -> int | None:
@@ -81,10 +86,16 @@ def assembler(scenes: list[str], *, mots_max: int = MOTS_AUDIO,
               phrases: int = PHRASES_AVANT_BASCULE) -> str:
     """Chapitre complet en Markdown, avec bascule et fin de lecture marquées.
 
-    `FIN AUDIO` est ADDITIF et sans effet sur le rendu : il dit au deck où
-    s'arrête la voix clonée, pour qu'il puisse l'indiquer s'il le souhaite. Le
-    chapitre servi reste ENTIER — c'est la pièce à conviction de la démo, on ne
-    la tronque pas parce que l'audio, lui, est borné.
+    LES DEUX MARQUEURS SONT GARANTIS PRÉSENTS. Exigence du deck (message de la
+    session frontend, 2026-08-08) : « un chapitre sans les deux marqueurs est
+    traité comme non prêt et bascule sur l'embarqué ». Un marqueur manquant ne
+    dégraderait donc pas l'affichage, il ferait disparaître le chapitre live —
+    en silence. D'où le repli en fin de texte plutôt qu'une omission quand la
+    borne d'extrait ne peut pas être calculée (chapitre très court, texte sans
+    ponctuation finale).
+
+    Le chapitre servi reste ENTIER : c'est la pièce à conviction de la démo, on
+    ne la tronque pas parce que l'audio, lui, est borné.
     """
     corps = inserer_bascule("\n\n".join(s.strip() for s in scenes if s.strip()),
                             phrases=phrases)
@@ -92,4 +103,6 @@ def assembler(scenes: list[str], *, mots_max: int = MOTS_AUDIO,
     if lu and lu in corps:
         pos = corps.index(lu) + len(lu)
         corps = f"{corps[:pos]}\n\n{FIN_AUDIO}\n\n{corps[pos:].lstrip()}".rstrip()
+    else:
+        corps = f"{corps.rstrip()}\n\n{FIN_AUDIO}"
     return corps

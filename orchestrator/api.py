@@ -143,6 +143,11 @@ class Job:
                 self.etat = "ready"
                 self.fini_a = time.time()
             progress.note("chapitre prêt")
+        except progress.Annulation:
+            with self.lock:
+                self.etat = "idle"       # la machine redevient disponible
+                self.fini_a = time.time()
+            progress.note("génération annulée")
         except PreflightError as exc:
             self._echouer(f"préflight refusé : {exc}")
         except Exception as exc:                       # noqa: BLE001
@@ -198,6 +203,23 @@ class Job:
             progress.note(f"TTS indisponible : {exc} — chapitre servi sans audio")
             return None
 
+    def annuler(self) -> bool:
+        """Demande l'arrêt du job en cours. Vrai s'il y avait quelque chose.
+
+        Sortie de secours d'opérateur, née d'une interaction que le deck ne
+        pouvait pas voir : sa politique de reprise re-POSTe une fois sur
+        `phase: error` à moins de trois minutes du décompte. Le pipeline repart
+        alors pour dix-sept minutes — bien après la fin du talk — et notre garde
+        409 bloquerait le mode acteur pendant tout ce temps, précisément au
+        moment où on veut le montrer. L'arrêt prend effet à la frontière de nœud
+        suivante, donc au pire après l'appel modèle en cours.
+        """
+        with self.lock:
+            if self.etat not in ("generating", "tts") or not self.suivi:
+                return False
+            self.suivi.annule = True
+            return True
+
     # --- lecture -------------------------------------------------------------
 
     def instantane(self) -> dict:
@@ -219,8 +241,12 @@ class Job:
         # son type le prévoit, et le savoir tôt lui permet de basculer sur ses
         # assets embarqués au lieu d'attendre un timeout. Le silence côté salle
         # est garanti par le deck, pas par un mensonge de notre part.
+        # `idle` est dit franchement, comme `error` : c'est une valeur de leur
+        # `GenStatus`, et prétendre « generating » avant tout lancement — ou
+        # après une annulation — laisserait le deck attendre un chapitre que
+        # personne n'écrit.
         base["phase"] = {
-            "ready": "ready", "tts": "tts", "error": "error",
+            "ready": "ready", "tts": "tts", "error": "error", "idle": "idle",
         }.get(etat, "generating")
         base["ready"] = etat == "ready" and CHAPITRE_MD.exists()
         base["state"] = etat
@@ -444,6 +470,11 @@ class Handler(BaseHTTPRequestHandler):
         route = self.path.split("?")[0].rstrip("/") or "/"
         if route == "/chat":
             self._chat()
+            return
+        if route == "/cancel":
+            arrete = JOB.annuler()
+            self._json(200, {"cancelled": arrete, "state": JOB.etat,
+                             "detail": None if arrete else "aucun job en cours"})
             return
         if route != "/generate":
             self._json(404, {"error": "route inconnue"})

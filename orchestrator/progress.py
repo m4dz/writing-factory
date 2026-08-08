@@ -57,6 +57,16 @@ PHASES_DECK = {
 }
 
 
+class Annulation(RuntimeError):
+    """Le job en cours a été annulé par l'opérateur.
+
+    Levée depuis `phase()`, c'est-à-dire aux FRONTIÈRES DE NŒUD du graphe : on
+    ne peut pas tuer proprement un thread Python, mais on peut refuser de passer
+    à l'étape suivante. Le pire délai est donc la durée d'un appel au modèle
+    (~2 min sur une écriture de scène), pas l'éternité.
+    """
+
+
 def _mmss(secondes: float) -> str:
     secondes = max(0, int(secondes))
     return f"{secondes // 60:d}:{secondes % 60:02d}"
@@ -86,6 +96,7 @@ class Progress:
         self.phase_deck = "generating"   # projection sur le contrat du deck
         self.avancement = 0.0            # fraction 0..1, monotone
         self.gen_toks = 0          # tokens du chapitre entier
+        self.annule = False              # demande d'arrêt de l'opérateur
         self.notes: list[str] = []       # événements marquants, pour /status
         self._toks_appel = 0       # tokens de l'appel en cours
         self._dernier_dessin = 0.0
@@ -104,6 +115,8 @@ class Progress:
         Ce calcul tourne MÊME si l'affichage est inactif : `/status` doit pouvoir
         rendre un avancement quand le serveur HTTP n'écrit rien sur un terminal.
         """
+        if self.annule:
+            raise Annulation("génération annulée par l'opérateur")
         debut, fin = BANDES.get(titre, (self.avancement, self.avancement))
         part = (i / n) if (i is not None and n) else 0.0
         # Monotone : un avancement qui recule (replanification, phase inconnue)
