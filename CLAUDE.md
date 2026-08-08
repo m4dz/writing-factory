@@ -323,10 +323,22 @@ Trois décisions du propriétaire complètent la cible :
   Repère strictement reproductible : sur scène, il lit deux phrases puis lance
   l'audio. Ma proposition initiale (« frontière de paragraphe ») dépendait du
   découpage de nemo, donc variait d'un run à l'autre — inutilisable comme repère.
-- **Lecture clonée BORNÉE à ~550 mots**, pas tout le chapitre. MESURÉ sur cette
-  machine (et non repris du RUNBOOK) : **1,57× temps réel** modèle chaud, débit
-  de lecture **190 mots/min**. Donc 550 mots = 2,9 min d'audio pour 1,8 min de
-  calcul → **~19 min au total, 9 min de marge** sur les 28' du compteur.
+- **Lecture clonée bornée en SECONDES, pas en mots** (`AUDIO_SECONDES=165`,
+  soit 2 min 45 — milieu de la fenêtre 2'30-3'00 demandée par le deck, extrait
+  joué EN ENTIER). La borne est exprimée dans l'unité du besoin ; la conversion
+  en mots passe par le débit mesuré du clone.
+  * ⚠ **Le deck raisonnait à ~150 mots/min, le clone parle à 190** (mesuré).
+    Leurs 450 mots auraient donné 2'22, SOUS leur propre plancher de 2'30 —
+    un trou, puisque l'extrait n'est plus coupé en cours de route. La
+    conversion se fait donc chez nous : 165 s × 190 = 522 mots.
+  * Ce débit vient d'UN échantillon de 117 mots. `tts.rendre` compare la durée
+    obtenue à la cible et émet une note dans `/status` au-delà de 20 s d'écart,
+    avec le débit réel à reporter. L'hypothèse se signalera au lieu de se
+    découvrir sur scène.
+  * MESURÉ sur cette machine (et non repris du RUNBOOK) : **1,57× temps réel**
+    modèle chaud. Donc 2'45 d'audio ≈ **1,8 min de calcul** → **~19 min au
+    total**, 9 min de marge sur les 28' du compteur. Le deck estimait 3 min de
+    TTS en supposant 1× temps réel.
   * Le premier rendu mesuré donnait 0,93× : il portait l'échauffement des
     noyaux Metal. Ne pas conclure sur un segment de six secondes.
   * ⚠ J'avais justifié le bornage par « 15 min de calcul pour tout le

@@ -30,14 +30,27 @@ FIN_AUDIO = "<!-- FIN AUDIO -->"
 # Phrases lues à voix nue avant la bascule.
 PHRASES_AVANT_BASCULE = int(os.environ.get("BASCULE_APRES_PHRASES", "2"))
 
-# Budget de mots de la lecture clonée. Calé sur le BESOIN RÉEL du deck : la
-# section 7 ne joue que 45 s à 1 min de voix clonée, la coupe se faisant en
-# avançant d'une slide (session frontend, 2026-08-08). À 190 mots/min mesurés,
-# 250 mots ≈ 79 s — une marge délibérée sur leur maximum : un audio trop long se
-# coupe sans qu'on l'entende, un audio trop court laisse un trou sur scène.
-# Le premier calibrage (550 mots, 2,9 min) rendait trois fois trop d'audio et
-# coûtait 1,8 min de calcul au lieu de ~50 s.
-MOTS_AUDIO = int(os.environ.get("AUDIO_MOTS_MAX", "250"))
+# La borne se règle en SECONDES, pas en mots — parce que c'est une durée que le
+# deck demande (« 2'30 à 3 min, extrait joué EN ENTIER », session frontend du
+# 2026-08-08), et qu'une consigne exprimée dans l'unité du besoin ne se traduit
+# pas de travers.
+#
+# La traduction en mots passe par le débit MESURÉ du clone. Attention : le deck
+# raisonnait à ~150 mots/min (d'où leur estimation de 375-450 mots), alors que
+# le rendu mesuré parle à 190. Leurs 450 mots auraient donné 2'22, soit SOUS
+# leur propre plancher — un trou là où ils attendent du son.
+#
+# ⚠ Ce débit vient d'UN échantillon de 117 mots. Le premier run complet doit le
+# confirmer : `tts.rendre` compare la durée obtenue à la cible et le signale.
+DEBIT_MOTS_MIN = float(os.environ.get("AUDIO_DEBIT_MOTS_MIN", "190"))
+SECONDES_AUDIO = float(os.environ.get("AUDIO_SECONDES", "165"))   # 2 min 45
+
+# Marge d'acceptation autour de la cible, pour l'alerte de fin de rendu.
+TOLERANCE_AUDIO_S = float(os.environ.get("AUDIO_TOLERANCE_S", "20"))
+
+MOTS_AUDIO = int(os.environ.get(
+    "AUDIO_MOTS_MAX", str(int(DEBIT_MOTS_MIN * SECONDES_AUDIO / 60))
+))
 
 
 def _fin_de_phrase_n(texte: str, n: int) -> int | None:

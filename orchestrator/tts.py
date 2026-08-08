@@ -30,7 +30,12 @@ import time
 from pathlib import Path
 
 import progress
-from chapitre import extrait_audio
+from chapitre import (
+    DEBIT_MOTS_MIN,
+    SECONDES_AUDIO,
+    TOLERANCE_AUDIO_S,
+    extrait_audio,
+)
 
 MODEL_ID = os.environ.get(
     "TTS_MODEL", "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit"
@@ -152,9 +157,24 @@ def rendre(texte: str, sortie: Path, *, model_id: str = MODEL_ID,
     except Exception:                                   # noqa: BLE001
         pass
 
+    # Le débit du clone est une HYPOTHÈSE (190 mots/min, mesurés sur un seul
+    # échantillon) qui sert à convertir la durée voulue par le deck en nombre de
+    # mots. Si elle est fausse, l'extrait sort trop court ou trop long, et
+    # personne ne s'en aperçoit avant la scène — sauf si on le dit ici.
+    ecart = duree - SECONDES_AUDIO
+    if abs(ecart) > TOLERANCE_AUDIO_S:
+        progress.note(
+            f"durée d'audio hors cible : {duree:.0f} s au lieu de "
+            f"{SECONDES_AUDIO:.0f} s ({ecart:+.0f} s). Recalibrer "
+            f"AUDIO_DEBIT_MOTS_MIN (actuel {DEBIT_MOTS_MIN:.0f} mots/min, "
+            f"réel {len(texte.split()) / (duree / 60):.0f})."
+        )
+
     return {
         "segments": len(segments),
         "audio_s": round(duree, 1),
+        "cible_s": SECONDES_AUDIO,
+        "debit_mots_min": round(len(texte.split()) / (duree / 60), 1),
         "calcul_s": round(calcul, 1),
         "facteur_temps_reel": round(duree / calcul, 2) if calcul else 0.0,
         "sample_rate": sr,

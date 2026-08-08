@@ -1,8 +1,11 @@
 # Surface HTTP de la machine de génération — état réel au 2026-08-07 (rév. 2)
 
-> **Rév. 3** — réponse à votre message du 2026-08-08. Trois changements de notre
-> côté : les deux marqueurs sont désormais GARANTIS présents, l'extrait audio
-> est ramené de 550 à 250 mots pour coller à vos 45-60 s, et une route
+> **Rév. 4** — votre borne révisée (2'30-3'00, extrait joué en entier) est en
+> place, réglée en secondes. **Un écart à connaître** : vos 375-450 mots
+> supposent ~150 mots/min, le clone mesuré parle à 190 — vos 450 mots auraient
+> donné 2'22, sous votre plancher. Voir la section extrait.
+>
+> **Rév. 3** — les deux marqueurs sont GARANTIS présents, et une route
 > `POST /cancel` apparaît à cause d'une interaction avec votre politique de
 > reprise (voir la section dédiée — c'est le seul point qui demande votre avis).
 >
@@ -146,12 +149,26 @@ d'extrait était calculable, si bien qu'un chapitre court aurait fait disparaît
 le chapitre live **en silence**. Il y a maintenant un repli en fin de texte, et
 cinq cas limites sont couverts par un test.
 
-**Extrait ramené à 250 mots** (≈ 79 s à 190 mots/min mesurés), au lieu de 550.
-Vos 45 s à 1 min rendaient notre borne trois fois trop large : on synthétisait
-2,9 min d'audio pour ~1,8 min de calcul. La marge sur votre maximum est
-délibérée — un audio trop long se coupe en avançant d'une slide, un audio trop
-court laisse un trou. Réglable par `AUDIO_MOTS_MAX` si la répétition dit autre
-chose.
+**Extrait calé sur 2 min 45**, au milieu de votre fenêtre 2'30-3'00. La borne se
+règle désormais en SECONDES (`AUDIO_SECONDES=165`), pas en mots : c'est une
+durée que vous demandez, et une consigne exprimée dans l'unité du besoin ne se
+traduit pas de travers.
+
+⚠ **Vos 375-450 mots supposent ~150 mots/min. Le clone parle à 190** (mesuré).
+Vos 450 mots auraient donc donné **2 min 22 — sous votre propre plancher**, donc
+un trou puisque l'extrait est maintenant joué en entier. La conversion se fait
+chez nous : 165 s × 190 mots/min = **522 mots**.
+
+Ce débit de 190 vient d'un seul échantillon de 117 mots. Le premier run complet
+le confirmera : si la durée obtenue s'écarte de plus de 20 s de la cible, le
+rendu émet une note dans `/status` avec le débit réel à reporter dans la
+configuration. Autrement dit, l'erreur se signalera au lieu de se découvrir sur
+scène.
+
+**Le calcul TTS sera plus court que vous ne l'estimez** : ~1 min 45, pas 3 min.
+Votre estimation suppose 1× temps réel (c'est ce que dit le RUNBOOK) ; la mesure
+sur cette machine donne **1,57×** modèle chaud. Cycle complet attendu : **~19
+min** contre 28 au compteur.
 
 ## Le point de timing qui vous concerne
 
@@ -160,16 +177,11 @@ Mesures sur la machine, pas des estimations :
 | Étape | Mesuré |
 |---|---|
 | Génération du chapitre (4 scènes) | **17,0 min** (1022 s) |
-| Rendu voix clonée (550 mots) | **~1,8 min** (1,57× temps réel, 190 mots/min) |
+| Rendu voix clonée (522 mots, 2'45 visées) | **~1,8 min** (1,57× temps réel) |
 | **Total** | **~19 min** contre 28' au compteur → ~9 min de marge |
 
-La lecture clonée est **bornée à ~550 mots** (≈ 2,9 min d'audio), et non au
-chapitre entier : celui-ci ferait 12,6 min d'écoute, injouable dans une keynote
-de cinquante minutes.
-
-Conséquence pour vous : rien à changer si votre section 7 lit un extrait. Si le
-deck prévoyait de faire lire tout le chapitre par le clone, dites-le — c'est un
-désaccord de conception, pas un détail d'implémentation.
+La lecture clonée est bornée à **2 min 45**, et non au chapitre entier : celui-ci
+ferait 12,6 min d'écoute, injouable dans une keynote de cinquante minutes.
 
 ## Mode acteur — hors contrat, mais une contrainte de PLANNING pour vous
 
