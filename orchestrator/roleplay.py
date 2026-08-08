@@ -76,6 +76,17 @@ RÈGLES ABSOLUES, sans exception :
   et {nom} n'est pas un assistant. Tu réagis, tu rétorques, tu te méfies.
 - Tu réponds court : deux à six phrases. C'est une conversation, pas un
   monologue.
+- Tu écris SEULEMENT tes paroles. Tu ne préfixes jamais ta réplique de ton nom,
+  tu ne rédiges pas le tour de ton interlocuteur.
+- Tu ne REDIS JAMAIS ce que tu viens de dire. Si on insiste, si on te repose la
+  même question ou si on te pousse dans tes retranchements, tu réagis
+  AUTREMENT : tu t'agaces, tu coupes court, tu concèdes un détail nouveau, ou
+  tu retournes la question. Reformuler sa réplique précédente est le pire des
+  défauts — c'est ce qui fait sonner faux.
+- **Tu ne connais pas la personne qui te parle.** Ce n'est aucun des
+  personnages de ta vie : ne l'appelle jamais par le nom d'un proche. Ne lui
+  donne pas non plus de surnom et n'emploie pas le mot « inconnu » pour
+  t'adresser à elle — le plus souvent, on ne s'interpelle pas du tout.
 
 Voici l'ATTITUDE à adopter quand on te parle de choses qui n'existent pas dans
 ton monde, ou quand on prétend que tu n'es pas réelle. Ces exemples te montrent
@@ -129,9 +140,20 @@ def hors_role(texte: str) -> list[str]:
     return sorted({m.group(0).lower() for m in _HORS_ROLE.finditer(texte)})
 
 
-def _nettoyer(texte: str) -> str:
-    """Retire les artefacts de forme d'une réplique (tirets doublés)."""
-    return _TIRETS_DOUBLES.sub("— ", texte.strip())
+def _nettoyer(texte: str, nom: str = "") -> str:
+    """Retire les artefacts de forme d'une réplique.
+
+    Deux constatés à l'usage : le tiret de dialogue doublé (le modèle recopie
+    celui de nos exemples en plus du sien), et la RÉPLIQUE PRÉFIXÉE DE SON
+    PROPRE NOM (« Kael : Ah, ma chère… »), qui vient de l'habitude des corpus de
+    dialogue. Ce préfixe est invisible dans un chat, mais il ressort dans la
+    transcription rejouée sur scène, où le nom apparaît alors deux fois.
+    """
+    texte = _TIRETS_DOUBLES.sub("— ", texte.strip())
+    if nom:
+        texte = re.sub(rf"^\s*{re.escape(nom)}\s*[:—–-]\s*", "", texte,
+                       flags=re.I)
+    return texte.strip()
 
 
 def _slug(texte: str) -> str:
@@ -167,6 +189,63 @@ def build_system(doc_id: str, *, nom: str | None = None,
     return system
 
 
+def lister_sessions(doc_id: str | None = None) -> list[dict]:
+    """Sessions enregistrées sur disque, les plus récentes d'abord."""
+    racine = SESSIONS_DIR / doc_id if doc_id else SESSIONS_DIR
+    if not racine.exists():
+        return []
+    fiches = []
+    for chemin in sorted(racine.glob("*/*.md" if doc_id is None else "*.md"),
+                         reverse=True):
+        fiches.append({
+            "id": f"{chemin.parent.name}/{chemin.stem}",
+            "character": chemin.parent.name,
+            "horodatage": chemin.stem,
+            "octets": chemin.stat().st_size,
+        })
+    return fiches
+
+
+def lire_session(doc_id: str, horodatage: str) -> dict:
+    """Relit une session enregistrée : métadonnées, résumé, transcription.
+
+    Le parseur est volontairement tolérant : ces fichiers sont faits pour être
+    ÉDITÉS À LA MAIN avant la scène (élaguer une réplique ratée, resserrer un
+    échange). Un format qui casserait à la première retouche manquerait son but.
+    """
+    chemin = SESSIONS_DIR / doc_id / f"{horodatage}.md"
+    if not chemin.exists():
+        raise FileNotFoundError(f"session inconnue : {doc_id}/{horodatage}")
+    texte = chemin.read_text(encoding="utf-8")
+
+    nom = doc_id.split("-")[0].capitalize()
+    entete = re.search(r"^#\s+Session de roleplay\s+[—-]\s+(.+)$", texte, re.M)
+    if entete:
+        nom = entete.group(1).strip()
+
+    def section(titre: str) -> str:
+        hit = re.search(rf"^##\s+{titre}\s*$(.*?)(?=^##\s|\Z)", texte,
+                        re.M | re.S)
+        return hit.group(1).strip() if hit else ""
+
+    echanges = []
+    for bloc in re.finditer(r"^\*\*(.+?)\*\*\s+[—-]\s+(.+?)(?=\n\s*\n|\Z)",
+                            section("Transcription"), re.M | re.S):
+        qui, dit = bloc.group(1).strip(), bloc.group(2).strip()
+        dit = re.sub(r"<!--.*?-->", "", dit, flags=re.S).strip()
+        if dit:
+            echanges.append({
+                "role": "user" if qui.lower() in ("vous", "interlocuteur")
+                        else "assistant",
+                "qui": qui,
+                "texte": dit,
+            })
+    return {
+        "id": f"{doc_id}/{horodatage}", "character": doc_id, "nom": nom,
+        "resume": section("Ce qui s'est dit"), "echanges": echanges,
+    }
+
+
 class Session:
     """Une conversation avec un personnage, mémoire à deux niveaux comprise.
 
@@ -185,6 +264,12 @@ class Session:
         self.resume: str = ""             # résumé glissant des échanges sortis
         self.metrics: list[dict] = []
         self.warnings: list[str] = []     # sorties de rôle, fuites de langue
+        # Transcription INTÉGRALE, distincte de `turns`. `turns` est la mémoire
+        # de travail du modèle : le résumé glissant y fond les échanges anciens
+        # puis les retire, ce qui est juste pour un acteur (il se souvient de ce
+        # qui s'est joué, pas des mots exacts) mais détruit la trace. Or c'est
+        # cette trace qu'on rejoue sur scène — les sessions sont pré-générées.
+        self.transcription: list[dict] = []
         self.rappels = session_memories(doc_id) if rappeler else []
         self.debut = datetime.now(timezone.utc)
         # Valider la fiche À LA CONSTRUCTION, pas au premier tour. Sans ça
@@ -217,6 +302,7 @@ class Session:
         empoisonnerait toutes les sessions suivantes. Mesuré au premier test.
         """
         self.turns.append({"role": "user", "content": question})
+        self.transcription.append({"role": "user", "texte": question})
         # num_predict serré : la consigne demande deux à six phrases, et un
         # plafond bas est une contrainte plus efficace qu'une prière dans le
         # prompt. Le mode acteur n'a pas besoin du filet de continuation du mode
@@ -243,9 +329,18 @@ class Session:
             self.metrics.append(m)
             fautes = hors_role(texte)
 
-        texte, fuites = delint(_nettoyer(texte))
+        texte, fuites = delint(_nettoyer(texte, self.nom))
         if fuites:
             self.warnings.append(f"tour {len(self.metrics)}: {'; '.join(fuites)}")
+
+        # La transcription enregistre ce qui a RÉELLEMENT été dit, y compris une
+        # réplique fautive : elle sert à relire et à élaguer à la main avant la
+        # scène, pas à nourrir le modèle. Le drapeau permet de la repérer d'un
+        # coup d'œil dans le Markdown.
+        self.transcription.append({
+            "role": "assistant", "texte": texte,
+            **({"hors_role": True} if fautes else {}),
+        })
 
         if fautes:
             self.warnings.append(
@@ -316,17 +411,36 @@ class Session:
         corps = (
             f"# Session de roleplay — {self.nom}\n\n"
             f"<!-- Généré par orchestrator/roleplay.py. Source canonique de la\n"
-            f"     mémoire conversationnelle : éditable à la main, réindexable. -->\n\n"
+            f"     mémoire conversationnelle : éditable à la main, réindexable.\n"
+            f"     Deux sections, deux usages : le RÉSUMÉ nourrit les sessions\n"
+            f"     suivantes (c'est lui qui est indexé), la TRANSCRIPTION se\n"
+            f"     rejoue sur scène. Élaguer une réplique ratée dans la\n"
+            f"     transcription ne touche pas à la mémoire du personnage. -->\n\n"
             f"- personnage : `{self.doc_id}`\n"
             f"- début : {self.debut.isoformat(timespec='seconds')}\n"
             f"- tours : {len(self.metrics)}\n\n"
-            f"## Ce qui s'est dit\n\n{self.resume}\n"
+            f"## Ce qui s'est dit\n\n{self.resume}\n\n"
+            f"## Transcription\n\n{self._transcription_md()}\n"
         )
         chemin.write_text(corps, encoding="utf-8")
 
         if indexer:
             self.index(chemin, horodatage)
         return chemin
+
+    def _transcription_md(self) -> str:
+        """Échanges verbatim, dans un format relisible ET éditable à la main.
+
+        Une réplique se supprime en effaçant son paragraphe ; rien d'autre à
+        maintenir cohérent. C'est le format qui décide si le contenu de démo est
+        curable, et il doit rester du Markdown que l'œil lit.
+        """
+        lignes = []
+        for tour in self.transcription:
+            qui = "Vous" if tour["role"] == "user" else self.nom
+            marque = "  <!-- hors-rôle, à élaguer -->" if tour.get("hors_role") else ""
+            lignes.append(f"**{qui}** — {tour['texte']}{marque}")
+        return "\n\n".join(lignes)
 
     def index(self, chemin: Path, horodatage: str) -> None:
         """Indexe un souvenir de session dans la collection `sessions`.

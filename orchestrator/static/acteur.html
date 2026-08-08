@@ -64,6 +64,10 @@
   <header>
     <h1>Mode acteur</h1>
     <select id="personnage" aria-label="Personnage"></select>
+    <select id="rejouer" aria-label="Session enregistrée">
+      <option value="">— en direct —</option>
+    </select>
+    <button id="enregistrer" type="button" title="Écrire cette session sur disque (résumé + transcription)" disabled>Enregistrer</button>
     <button id="reset" type="button" title="Oublier cette conversation">Nouvelle conversation</button>
   </header>
 
@@ -107,11 +111,118 @@ function ajouter(qui, texte, classe) {
 
 $('#reset').addEventListener('click', () => {
   session = null;
+  rejeu = false;
   $('#fil').innerHTML = '';
   $('#etat').textContent = '';
+  $('#rejouer').value = '';
 });
 
-$('#personnage').addEventListener('change', () => $('#reset').click());
+$('#personnage').addEventListener('change', () => {
+  $('#reset').click();
+  chargerSessions();
+});
+
+// Enregistrer : écrit résumé + transcription en Markdown. C'est ce geste qui
+// fabrique les sessions pré-générées jouées sur scène.
+$('#enregistrer').addEventListener('click', async () => {
+  if (!session) return;
+  $('#enregistrer').disabled = true;
+  $('#etat').className = 'pense';
+  $('#etat').textContent = 'Enregistrement';
+  try {
+    const r = await fetch('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session, close: true }),
+    });
+    const data = await r.json();
+    $('#etat').className = '';
+    $('#etat').textContent = data.fichier
+      ? `Enregistrée : ${data.fichier.split('/').slice(-2).join('/')}`
+      : (data.detail || 'Rien à enregistrer.');
+    session = null;
+    await chargerSessions();
+  } catch {
+    $('#etat').className = '';
+    $('#etat').textContent = "Enregistrement impossible.";
+  }
+});
+
+// --- Rejeu d'une session enregistrée ---------------------------------------
+//
+// Sur scène, les sessions sont PRÉ-GÉNÉRÉES : on rejoue une transcription au
+// lieu d'interroger le modèle. Zéro latence, zéro risque de sortie de
+// personnage en direct, et ça marche même pendant qu'un chapitre se génère
+// (le modèle est occupé, mais le rejeu ne lui demande rien).
+let rejeu = false;
+
+const dors = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function chargerSessions() {
+  const perso = $('#personnage').value;
+  const sel = $('#rejouer');
+  sel.innerHTML = '<option value="">— en direct —</option>';
+  if (!perso) return;
+  try {
+    const r = await fetch(`/sessions?character=${encodeURIComponent(perso)}`);
+    const { sessions } = await r.json();
+    for (const s of sessions) {
+      const o = document.createElement('option');
+      o.value = s.id;
+      o.textContent = s.horodatage.replace('T', ' ').replace(/-/g, ':').slice(0, 16);
+      sel.append(o);
+    }
+  } catch { /* pas de session enregistrée : le direct reste disponible */ }
+}
+
+$('#rejouer').addEventListener('change', async () => {
+  const id = $('#rejouer').value;
+  if (!id) return;
+  $('#fil').innerHTML = '';
+  session = null;
+  rejeu = true;
+  $('#envoyer').disabled = true;
+
+  let data;
+  try {
+    const r = await fetch(`/session/${id}`);
+    data = await r.json();
+    if (!r.ok) throw new Error(data.error);
+  } catch (e) {
+    $('#etat').textContent = "Session enregistrée illisible.";
+    $('#envoyer').disabled = false;
+    rejeu = false;
+    return;
+  }
+
+  if (!data.echanges.length) {
+    $('#etat').textContent = "Cette session n'a pas de transcription "
+      + "(enregistrée avant que la transcription existe).";
+    $('#envoyer').disabled = false;
+    rejeu = false;
+    return;
+  }
+
+  for (const e of data.echanges) {
+    if (!rejeu) break;                       // interrompu par « Nouvelle conversation »
+    if (e.role === 'user') {
+      ajouter('Vous', e.texte, 'vous');
+      // Une pause proportionnée à la réplique à venir : ça se lit comme une
+      // machine qui réfléchit, sans immobiliser la scène pour autant.
+      $('#etat').className = 'pense';
+      $('#etat').textContent = 'Il réfléchit';
+      await dors(Math.min(2500, 400 + e.texte.length * 12));
+    } else {
+      $('#etat').className = '';
+      $('#etat').textContent = '';
+      ajouter(data.nom, e.texte, 'perso');
+      await dors(700);
+    }
+  }
+  $('#etat').className = '';
+  $('#etat').textContent = rejeu ? 'Session enregistrée.' : '';
+  $('#envoyer').disabled = false;
+});
 
 $('#form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -142,6 +253,7 @@ $('#form').addEventListener('submit', async (e) => {
     session = data.session;
     ajouter(data.nom, data.reply, 'perso');
     $('#etat').textContent = `${data.turns} tours`;
+    $('#enregistrer').disabled = false;
   } catch (err) {
     $('#etat').className = '';
     $('#etat').textContent = "La machine ne répond pas.";
@@ -151,7 +263,7 @@ $('#form').addEventListener('submit', async (e) => {
   }
 });
 
-chargerPersonnages();
+chargerPersonnages().then(chargerSessions);
 </script>
 </body>
 </html>

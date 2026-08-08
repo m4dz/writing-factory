@@ -32,10 +32,12 @@ Deux principes que le contrat impose et qui dictent tout le reste :
 
 import json
 import os
+import re
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs
 
 import progress
 from chapitre import assembler
@@ -44,6 +46,7 @@ from llm import unload
 from preflight import PreflightError, preflight, report
 from qa import QA_MODEL
 from retrieval import list_characters
+from roleplay import lire_session, lister_sessions
 from tts import rendre_chapitre
 
 STATIC = Path(__file__).resolve().parent / "static"
@@ -250,9 +253,29 @@ class Salon:
         self.sessions: dict[str, tuple[object, float]] = {}
 
     def _purger(self) -> None:
+        """Ferme et ÉCRIT les sessions inactives avant de les oublier.
+
+        Une session qui s'évapore sans laisser de trace contredirait toute la
+        conception de la mémoire — et c'est par cette API qu'on enregistre les
+        sessions pré-générées de la scène. L'oubli silencieux serait la perte
+        d'un contenu de démo.
+        """
         limite = time.time() - CHAT_TTL_S
         for cle in [k for k, (_, vu) in self.sessions.items() if vu < limite]:
-            self.sessions.pop(cle, None)
+            session, _ = self.sessions.pop(cle)
+            try:
+                session.close()
+            except Exception:                           # noqa: BLE001
+                pass    # une purge ne doit jamais faire échouer la requête en cours
+
+    def fermer(self, cle: str):
+        """Termine une session : écrit le Markdown et l'indexe. Retourne le
+        chemin, ou None si la session est inconnue ou trop courte."""
+        with self.lock:
+            entree = self.sessions.pop(cle, None)
+        if entree is None:
+            return None
+        return entree[0].close()
 
     def obtenir(self, cle: str | None, personnage: str, nom: str | None):
         """Session existante, ou nouvelle. Retourne (clé, session)."""
@@ -319,6 +342,32 @@ class Handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self) -> None:          # noqa: N802
         self._repondre(204)
 
+    def _param(self, nom: str) -> str:
+        """Valeur d'un paramètre de requête, ou chaîne vide."""
+        _, _, requete = self.path.partition("?")
+        return parse_qs(requete).get(nom, [""])[0]
+
+    # Composants d'identifiant de session. Le filtre est une LISTE BLANCHE, pas
+    # une chasse aux `..` : ce serveur écoute sur le réseau d'une conférence, et
+    # ces deux valeurs arrivent dans un chemin de fichier.
+    _ID_PERSO = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+    _ID_HORODATAGE = re.compile(r"^[0-9A-Za-z:_-]{1,40}$")
+
+    def _session_enregistree(self, reste: str) -> None:
+        """`GET /session/<personnage>/<horodatage>` — transcription rejouable."""
+        morceaux = [m for m in reste.split("?")[0].split("/") if m]
+        if len(morceaux) != 2:
+            self._json(400, {"error": "format attendu : /session/<perso>/<horodatage>"})
+            return
+        perso, horodatage = morceaux
+        if not self._ID_PERSO.match(perso) or not self._ID_HORODATAGE.match(horodatage):
+            self._json(400, {"error": "identifiant de session invalide"})
+            return
+        try:
+            self._json(200, lire_session(perso, horodatage))
+        except FileNotFoundError as exc:
+            self._json(404, {"error": str(exc)})
+
     def _corps_json(self) -> dict:
         taille = int(self.headers.get("Content-Length") or 0)
         if not taille:
@@ -351,6 +400,18 @@ class Handler(BaseHTTPRequestHandler):
         charge = self._corps_json()
         personnage = (charge.get("character") or "").strip()
         message = (charge.get("message") or "").strip()
+
+        # Fin explicite : c'est ce qui transforme une conversation en artefact
+        # rejouable sur scène (résumé + transcription écrits en Markdown).
+        if charge.get("close") and charge.get("session"):
+            chemin = SALON.fermer(charge["session"])
+            self._json(200, {
+                "closed": True,
+                "fichier": str(chemin) if chemin else None,
+                "detail": None if chemin else "session inconnue ou trop courte",
+            })
+            return
+
         if not personnage or not message:
             self._json(400, {"error": "champs `character` et `message` requis"})
             return
@@ -411,6 +472,11 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {"ok": True, "machine": report()})
         elif route == "/characters":
             self._json(200, {"characters": list_characters()})
+        elif route == "/sessions":
+            perso = self._param("character")
+            self._json(200, {"sessions": lister_sessions(perso or None)})
+        elif route.startswith("/session/"):
+            self._session_enregistree(route[len("/session/"):])
         elif route in ("/", "/acteur"):
             # La page du mode acteur. Servie par nous : elle peut donc être
             # ouverte en iframe depuis une slide, sur le même hôte que le reste.

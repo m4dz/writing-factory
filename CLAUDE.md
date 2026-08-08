@@ -461,6 +461,35 @@ Mode auteur bouclé et mesuré (17,0 min), mode acteur en première version
   qu'avec un disque plein ») : macOS agrandit bel et bien le swap, mais une
   machine qui vit sur son swap n'est pas une machine sur laquelle on chronomètre
   une démo.
+- **Sessions de roleplay REJOUABLES (2026-08-08)** — le fichier de session porte
+  désormais DEUX sections : `## Ce qui s'est dit` (le résumé glissant, c'est lui
+  qui est indexé et qui nourrit les sessions suivantes) et `## Transcription`
+  (les échanges verbatim, c'est elle qu'on rejoue sur scène). Élaguer une
+  réplique ratée dans la transcription ne touche pas à la mémoire du personnage.
+  Nécessaire parce que **les sessions sont pré-générées pour la scène** : la
+  mémoire seule ne dit pas ce que le personnage a DIT.
+  * `GET /sessions?character=` et `GET /session/<perso>/<horodatage>` ; la page
+    a un sélecteur « rejouer » qui déroule l'échange **sans toucher au modèle**
+    (zéro latence, zéro sortie de personnage en direct, et ça marche pendant
+    qu'un chapitre se génère).
+  * Identifiants filtrés par LISTE BLANCHE avant de toucher un chemin de
+    fichier — ce serveur écoute sur le réseau d'une conférence. Cinq tentatives
+    de traversée (`../`, `..%2f`, `%2e%2e`) rejetées en 400 par le serveur
+    lui-même, vérifié avec `curl --path-as-is` pour ne pas mesurer la
+    normalisation du client.
+  * `POST /chat {"session": id, "close": true}` écrit et indexe ; la purge
+    d'inactivité ferme aussi (une session qui s'évapore sans trace, c'est un
+    contenu de démo perdu).
+- **TICS DE JEU RÉSIDUELS : c'est la CURATION qui les traite, pas le prompt.**
+  Chaque consigne ajoutée déplace le défaut ailleurs — mesuré en séquence :
+  répliques préfixées du nom du personnage (« Kael : Ah… ») → corrigé au code ;
+  recopie quasi verbatim de la réplique précédente (similarité 0,55) → consigne
+  anti-répétition, tombée à 0,05 ; le personnage appelait son interlocuteur
+  « Élara » → consigne « tu ne le connais pas », d'où un « cher inconnu » à
+  chaque tour ; reformulée, et il s'interpelle maintenant lui-même à la
+  troisième personne. Les sessions étant pré-générées et éditables à la main,
+  la curation est le bon outil. Le garde-fou dans le CODE reste réservé à ce qui
+  est inacceptable en toutes circonstances : la sortie de personnage.
 - **`Session` ne validait pas la fiche à la construction (2026-08-08).** Elle ne
   lisait la bible qu'au premier `say()`. Conséquences trouvées en testant
   l'API : un personnage inconnu rendait `503` (« la machine a un problème »)
