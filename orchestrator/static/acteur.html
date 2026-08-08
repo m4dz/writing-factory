@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mode acteur — parler à un personnage</title>
+<!--
+  Page du mode acteur, servie par orchestrator/api.py.
+
+  Autonome par construction : aucun CDN, aucune police distante, aucun script
+  externe. La machine de scène peut être hors réseau, et la thèse du projet
+  interdit qu'une démo « locale » aille chercher quoi que ce soit dehors.
+  Même hôte que l'API, donc affichable en iframe depuis une slide.
+-->
+<style>
+  :root {
+    --encre: #1b1a17;
+    --papier: #f7f4ee;
+    --trait: #ded7c9;
+    --accent: #a2472f;
+    --gris: #6d675c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --encre:#ece7dd; --papier:#16151300; --trait:#3a372f; --gris:#9a9488; }
+    body { background:#141312; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1rem;
+    background: var(--papier); color: var(--encre);
+    font: 17px/1.6 "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    display: flex; justify-content: center;
+  }
+  main { width: 100%; max-width: 46rem; }
+  header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap;
+           border-bottom: 1px solid var(--trait); padding-bottom: .8rem; }
+  h1 { font-size: 1.15rem; font-weight: 600; margin: 0; letter-spacing: .01em; }
+  select, button, input {
+    font: inherit; color: inherit; background: transparent;
+    border: 1px solid var(--trait); border-radius: 4px; padding: .35rem .6rem;
+  }
+  button { cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: .45; cursor: default; }
+  #fil { margin: 1.5rem 0; min-height: 8rem; }
+  .tour { margin-bottom: 1.4rem; }
+  .qui { font-size: .78rem; letter-spacing: .08em; text-transform: uppercase;
+         color: var(--gris); margin-bottom: .25rem; }
+  .vous .texte { color: var(--gris); font-style: italic; }
+  .perso .texte { white-space: pre-wrap; }
+  form { display: flex; gap: .6rem; border-top: 1px solid var(--trait);
+         padding-top: 1rem; }
+  #message { flex: 1; }
+  #etat { color: var(--gris); font-size: .85rem; min-height: 1.4em;
+          margin-top: .6rem; }
+  .pense::after {
+    content: "…"; animation: points 1.2s steps(4, end) infinite;
+  }
+  @keyframes points { 0% { content:"." } 33% { content:".." } 66% { content:"…" } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Mode acteur</h1>
+    <select id="personnage" aria-label="Personnage"></select>
+    <button id="reset" type="button" title="Oublier cette conversation">Nouvelle conversation</button>
+  </header>
+
+  <div id="fil" aria-live="polite"></div>
+
+  <form id="form">
+    <input id="message" placeholder="Parlez-lui…" autocomplete="off" required>
+    <button id="envoyer" type="submit">Dire</button>
+  </form>
+  <div id="etat"></div>
+</main>
+
+<script>
+// L'API est sur la même origine que cette page : rien à configurer, et une
+// slide peut l'afficher en iframe sans souci de CORS.
+const $ = (s) => document.querySelector(s);
+let session = null;
+
+async function chargerPersonnages() {
+  try {
+    const r = await fetch('/characters');
+    const { characters } = await r.json();
+    if (!characters.length) throw new Error('bible vide');
+    $('#personnage').innerHTML = characters
+      .map((c) => `<option value="${c.id}">${c.nom}</option>`).join('');
+  } catch (e) {
+    $('#etat').textContent = "Aucun personnage indexé — vérifier ChromaDB.";
+    $('#envoyer').disabled = true;
+  }
+}
+
+function ajouter(qui, texte, classe) {
+  const bloc = document.createElement('div');
+  bloc.className = `tour ${classe}`;
+  bloc.innerHTML = `<div class="qui"></div><div class="texte"></div>`;
+  bloc.querySelector('.qui').textContent = qui;
+  bloc.querySelector('.texte').textContent = texte;   // jamais innerHTML : le
+  $('#fil').append(bloc);                             // texte vient d'un LLM
+  bloc.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+$('#reset').addEventListener('click', () => {
+  session = null;
+  $('#fil').innerHTML = '';
+  $('#etat').textContent = '';
+});
+
+$('#personnage').addEventListener('change', () => $('#reset').click());
+
+$('#form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const message = $('#message').value.trim();
+  if (!message) return;
+  const character = $('#personnage').value;
+
+  ajouter('Vous', message, 'vous');
+  $('#message').value = '';
+  $('#envoyer').disabled = true;
+  $('#etat').className = 'pense';
+  $('#etat').textContent = 'Il réfléchit';
+
+  try {
+    const r = await fetch('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ character, message, session }),
+    });
+    const data = await r.json();
+    $('#etat').className = '';
+    if (!r.ok) {
+      // 409 = un chapitre est en cours de génération. Le dire simplement :
+      // c'est une contrainte de la machine, pas une panne.
+      $('#etat').textContent = data.detail || data.error || 'Indisponible.';
+      return;
+    }
+    session = data.session;
+    ajouter(data.nom, data.reply, 'perso');
+    $('#etat').textContent = `${data.turns} tours`;
+  } catch (err) {
+    $('#etat').className = '';
+    $('#etat').textContent = "La machine ne répond pas.";
+  } finally {
+    $('#envoyer').disabled = false;
+    $('#message').focus();
+  }
+});
+
+chargerPersonnages();
+</script>
+</body>
+</html>

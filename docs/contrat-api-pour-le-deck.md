@@ -155,6 +155,33 @@ Conséquence pour vous : rien à changer si votre section 7 lit un extrait. Si l
 deck prévoyait de faire lire tout le chapitre par le clone, dites-le — c'est un
 désaccord de conception, pas un détail d'implémentation.
 
+## Mode acteur — hors contrat, mais une contrainte de PLANNING pour vous
+
+Hors du contrat gelé (il ne couvre que le chapitre), mais ça vous concerne :
+la machine sert aussi une page de roleplay, à la racine — `http://MACHINE:8420/`.
+Elle est autonome (aucun CDN, aucune police distante) et sur la même origine que
+l'API, donc **affichable en iframe depuis une slide**.
+
+**La contrainte** : le roleplay et la génération partagent le même modèle de
+13 GB, et la machine n'en tient qu'un. `POST /chat` répond donc **`409`** tant
+qu'un chapitre est en cours :
+
+```json
+{"error": "génération en cours",
+ "detail": "Le mode acteur et la génération partagent le même modèle ; la
+            machine n'en tient qu'un. Réessayer après la récolte du chapitre.",
+ "state": "generating"}
+```
+
+Ce n'est pas une limite logicielle qu'on pourrait lever : faire cohabiter les
+deux modèles demande 17,8 GB sur 19,3, ce qui a déjà fait paniquer cette
+machine. Et sans ce refus, chaque réplique attendrait la fin de l'appel
+d'écriture en cours — **jusqu'à deux minutes de silence sur scène**.
+
+**Conséquence pour le déroulé** : la démo d'acteur se joue AVANT le lancement du
+chapitre (section 3) ou APRÈS sa récolte (section 7), jamais entre les deux. Si
+le plan du talk la prévoit dans l'intervalle, il faut le savoir maintenant.
+
 ## Points ouverts, côté vous
 
 - `VITE_GEN_HOST` : **IP fixe recommandée** plutôt que mDNS (votre « À trancher »

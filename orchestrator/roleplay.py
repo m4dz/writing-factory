@@ -187,6 +187,12 @@ class Session:
         self.warnings: list[str] = []     # sorties de rôle, fuites de langue
         self.rappels = session_memories(doc_id) if rappeler else []
         self.debut = datetime.now(timezone.utc)
+        # Valider la fiche À LA CONSTRUCTION, pas au premier tour. Sans ça
+        # l'absence de personnage ne se voyait qu'après le premier message :
+        # côté CLI le `except ValueError` de chat_character.py ne se déclenchait
+        # jamais, et côté HTTP un personnage inconnu rendait 503 (« la machine
+        # a un problème ») au lieu de 404 (« ce personnage n'existe pas »).
+        build_system(doc_id, nom=self.nom, rappels=self.rappels)
 
     # --- contexte ------------------------------------------------------------
 

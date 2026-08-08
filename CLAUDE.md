@@ -272,9 +272,22 @@ podman-compose.yml        # openwebui + chromadb + indexer (profil tools)
       * Vérifié : `204` avant génération, CORS sur `OPTIONS`, `202` deux fois de
         suite avec `started: true` puis `false`, et un préflight refusé qui
         atterrit en `phase: error` avec la raison dans `error` et `notes`.
-      * RESTE À FAIRE : marqueur `<!-- BASCULE -->` posé par le pipeline, étape
-        TTS (extrait borné, cf. ci-dessous), `POST /chat` + page du mode acteur,
-        notifications téléphone.
+      * `POST /chat` + page du mode acteur à la racine
+        (`orchestrator/static/acteur.html`, autonome : aucun CDN, aucune police
+        distante — la machine peut être hors réseau, et une démo « locale » qui
+        va chercher dehors trahirait la thèse). Même origine que l'API, donc
+        affichable en iframe depuis une slide. Sessions côté SERVEUR, purgées
+        après 2 h d'inactivité. Mesuré : 43 s au premier tour (chargement de
+        nemo compris), **13 s ensuite**.
+      * **`POST /chat` répond 409 pendant une génération.** Le roleplay et
+        l'écriture partagent le même nemo, et la machine n'en tient qu'un ;
+        les faire cohabiter demande 17,8 GB sur 19,3. Sans ce refus, chaque
+        réplique attendrait la fin de l'appel d'écriture en cours — jusqu'à
+        deux minutes de silence sur scène. **Conséquence de planning : la démo
+        d'acteur se joue AVANT le lancement du chapitre ou APRÈS sa récolte,
+        jamais entre les deux.** Signalé au talk.
+      * RESTE À FAIRE : notifications téléphone, et le run complet par l'API
+        (génération + TTS enchaînés, jamais éprouvé d'un seul trait).
 
 ## Intégration deck / TTS — décisions du 2026-08-07
 
@@ -448,6 +461,12 @@ Mode auteur bouclé et mesuré (17,0 min), mode acteur en première version
   qu'avec un disque plein ») : macOS agrandit bel et bien le swap, mais une
   machine qui vit sur son swap n'est pas une machine sur laquelle on chronomètre
   une démo.
+- **`Session` ne validait pas la fiche à la construction (2026-08-08).** Elle ne
+  lisait la bible qu'au premier `say()`. Conséquences trouvées en testant
+  l'API : un personnage inconnu rendait `503` (« la machine a un problème »)
+  au lieu de `404` (« ce personnage n'existe pas »), et le `except ValueError`
+  de `chat_character.py` — écrit en supposant l'inverse — ne se déclenchait
+  jamais. Corrigé : la fiche est lue et validée dans `__init__`.
 - **LE PROMPT NE SUFFIT PAS À TENIR UN PERSONNAGE (2026-08-07).** Premier test
   du mode acteur, avec des interdits explicites et nommés dans le prompt système
   (« tu ne mentionnes jamais l'intelligence artificielle, un modèle, un

@@ -87,6 +87,30 @@ def character_context(doc_id: str) -> str:
     return "\n\n".join(blocks)
 
 
+def list_characters() -> list[dict]:
+    """Personnages disponibles dans la bible, pour peupler une interface.
+
+    Lecture par MÉTADONNÉE, sans embedding : on veut la liste exhaustive, pas
+    les plus proches d'une requête.
+    """
+    try:
+        got = _chroma().get_collection(COLLECTION).get(
+            where={"type": "character"}, include=["metadatas"]
+        )
+    except Exception:                      # collection absente : bible non indexée
+        return []
+    vus: dict[str, dict] = {}
+    for meta in got.get("metadatas") or []:
+        doc_id = (meta or {}).get("doc_id")
+        if doc_id and doc_id not in vus:
+            vus[doc_id] = {
+                "id": doc_id,
+                "rank": (meta or {}).get("rank", ""),
+                "nom": doc_id.split("-")[0].capitalize(),
+            }
+    return sorted(vus.values(), key=lambda c: c["id"])
+
+
 def acting_context(doc_id: str) -> str:
     """Chunks nécessaires pour INCARNER un personnage (cf. ACTING_SECTIONS)."""
     ids = [f"{doc_id}::{section}" for section in ACTING_SECTIONS]

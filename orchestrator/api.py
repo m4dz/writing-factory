@@ -43,7 +43,10 @@ from graph import build_graph
 from llm import unload
 from preflight import PreflightError, preflight, report
 from qa import QA_MODEL
+from retrieval import list_characters
 from tts import rendre_chapitre
+
+STATIC = Path(__file__).resolve().parent / "static"
 
 HOST = os.environ.get("API_HOST", "0.0.0.0")
 PORT = int(os.environ.get("API_PORT", "8420"))
@@ -229,6 +232,50 @@ class Job:
 JOB = Job()
 
 
+# --- Mode acteur -------------------------------------------------------------
+#
+# Les sessions de roleplay vivent CÔTÉ SERVEUR : notre mémoire est stateful
+# (résumé glissant, souvenirs indexés), et c'est précisément pourquoi on n'a pas
+# pris une API compatible OpenAI, qui suppose un client renvoyant tout
+# l'historique à chaque tour — il court-circuiterait le résumeur.
+
+CHAT_TTL_S = float(os.environ.get("CHAT_TTL_S", "7200"))   # 2 h d'inactivité
+
+
+class Salon:
+    """Registre des conversations en cours, purgé sur inactivité."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.sessions: dict[str, tuple[object, float]] = {}
+
+    def _purger(self) -> None:
+        limite = time.time() - CHAT_TTL_S
+        for cle in [k for k, (_, vu) in self.sessions.items() if vu < limite]:
+            self.sessions.pop(cle, None)
+
+    def obtenir(self, cle: str | None, personnage: str, nom: str | None):
+        """Session existante, ou nouvelle. Retourne (clé, session)."""
+        from roleplay import Session
+
+        with self.lock:
+            self._purger()
+            if cle and cle in self.sessions:
+                session, _ = self.sessions[cle]
+                self.sessions[cle] = (session, time.time())
+                return cle, session
+        # Construction HORS verrou : elle interroge ChromaDB (souvenirs, fiche)
+        # et n'a aucune raison de bloquer les autres conversations.
+        session = Session(personnage, nom=nom)
+        cle = f"{personnage}-{int(time.time() * 1000):x}"
+        with self.lock:
+            self.sessions[cle] = (session, time.time())
+        return cle, session
+
+
+SALON = Salon()
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "fiction-assistant/1.0"
 
@@ -272,8 +319,72 @@ class Handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self) -> None:          # noqa: N802
         self._repondre(204)
 
+    def _corps_json(self) -> dict:
+        taille = int(self.headers.get("Content-Length") or 0)
+        if not taille:
+            return {}
+        try:
+            return json.loads(self.rfile.read(taille) or b"{}")
+        except json.JSONDecodeError:
+            return {}
+
+    def _chat(self) -> None:
+        """Un tour de roleplay. `{character, message, session?, nom?}`."""
+        # UN SEUL MODÈLE À LA FOIS SUR CETTE MACHINE. Le roleplay tourne sur le
+        # même nemo (13 GB) que la génération : pendant un chapitre, une
+        # réplique attendrait la fin de l'appel d'écriture en cours, soit
+        # jusqu'à deux minutes de silence sur scène. Et faire cohabiter deux
+        # modèles, c'est 17,8 GB sur 19,3 — la pression qui a fait paniquer la
+        # machine. On refuse franchement plutôt que de laisser découvrir la
+        # latence en direct. Conséquence de planning : la démo d'acteur se joue
+        # AVANT le lancement du chapitre, ou APRÈS sa récolte.
+        if JOB.etat in ("generating", "tts"):
+            self._json(409, {
+                "error": "génération en cours",
+                "detail": "Le mode acteur et la génération partagent le même "
+                          "modèle ; la machine n'en tient qu'un. Réessayer "
+                          "après la récolte du chapitre.",
+                "state": JOB.etat,
+            })
+            return
+
+        charge = self._corps_json()
+        personnage = (charge.get("character") or "").strip()
+        message = (charge.get("message") or "").strip()
+        if not personnage or not message:
+            self._json(400, {"error": "champs `character` et `message` requis"})
+            return
+
+        try:
+            cle, session = SALON.obtenir(charge.get("session"), personnage,
+                                         charge.get("nom"))
+        except ValueError as exc:          # fiche absente de la bible
+            self._json(404, {"error": str(exc)})
+            return
+
+        try:
+            reponse = session.say(message)
+        except Exception as exc:           # noqa: BLE001
+            self._json(503, {"error": f"{type(exc).__name__} : {exc}"})
+            return
+
+        self._json(200, {
+            "session": cle,
+            "character": personnage,
+            "nom": session.nom,
+            "reply": reponse,
+            # Les alertes (sortie de rôle rattrapée, fuite de langue) sont
+            # rendues pour l'opérateur — la page ne les montre pas au public.
+            "warnings": session.warnings[-3:],
+            "turns": len(session.metrics),
+        })
+
     def do_POST(self) -> None:             # noqa: N802
-        if self.path.rstrip("/") != "/generate":
+        route = self.path.split("?")[0].rstrip("/") or "/"
+        if route == "/chat":
+            self._chat()
+            return
+        if route != "/generate":
             self._json(404, {"error": "route inconnue"})
             return
         # On lit et jette le corps : le contrat le dit « minimal ou vide », et
@@ -298,6 +409,16 @@ class Handler(BaseHTTPRequestHandler):
             self._fichier(CHAPITRE_WAV, "audio/wav")
         elif route == "/health":
             self._json(200, {"ok": True, "machine": report()})
+        elif route == "/characters":
+            self._json(200, {"characters": list_characters()})
+        elif route in ("/", "/acteur"):
+            # La page du mode acteur. Servie par nous : elle peut donc être
+            # ouverte en iframe depuis une slide, sur le même hôte que le reste.
+            page = STATIC / "acteur.html"
+            if page.exists():
+                self._repondre(200, page.read_bytes(), "text/html; charset=utf-8")
+            else:
+                self._json(404, {"error": "page absente"})
         else:
             self._json(404, {"error": "route inconnue"})
 
