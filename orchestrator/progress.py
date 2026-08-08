@@ -97,6 +97,9 @@ class Progress:
         self.avancement = 0.0            # fraction 0..1, monotone
         self.gen_toks = 0          # tokens du chapitre entier
         self.annule = False              # demande d'arrêt de l'opérateur
+        # Appelé à chaque changement de phase, avec le puits en argument. Sert
+        # aux notifications téléphone sans que ce module connaisse le réseau.
+        self.observateur = None
         self.notes: list[str] = []       # événements marquants, pour /status
         self._toks_appel = 0       # tokens de l'appel en cours
         self._dernier_dessin = 0.0
@@ -125,6 +128,11 @@ class Progress:
         self.phase_courante = titre
         self.detail = detail
         self.phase_deck = PHASES_DECK.get(titre, "generating")
+        if self.observateur:
+            try:
+                self.observateur(self)
+            except Exception:                          # noqa: BLE001
+                pass    # un observateur défaillant n'arrête pas une génération
         if not self.actif:
             return
         self._toks_appel = 0

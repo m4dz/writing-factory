@@ -39,6 +39,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs
 
+import notify
 import progress
 from chapitre import assembler
 from graph import build_graph
@@ -109,7 +110,14 @@ class Job:
             self.erreur = None
             self.resultat = None
             self.suivi = progress.Progress(actif=True)
+            # Le bipeur écoute les changements de phase. Il ne reçoit que le
+            # LIBELLÉ de phase et le pourcentage — jamais les notes, qui citent
+            # la bible et le chapitre (cf. notify.py).
+            self.suivi.observateur = lambda s: notify.avancement(
+                s.phase_courante, s.avancement, int(time.time() - s.t0)
+            )
             progress.install(self.suivi)
+            notify.demarrage()
             self.thread = threading.Thread(target=self._tourner, daemon=True)
             self.thread.start()
             return True
@@ -143,27 +151,39 @@ class Job:
                 self.etat = "ready"
                 self.fini_a = time.time()
             progress.note("chapitre prêt")
+            notify.pret(int(self.fini_a - self.demarre_a),
+                        len(final.get("repaired") or []),
+                        (audio or {}).get("audio_s"))
         except progress.Annulation:
             with self.lock:
                 self.etat = "idle"       # la machine redevient disponible
                 self.fini_a = time.time()
             progress.note("génération annulée")
+            notify.annule()
         except PreflightError as exc:
-            self._echouer(f"préflight refusé : {exc}")
+            # Le message de préflight vient de NOUS, sans contenu d'œuvre — mais
+            # c'est un mode d'emploi de plusieurs lignes, illisible sur une
+            # montre : le bipeur n'en reçoit que la première.
+            self._echouer(f"préflight refusé : {exc}", classe="préflight",
+                          bref=str(exc).splitlines()[1].strip(" -") if
+                          len(str(exc).splitlines()) > 1 else str(exc))
         except Exception as exc:                       # noqa: BLE001
             # Large volontairement : sur scène, une exception non prévue doit
             # produire un fallback propre, pas un traceback dans un thread.
-            self._echouer(f"{type(exc).__name__} : {exc}")
+            self._echouer(f"{type(exc).__name__} : {exc}",
+                          classe=type(exc).__name__, bref=str(exc))
         finally:
             if self.suivi:
                 self.suivi.fin()
 
-    def _echouer(self, raison: str) -> None:
+    def _echouer(self, raison: str, *, classe: str = "erreur",
+                 bref: str = "") -> None:
         with self.lock:
             self.etat = "error"
             self.erreur = raison
             self.fini_a = time.time()
         progress.note(f"ÉCHEC : {raison}")
+        notify.echec(classe, bref or raison)
 
     def _ecrire_chapitre(self, final: dict) -> None:
         """Écrit le Markdown du chapitre sur disque (source de `GET /chapter`).

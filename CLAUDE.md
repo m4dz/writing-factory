@@ -348,13 +348,28 @@ Trois décisions du propriétaire complètent la cible :
   * `chapitre.py` pose aussi `<!-- FIN AUDIO -->`, additif : il dit au deck où
     s'arrête la voix clonée. Le chapitre servi reste ENTIER, c'est la pièce à
     conviction de la démo.
-- **Notifications téléphone par Telegram, coupées par défaut, charge utile
-  verrouillée** : phase, pourcentage, code d'erreur — JAMAIS le texte du
-  chapitre ni un extrait de la bible. C'est une exception assumée à la règle
-  d'or « aucune API cloud » : ce qui reste local, c'est la FABRIQUE de l'œuvre ;
-  ceci est le bipeur de l'opérateur. Son intérêt est justement d'être hors-bande
-  (cellulaire) quand le wifi de la conférence lâche — c'est-à-dire dans le cas
-  précis que la notification doit signaler.
+- **Notifications téléphone par Telegram (`orchestrator/notify.py`), coupées par
+  défaut, charge utile verrouillée.** Exception assumée à la règle d'or
+  « aucune API cloud » : ce qui reste local, c'est la FABRIQUE de l'œuvre ; ceci
+  est le BIPEUR DE L'OPÉRATEUR. Son intérêt est d'être hors-bande (cellulaire)
+  quand le wifi de la conférence lâche — le cas même qu'il doit signaler.
+  * Activation : `TELEGRAM_BOT_TOKEN` (via @BotFather) + `TELEGRAM_CHAT_ID`.
+    Sans les deux, tout appel est un no-op silencieux — vérifié, zéro octet
+    sur le réseau.
+  * **La protection est MÉCANIQUE, pas disciplinaire.** Les messages sont
+    composés à partir de CHAMPS STRUCTURÉS (phase, pourcentage, durées,
+    compteurs, classe d'erreur) ; il n'existe volontairement pas de
+    `notify.texte()` générique, qui serait la porte par laquelle le contenu
+    finirait par sortir. Second rideau : un filtre retire tout ce qui est entre
+    guillemets avant l'envoi, et borne à 200 caractères.
+  * Ce filtre n'est pas théorique : nos propres notes citent la bible
+    (« PLAN REFUSÉ — contredit « … » ») et le chapitre (« fin coupée — « … » »).
+    Les relayer verbatim aurait exporté l'œuvre chez Telegram. Testé sur les
+    trois cas réels : rien ne passe.
+  * Débit : un battement d'avancement toutes les 5 min au plus (sur une montre,
+    une rafale est pire que rien) ; démarrage, échec, annulation et « prêt »
+    passent en priorité. Envoi dans un THREAD : la génération n'attend jamais
+    le réseau — mesuré à 0 ms de retour avec des identifiants injoignables.
 
 ⚠ **Le budget de 25 min de notre CLAUDE.md ne couvre que la génération.** La
 vraie échéance est le compteur du deck (28') MOINS le temps de TTS. Avec la
