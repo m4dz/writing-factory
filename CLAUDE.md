@@ -19,12 +19,14 @@ talk : une œuvre dont la fabrique est locale est inauditable.
 - La démo est lancée en début de talk et récoltée **~25 minutes** plus tard
   (budget abaissé de 35' à 25' — 2026-08-06) : la génération complète d'un
   chapitre (plan de scènes + rédaction) doit tenir dans ce budget sur un
-  MacBook Apple Silicon. État actuel : **17,0 min** au run de référence
-  (2026-08-06, 4 scènes, machine au repos, lancement au premier plan) → 8 min
-  de marge. Mais cette marge suppose une machine SANS entretien macOS en cours :
-  les deux runs lancés pendant `mediaanalysisd` ont dépassé 32 et 49 minutes.
-  Le vrai risque de scène est là, pas dans le pipeline (les mentions
-  « / 35 min » ailleurs dans ce fichier sont historiques).
+  MacBook Apple Silicon. **La vraie échéance est le compteur du deck (28'),
+  génération ET voix clonée comprises.** Mesuré bout-en-bout par l'API le
+  2026-08-09 : **14 min 02** pour 3 scènes (dont 2 min de TTS), soit 17-18 min
+  attendues à 4 scènes → 10 min de marge. Mais cette marge suppose une machine
+  SANS entretien macOS en cours : les runs lancés pendant `mediaanalysisd` ont
+  dépassé 32 et 49 minutes. **Le vrai risque de scène est là, pas dans le
+  pipeline** (les mentions « / 35 min » ailleurs dans ce fichier sont
+  historiques).
 - Un compte à rebours est affiché pendant la génération.
 - Le pipeline montré sur scène : plan de scènes → écriture → relecture →
   cohérence (c'est la « strate 4 » du talk, LangGraph).
@@ -223,8 +225,8 @@ podman-compose.yml        # openwebui + chromadb + indexer (profil tools)
         machine qui les a produits, pas pour le récit partagé. Ce qui devient
         vérité du monde a sa place dans `bible/`.
 - [ ] Peupler le canon : remplacer les fiches SCAFFOLD par les fiches réelles
-- [ ] Intégration frontend (OpenWebUI via pipelines, ou interface dédiée —
-      non tranché)
+- [x] Intégration frontend TRANCHÉE (2026-08-08) : notre propre API + une page
+      servie par elle, pas OpenWebUI (cf. « Intégration deck / TTS »).
 - [x] **Habillage démo (2026-08-07)** : `orchestrator/progress.py`, actif PAR
       DÉFAUT dans `run_chapter.py` (`--muet` pour mesurer sans).
       * Le graphe ne connaît pas l'affichage : les nœuds appellent
@@ -394,19 +396,38 @@ lecture bornée : 17 + ~4 = ~21 min.
 
 ## Prochaine étape convenue
 
-Mode auteur bouclé et mesuré (17,0 min), mode acteur en première version
-(2026-08-07). Chantiers restants, par ordre d'urgence pour la scène :
+**LE CODE EST À PIED D'ŒUVRE.** Chaîne validée d'un seul trait le 2026-08-09 :
+`POST /generate` → chapitre → voix clonée → `/chapter` + `/audio`, en 14 min 02
+(3 scènes ; compter 17-18 min à 4 scènes) contre 28' au compteur du deck. Ce qui
+reste tient au CONTENU et à la coordination, plus à l'implémentation.
 
-1. **Répétition en conditions réelles**, machine au repos, run au premier plan,
-   veille désactivée. C'est là qu'on saura si 3-4 scènes est le bon calibre, si
-   la marge tient, et à quoi ressemble vraiment le panneau de progression sur
-   scène (il n'a été vérifié qu'en terminal simulé, pas sous les yeux de
-   quelqu'un pendant dix-sept minutes).
-3. **Frontend** (OpenWebUI via pipelines ou interface dédiée — non tranché).
-4. **Peupler le canon** : remplacer les fiches SCAFFOLD par les fiches réelles.
-   Tout ce qui est validé jusqu'ici tourne sur du contenu jetable.
-5. **Mode acteur, deuxième passe** : mémoire longue à l'épreuve de plusieurs
-   sessions, et gestion des anachronismes (cf. Points de vigilance).
+1. **Peupler le canon** — le seul vrai chantier restant. Les fiches de `bible/`
+   sont du SCAFFOLD : tout ce qui est validé jusqu'ici tourne sur du contenu
+   jetable. Passe par la conversation littéraire, pas par le code. Réindexer
+   après (`podman-compose --profile tools run --rm indexer`).
+2. **Assets de démo**, une fois le canon en place : sessions de roleplay
+   pré-générées puis CURÉES à la main (§ 4.1 du RUNBOOK), et chapitre + audio
+   de secours à déposer dans `public/fallback/` du dépôt du talk.
+3. **Répétition en conditions réelles**, machine redémarrée, veille coupée,
+   entretien macOS retombé. C'est là qu'on verra le panneau de progression sous
+   les yeux de quelqu'un pendant quinze minutes — il n'a jamais été regardé
+   autrement qu'en terminal simulé.
+4. **Question en attente côté talk** : garder leur reprise tardive (re-POST à
+   moins de 3 min du décompte) avec annulation manuelle par `POST /cancel`, ou
+   la supprimer. C'est leur décompte ; à trancher avant la répétition.
+5. **Mode acteur, deuxième passe** (si le temps le permet) : mémoire longue à
+   l'épreuve de plusieurs sessions, et anachronismes (cf. Points de vigilance).
+
+## Documents de référence
+
+- `docs/RUNBOOK.md` — toutes les opérations : backends, jetons Telegram,
+  génération, préparation des assets, séquence du jour J, pannes courantes.
+  C'est LUI qu'on suit sous pression, pas ce fichier.
+- `docs/contrat-api-pour-le-deck.md` — artefact de passation vers la session
+  Code du talk (rév. 4). Décrit la surface HTTP réelle, les écarts assumés au
+  contrat gelé (`phase` peut valoir `error` et `idle`), et les mesures.
+- Côté talk : `openspec/changes/remote-integration-contract/` FIGE le contrat
+  HTTP. On l'implémente, on ne le rediscute pas.
 
 ## Notes d'architecture (orchestrateur)
 
