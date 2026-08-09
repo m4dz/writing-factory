@@ -286,8 +286,25 @@ podman-compose.yml        # openwebui + chromadb + indexer (profil tools)
         deux minutes de silence sur scène. **Conséquence de planning : la démo
         d'acteur se joue AVANT le lancement du chapitre ou APRÈS sa récolte,
         jamais entre les deux.** Signalé au talk.
-      * RESTE À FAIRE : notifications téléphone, et le run complet par l'API
-        (génération + TTS enchaînés, jamais éprouvé d'un seul trait).
+      * ✅ **RUN COMPLET PAR L'API VALIDÉ (2026-08-09) : 842 s = 14 min 02**,
+        `POST /generate` → plan (3 scènes) → écriture → relecture → bascule
+        Qwen → cohérence → assemblage → TTS → `/chapter` et `/audio` servis.
+        Contre 28' au compteur du deck : **14 min de marge**.
+        * Cadence d'écriture 1m43 / 1m38 / 1m25, conforme au run de référence
+          en CLI (1m55 / 1m33 / 1m45 / 1m29) : aucun trou, la voie API ne coûte
+          rien de plus que la CLI.
+        * TTS : 183 s d'audio en 118 s → **×1,55 temps réel**, ce qui confirme
+          le 1,57 mesuré isolément. Le deck estimait 1× (RUNBOOK).
+        * Chapitre de 1425 mots, les deux marqueurs présents et ordonnés. Les
+          **50 mots / 2 phrases** avant la bascule sont exactement ce que le
+          speaker lit à voix nue.
+        * ⚠ **Débit du clone : 177 mots/min, pas 190.** Mon hypothèse venait
+          d'un échantillon de 117 mots et surestimait de 7 % ; sur 540 mots
+          réels l'audio est sorti à 3'03 au lieu des 2'45 visées — au-dessus de
+          la fenêtre du deck. Un texte long porte proportionnellement plus de
+          pauses (fins de phrase + 0,6 s entre segments, soit 7,8 s ici).
+          Recalibré à 177, et la tolérance d'alerte passe de 20 à 15 s : l'écart
+          de 18 s était passé SOUS le seuil, donc en silence.
 
 ## Intégration deck / TTS — décisions du 2026-08-07
 

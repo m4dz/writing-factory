@@ -42,11 +42,18 @@ PHRASES_AVANT_BASCULE = int(os.environ.get("BASCULE_APRES_PHRASES", "2"))
 #
 # ⚠ Ce débit vient d'UN échantillon de 117 mots. Le premier run complet doit le
 # confirmer : `tts.rendre` compare la durée obtenue à la cible et le signale.
-DEBIT_MOTS_MIN = float(os.environ.get("AUDIO_DEBIT_MOTS_MIN", "190"))
+# 177 mots/min : MESURÉ sur un vrai extrait de 540 mots (183 s d'audio) au run
+# complet du 2026-08-09. Le premier chiffre (190) venait d'un échantillon de
+# 117 mots et surestimait de 7 % — d'où un extrait rendu à 3'03 au lieu des 2'45
+# visées. Un texte long porte proportionnellement plus de pauses : fins de
+# phrase, plus 0,6 s entre chaque segment (13 segments = 7,8 s de silence).
+DEBIT_MOTS_MIN = float(os.environ.get("AUDIO_DEBIT_MOTS_MIN", "177"))
 SECONDES_AUDIO = float(os.environ.get("AUDIO_SECONDES", "165"))   # 2 min 45
 
-# Marge d'acceptation autour de la cible, pour l'alerte de fin de rendu.
-TOLERANCE_AUDIO_S = float(os.environ.get("AUDIO_TOLERANCE_S", "20"))
+# Marge d'acceptation autour de la cible. 15 s et non 20 : au run du 2026-08-09
+# l'écart était de 18 s — donc sous l'ancien seuil, donc silencieux, alors qu'il
+# suffisait à sortir de la fenêtre demandée par le deck (2'30-3'00).
+TOLERANCE_AUDIO_S = float(os.environ.get("AUDIO_TOLERANCE_S", "15"))
 
 MOTS_AUDIO = int(os.environ.get(
     "AUDIO_MOTS_MAX", str(int(DEBIT_MOTS_MIN * SECONDES_AUDIO / 60))
