@@ -77,6 +77,7 @@ NOISY_DAEMONS = (
     "mediaanalysisd", "photoanalysisd", "photolibraryd", "mdworker",
     "mds_stores", "mds", "backupd", "cloudphotod", "corespotlightd",
     "spotlightknowledged", "knowledgeconstructiond",
+    "IntelligencePlatformComputeService", "duetexpertd",
     "AssetCacheLocatorService", "syspolicyd",
 )
 DAEMON_WARN_CPU = float(os.environ.get("PREFLIGHT_DAEMON_WARN_CPU", "30"))
