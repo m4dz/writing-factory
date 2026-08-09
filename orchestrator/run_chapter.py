@@ -40,7 +40,11 @@ def main() -> None:
     # démarrer que planter la machine à la douzième minute de keynote.
     print(f"PRÉFLIGHT : {report()}")
     try:
-        for w in preflight(strict=not args.skip_preflight):
+        # `chrono=True` : générer un chapitre EST une mesure de temps — c'est
+        # même la contrainte dure du projet. Un swap saturé ne casserait pas la
+        # machine, mais rendrait la durée obtenue ininterprétable, et c'est
+        # précisément ce chiffre qu'on vient chercher ici.
+        for w in preflight(strict=not args.skip_preflight, chrono=True):
             print(f"  ⚠ {w}")
     except PreflightError as exc:
         raise SystemExit(f"\n{exc}\n\n  (--skip-preflight pour outrepasser)")

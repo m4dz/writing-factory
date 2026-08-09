@@ -129,7 +129,11 @@ class Job:
             # pas devenir une erreur réseau pour le deck : il devient un état
             # `error` que le deck traite comme « pas prêt », donc un fallback
             # silencieux, tandis que la raison m'est rapportée telle quelle.
-            avertissements = preflight(strict=True)
+            # `chrono=True` : c'est la voie de la scène, celle qui court contre
+            # le compteur du deck. Ici la durée est l'enjeu, donc un swap saturé
+            # redevient bloquant — au contraire de l'outillage de calibration,
+            # qui juge de la prose et se moque des secondes.
+            avertissements = preflight(strict=True, chrono=True)
             for a in avertissements:
                 progress.note(f"préflight : {a}")
 

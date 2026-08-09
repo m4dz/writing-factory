@@ -519,13 +519,27 @@ reste tient au CONTENU et à la coordination, plus à l'implémentation.
   * **Lancer le run au PREMIER PLAN** (terminal, `nice 0`). Un lancement
     détaché (`nohup … & disown`) hérite d'une priorité basse : à ce niveau,
     n'importe quel démon le double.
-- **UN RUN PAR DÉMARRAGE.** Le swap ne se rend pas à chaud : après un run,
-  `vm.swapusage` reste saturé et le préflight bloque, à raison — la machine n'a
-  plus de marge pour un modèle de 13 GB sur 18 GB unifiés. Ce blocage a
-  d'ailleurs remplacé un raisonnement erroné du matin (« saturé n'est dangereux
-  qu'avec un disque plein ») : macOS agrandit bel et bien le swap, mais une
-  machine qui vit sur son swap n'est pas une machine sur laquelle on chronomètre
-  une démo.
+- **~~UN RUN PAR DÉMARRAGE~~ — RÉVISÉ LE 2026-08-09, LA RÈGLE ÉTAIT FAUSSE.**
+  On lisait ici que « le swap ne se rend pas à chaud ». Mesuré, sans autre
+  intervention que l'expiration de `keep_alive` d'Ollama : mémoire libre
+  **11 % → 87 %**, swap `used` **−1,35 GB**, et `total` **4096 → 3072 MB**.
+  macOS rend les pages ET rétrécit les swapfiles dès que le consommateur lâche
+  la mémoire. Décharger le modèle suffit ; redémarrer était un rituel.
+  * Pire, le blocage était un PROXY de deux causes déjà mesurées ailleurs, et
+    le dossier le disait déjà : les kernel panics venaient d'un **disque à 99 %**
+    (couvert par `MIN_DISK_GB`), les trous de 5 à 18 minutes de
+    **`mediaanalysisd`** (couvert par `NOISY_DAEMONS`, et explicitement
+    disculpés du swap par le run 4, reproduit swap à zéro). Il coûtait un
+    redémarrage par session de test sans apporter un signal propre.
+  * Ce qui restait vrai, et qui est conservé : une machine qui vit sur son swap
+    ne donne pas des DURÉES fiables. D'où `preflight(chrono=True)` — bloquant
+    pour `run_chapter.py` et l'API, où le chiffre est l'objet ; simple
+    avertissement pour l'outillage de calibration, qui juge de la prose.
+  * Remède, dans l'ordre : `ollama stop <modèle>`, puis `sudo purge` si besoin.
+    Redémarrer en dernier recours.
+  * Leçon de méthode, la même qu'au run 4 : un seuil qui corrèle n'est pas un
+    seuil qui cause. Avant d'imposer un rituel, vérifier que le signal bloquant
+    n'est pas déjà couvert par un signal direct.
 - **Sessions de roleplay REJOUABLES (2026-08-08)** — le fichier de session porte
   désormais DEUX sections : `## Ce qui s'est dit` (le résumé glissant, c'est lui
   qui est indexé et qui nourrit les sessions suivantes) et `## Transcription`

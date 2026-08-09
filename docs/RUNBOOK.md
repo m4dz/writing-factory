@@ -26,18 +26,39 @@ mémoire récupérable 13 GB, pression normale | entretien macOS : aucun |
 LLM chauds : aucun
 ```
 
-Le préflight **refuse de démarrer** dans quatre cas, tous vécus :
+Le préflight **refuse de démarrer** dans cinq cas, tous vécus :
 
 | Refus | Cause | Remède |
 |---|---|---|
 | Disque < 20 GB | macOS ne peut plus agrandir le swap → kernel panic | Libérer de l'espace |
-| Swap saturé | Machine qui n'a pas digéré le run précédent | **Redémarrer** (macOS ne rend pas les swapfiles à chaud) |
+| Pression mémoire critique | Verdict de macOS lui-même | `ollama stop <modèle>`, fermer les gros consommateurs |
 | Entretien macOS > 80 % CPU | `spotlightknowledged`, `photoanalysisd`, `mediaanalysisd`… | Attendre, ou couper l'indexation (§ 7) |
 | Ollama ne génère pas | Démon vivant mais incapable de lancer `llama-server` (typique après une veille) | `launchctl kickstart -k gui/$(id -u)/local.ollama` |
+| 2+ LLM chauds | Co-résidence : 17,8 GB demandés sur 19,3 | `ollama stop <modèle>` |
 
-**Un run propre par démarrage.** Après une génération, le swap reste occupé et
-le préflight bloquera — à raison : un modèle de 13 GB sur 18 GB de mémoire
-unifiée n'a plus de marge.
+**Le swap saturé n'est plus bloquant qu'en mode chronomètre** (révision du
+2026-08-09). `run_chapter.py` et l'API passent `chrono=True` — là, la durée EST
+l'objet, et une machine qui pagine rend un chiffre ininterprétable. L'outillage
+de calibration, lui, juge de la prose : il se contente d'un avertissement.
+
+Le raisonnement précédent (« redémarrer, macOS ne rend pas les swapfiles à
+chaud ») était faux sur les deux points. Mesuré : sans autre intervention que
+l'expiration de `keep_alive` d'Ollama, la mémoire libre est passée de 11 % à
+87 %, le swap `used` a chuté de 1,35 GB et le `total` de 4096 à 3072 MB. Et les
+deux incidents qui avaient motivé ce blocage relevaient d'autre chose — les
+kernel panics d'un **disque à 99 %**, les trous de génération de
+**`mediaanalysisd`** (reproduits sur une machine fraîchement redémarrée, swap à
+zéro). Les deux ont leur propre garde-fou.
+
+**Remède au swap, dans l'ordre :**
+
+```bash
+ollama stop mistral-nemo:12b-instruct-2407-q8_0   # rend la mémoire ET rétrécit le swap
+sysctl vm.swapusage                                # vérifier
+sudo purge                                         # si ça ne suffit pas (demande le mot de passe)
+```
+
+Redémarrer reste le dernier recours, pas le premier réflexe.
 
 **Empêcher la veille** avant toute session longue :
 
@@ -237,7 +258,7 @@ après la récolte.
 | Symptôme | Cause probable | Remède |
 |---|---|---|
 | Toutes les générations en 500 | Ollama survit à une veille mais ne charge plus de modèle | `launchctl kickstart -k gui/$(id -u)/local.ollama` |
-| Préflight : « swap saturé » | Un run a déjà tourné depuis le démarrage | Redémarrer |
+| Préflight : « swap saturé » (mode chrono seulement) | Un run a déjà tourné depuis le démarrage | `ollama stop <modèle>`, puis `sudo purge` si besoin. Redémarrer en dernier recours |
 | Préflight : « entretien macOS » | Indexation Spotlight / Photos | Attendre, ou § 7 |
 | Génération très lente, trous de plusieurs minutes | Démon d'entretien + processus lancé en tâche de fond | Relancer au premier plan, machine au repos |
 | `/chapter` en 204 | Génération non finie, ou échouée | `GET /status` → champ `error` |

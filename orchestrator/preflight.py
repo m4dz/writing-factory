@@ -54,6 +54,29 @@ OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 # Seuils. Le disque doit pouvoir absorber la croissance du swap (macOS va
 # jusqu'à ~2× la RAM physique) plus une marge de travail.
 MIN_DISK_GB = float(os.environ.get("PREFLIGHT_MIN_DISK_GB", "20"))
+
+# Swap : AVERTISSEMENT par défaut, bloquant seulement en mode chrono
+# (cf. `preflight(chrono=...)`). Révision du 2026-08-09, sur mesure.
+#
+# Ce seuil bloquait tout, et il le faisait sur un raisonnement que le dossier du
+# projet contredit lui-même :
+#   - Les kernel panics venaient d'un DISQUE À 99 % (macOS ne pouvait plus
+#     agrandir le swap), pas d'un swap consommé. `MIN_DISK_GB` couvre ce cas
+#     directement, et mieux.
+#   - Les trous de 5 à 18 minutes venaient de `mediaanalysisd`, pas de la
+#     pagination — le run 4 les a reproduits sur une machine fraîchement
+#     redémarrée, swap à zéro. `NOISY_DAEMONS` couvre ce cas directement.
+# Le swap libre n'était donc qu'un PROXY de deux signaux déjà mesurés, et il
+# coûtait un redémarrage à chaque session de test.
+#
+# Mesuré le 2026-08-09, sans autre intervention que l'expiration de `keep_alive`
+# d'Ollama : mémoire libre 11 % → 87 %, swap `used` −1,35 GB, et `total` passé de
+# 4096 à 3072 MB. macOS REND donc les swapfiles à chaud, contrairement à ce que
+# ce fichier affirmait. Décharger le modèle suffit ; redémarrer est un dernier
+# recours.
+#
+# Ce qui reste vrai : une machine qui vit sur son swap ne donne pas des DURÉES
+# fiables. D'où le mode chrono, pour les runs dont le chiffre est l'objet.
 MIN_SWAP_FREE_GB = float(os.environ.get("PREFLIGHT_MIN_SWAP_FREE_GB", "2"))
 
 # Pression mémoire : on s'en remet au verdict de macOS (cf. _pressure_level),
@@ -276,11 +299,17 @@ def _loaded_llms() -> list[dict] | None:
     ]
 
 
-def preflight(*, strict: bool = True) -> list[str]:
+def preflight(*, strict: bool = True, chrono: bool = False) -> list[str]:
     """Vérifie la machine. Retourne les avertissements non bloquants.
 
     Lève PreflightError sur une condition qui a déjà fait planter la machine.
     `strict=False` dégrade tout en avertissement (itération de dev).
+
+    `chrono=True` ajoute les conditions qui ne menacent pas la machine mais
+    faussent les DURÉES : c'est le mode des runs dont le chiffre est l'objet
+    (run de référence, répétition, génération de scène). Un test de style, lui,
+    juge de la prose et se moque des secondes — il n'a pas à exiger un
+    redémarrage.
     """
     blocking: list[str] = []
     warnings: list[str] = []
@@ -299,14 +328,24 @@ def preflight(*, strict: bool = True) -> list[str]:
     elif swap["total"] == 0:
         pass  # Aucun swapfile alloué : machine fraîche, rien à signaler.
     elif swap["free"] < MIN_SWAP_FREE_GB:
-        blocking.append(
+        msg = (
             f"Swap : {swap['free']:.2f} GB libres sur {swap['total']:.1f} GB "
-            f"alloués (< {MIN_SWAP_FREE_GB:.0f} GB). La machine n'a pas digéré "
-            "la session précédente et macOS ne rend pas les swapfiles à chaud. "
-            "REDÉMARRER. Même avec du disque disponible, le système agrandit le "
-            "swap et se met à ramper : trous de plusieurs minutes en pleine "
-            "génération, modèle chargé et inactif, budget de scène explosé."
+            f"alloués (< {MIN_SWAP_FREE_GB:.0f} GB). La machine porte encore la "
+            "session précédente. Remède : DÉCHARGER le modèle "
+            "(`ollama stop <modèle>`, ou attendre l'expiration de keep_alive) — "
+            "macOS rend alors les pages ET rétrécit les swapfiles. Redémarrer "
+            "n'est qu'un dernier recours."
         )
+        # Bloquant seulement quand on chronomètre : un swap consommé ne casse
+        # pas la machine (le disque, lui, si — cf. MIN_DISK_GB), il rend les
+        # durées ininterprétables.
+        if chrono:
+            blocking.append(
+                msg + " Mesure de temps refusée dans cet état : les durées "
+                "seraient ininterprétables."
+            )
+        else:
+            warnings.append(msg)
 
     niveau = _pressure_level()
     if niveau is None:
@@ -316,7 +355,10 @@ def preflight(*, strict: bool = True) -> list[str]:
             "Pression mémoire CRITIQUE selon macOS "
             f"(kern.memorystatus_vm_pressure_level = {niveau}). Le système est "
             "déjà en train de récupérer de la mémoire de force ; une génération "
-            "de vingt minutes va paginer au lieu de générer. REDÉMARRER."
+            "de vingt minutes va paginer au lieu de générer. Remède : décharger "
+            "le modèle (`ollama stop <modèle>`) et fermer les gros consommateurs "
+            "— c'est ce qui rend la mémoire, pas le redémarrage. Redémarrer "
+            "seulement si la pression ne retombe pas."
         )
     elif niveau >= 2:
         warnings.append(
