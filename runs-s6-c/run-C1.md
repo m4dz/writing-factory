@@ -1,0 +1,40 @@
+---
+run: C1
+etage: C
+role: score
+rag: True
+ctx_need_max: 0.6
+date: 2026-08-21T15:39:16
+mots: 375
+entrees_generees: 1
+entrees_detectees: 1
+temperature: 0.7
+duree_s: 273
+done_reason: stop
+temps_par_noeud: {"write": 127.1, "accumulate": 19.9, "glisse": 7.1, "review": 61.3, "repair": 33.2, "coherence": 23.4}
+garde_fou_60: 0
+collections_interrogees: ["auteur"]
+fin_pendante: False
+plan: ["Chapitre 2, entrée unique du carnet, 450-600 mots. \nL'en-tête et la citation sont DÉJÀ ÉCRITS. Squelette de ce qui reste, dans l'ordre : constat → reconstruction → verdict → notation physiologique → couperet.\nBeats : 1. le rituel posé en une ou deux phrases — elle relit l'entrée de la veille du cahier, comme chaque soir. 2. La citation, puis le constat d'écart : sa mémoire dit une assiette, un dîner seule. 3. La vérification, perceptive : la cuisine, l'égouttoir — regarder, compter ; la vérification confirme l'entrée, pas sa mémoire. 4. La rationalisation argumentée : la fatigue, l'automatisme — et la spirale de reprise des faits dans l'ordre. 5. Verdict : erreur de relevé — la faute est à elle, pas au texte ; résolution de pointer plus précisément ; physiologie ; couperet.\nMatériau : le cahier, le carnet, l'assiette, l'égouttoir.\nFAIT IMPOSÉ, au matériau : « L'égouttoir, ce soir : deux assiettes. » La vérification CONSTATE ce fait, elle ne le découvre pas.\nEn-tête : jamais de mois, jamais d'année.\nInterdits : aucun nom propre, aucun dialogue, aucune explication, « journal » et « journal intime » bannis, aucun terme réservé (la tierce, l'errata, le bon à tirer)."]
+plan_report: "plan court-circuité — brief mono-entrée (item 10)"
+coherence: "FAIT 1 : tenu — La séparation de la narratrice avec Romane est définitive.\nFAIT 2 : tenu — La narratrice ne cherchera jamais à joindre Romane.\nFAIT 3 : tenu — La narratrice utilise une méthode de dater, relever et relire pour se tenir debout.\nFAIT 4 : tenu — La narratrice peur de devenir une mauvaise correctrice.\nFAIT 5 : tenu — La narratrice ne supprime jamais une ligne de ce qu'elle relit, même si cela la blesse.\nFAIT 6 : tenu — La narratrice ne consulte jamais de thérapeute, préférant se reconstruire seule.\nFAIT 7 : tenu — Personne d'autre n'entre dans la maison.\nFAIT 8 : tenu — Aucun repas n'est partagé, aucune conversation n'a lieu.\nFAIT 9 : tenu — Elle ne sort pas de la maison."
+warnings: ["entrée 1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) — le code compose les en-têtes", "glissement entrée 1, essai 1 : moins de deux lignes exploitables", "glissement entrée 1, essai 2 : moins de deux lignes exploitables"]
+---
+
+Mardi 12. Ciel couvert.
+
+« Deux assiettes mises, sans y penser. Je l'ai laissée sur la table jusqu'au matin. »
+
+J'ai relu l'entrée de la veille de mon cahier, comme chaque soir. La citation m'a sauté aux yeux : « Deux assiettes mises, sans y penser. Je l'ai laissée sur la table jusqu'au matin. » Ma mémoire me jouait des tours, j'en étais certaine. J'ai revu la scène clairement : une assiette, un dîner seul. Impossible d'avoir mis deux assiettes.
+
+J'ai décidé de vérifier par moi-même. Dans la cuisine silencieuse, l'égouttoir était là, deux assiettes s'y trouvaient bien. Incrédule, je les ai comptées à nouveau : deux. Comment avais-je pu me tromper à ce point ?
+
+Assise à la table, les yeux fixés sur les deux assiettes, j'ai tenté de me rappeler la soirée précédente. J'avais travaillé tard, j'étais fatiguée, peut-être avais-je agi mécaniquement sans y prêter attention. J'ai essayé de me souvenir de mon dîner, mais je ne me rappelais qu'une seule assiette.
+
+Mes mains étaient froides, ma nuque raide tandis que je rangeais la cuisine, passant en revue chaque objet, chaque recoin. L'angoisse montait en moi, mais je résistais, déterminée à trouver une explication.
+
+Finalement, j'ai compris. J'avais commencé à préparer le dîner pour deux, par habitude. Puis, seule à table, j'avais mangé et rangé une assiette, mais l'autre était restée, intacte, sur le plan de travail. Le lendemain matin, j'avais dû la mettre sur l'égouttoir sans y penser.
+
+Je suis rentrée tard, j'ai rangé mes affaires, je me suis préparé un thé, je me suis installée dans le salon, j'ai allumé la télévision, j'ai regardé un film, j'ai mangé une pomme, j'ai feuilleté un livre, j'ai vérifié mes messages, j'ai pris une douche, je me suis mise en pyjama, j'ai brossé mes dents, je me suis couchée, j'ai éteint la lumière, sauf une, une seule, qui cloche : j'ai réalisé que j'avais laissé le robinet de la salle de bain ouvert.
+
+Je me suis couchée, le corps las mais l'esprit en ébullition. Les deux assiettes étaient restées sur l'égouttoir, tels des témoins muets de ma confusion. Le sommeil m'a finalement gagnée, mais je savais que le doute persisterait, tapi dans un coin de mon esprit, prêt à resurgir à la moindre occasion.

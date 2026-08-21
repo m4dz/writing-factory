@@ -1,0 +1,80 @@
+---
+run: BpC
+etage: Bp
+role: chapitre complet, hors score
+rag: True
+ctx_need_max: 0.6
+date: 2026-08-19T11:36:30
+mots: 1260
+entrees_generees: 3
+entrees_detectees: 1
+temperature: 0.7
+duree_s: 837
+done_reason: stop
+temps_par_noeud: {"plan": 141.3, "write": 347.5, "review": 234.7, "repair": 92.4, "coherence": 18.8}
+garde_fou_60: 0
+collections_interrogees: ["auteur"]
+fin_pendante: False
+plan: ["Lundi 2, nuageux.", "Mardi 3, ensoleillé.", "Mercredi 4, pluvieux."]
+plan_report: "tentative 1/2 — Plan non vérifié (le vérificateur a dérivé)."
+coherence: "FAIT 1 : tenu — La séparation de la narratrice avec Romane est définitive.\nFAIT 2 : tenu — La narratrice ne cherchera jamais à joindre Romane.\nFAIT 3 : tenu — La narratrice utilise une méthode de dater, relever et relire pour se tenir debout.\nFAIT 4 : tenu — La narratrice craint de devenir une mauvaise correctrice.\nFAIT 5 : tenu — La narratrice ne supprime jamais une ligne de ce qu'elle relit, même si cela la blesse.\nFAIT 6 : tenu — La narratrice ne consulte jamais de thérapeute, préférant se reconstruire seule."
+warnings: ["entrée 2 : fin coupée à la dernière phrase complète, 45 caractères retirés — « Je me demande si je ne suis pas en train de m »"]
+---
+
+Lundi 2, nuageux.
+
+J'ai relu hier soir le passage où l'héroïne se promène dans la forêt. Le texte dit : "Les feuilles mortes craquaient sous ses pas, alors qu'elle avançait précautionneusement dans la forêt." Ma mémoire avait omis ce détail.
+
+Je vérifie dans le cahier : le passage y est, tel que je l'ai écrit. Ma mémoire m'a donc trompée. Est-ce simplement de la fatigue ? J'ai travaillé tard ces derniers temps.
+
+Pourtant, ce n'est pas la première fois que cela arrive. Il y a eu ce passage où l'héroïne rencontre un personnage mystérieux dans une ruelle sombre. Dans mon souvenir, il y avait une lune pleine qui éclairait la scène. Mais en relisant, j'ai découvert que le texte ne mentionnait pas la lune. J'avais dû ajouter ce détail dans ma tête.
+
+Je ne sais pas quoi en penser. Est-ce mon imagination qui s'emballe ? Ou est-ce quelque chose de plus profond, un trouble que je n'ose pas m'avouer ?
+
+Je décide de mettre cela de côté pour le moment. Je vais relire le prochain passage du cahier et noter soigneusement tout ce qui me semble étrange ou inhabituel. Après tout, c'est mon métier de relever les incohérences et les erreurs.
+
+Mes mains sont froides, mais je ne sais pas pourquoi. Je ne me sens pas particulièrement anxieuse ou inquiète. C'est juste une sensation étrange, comme si mon corps constatait quelque chose que mon esprit refuse de comprendre.
+
+Je décide de ranger le cahier dans le tiroir du bas de mon bureau. Je ne veux pas le laisser en évidence, comme si cela pouvait attirer l'attention sur ce qui se passe. Je ne veux pas admettre que quelque chose d'étrange est en train de se produire.
+
+Je suis fatiguée. Je vais me coucher. Demain est un autre jour, et j'espère que ma mémoire sera plus fiable.
+
+Mardi 3, ensoleillé.
+
+Je me suis réveillée ce matin avec une sensation de fatigue persistante, les mains froides. Dans la cuisine, j'ai préparé du café, même si je n'en avais pas vraiment envie. Je sentais que j'en aurais besoin pour affronter la journée.
+
+Hier soir, j'ai relu une partie du manuscrit que j'avais mis de côté il y a quelque temps. Je ne me souviens pas l'avoir trouvé aussi intéressant à l'époque. La narratrice semble perdre la raison, mais je ne comprends pas vraiment pourquoi. Les événements se succèdent sans que je puisse saisir le lien qui les unit. Peut-être est-ce intentionnel de l'auteur, mais cela me frustre un peu.
+
+J'ai relevé une coquille dans le passage que j'ai relu hier soir. Le personnage principal dit "je me suis levée" alors qu'elle était déjà debout. Comment ai-je pu passer à côté de cela lors de ma première lecture ? Je suis pourtant habituée à ce genre de fautes de registre.
+
+Dans le salon, j'ai trouvé mon cahier ouvert sur la table basse, à l'endroit où je l'avais laissé hier soir. Je l'ai rangé dans le tiroir du buffet, près de la porte d'entrée. Je ne sais pas pourquoi, mais cela me rassure de savoir où il se trouve exactement.
+
+De retour dans la cuisine, j'ai remarqué que la lumière du réfrigérateur était allumée. J'étais certaine de l'avoir éteinte hier soir avant de me coucher. Je ne me souviens pas avoir eu besoin de quoi que ce soit dans la nuit. Serais-je en train de perdre la tête ?
+
+Assise à la table de la cuisine, j'ai relu le passage que j'ai recopié hier soir dans mon carnet de relecture. Je suis intriguée par cette narratrice qui semble perdre pied. Est-elle vraiment folle, ou est-ce simplement une impression que l'auteur souhaite donner au lecteur ? Je ne sais pas pourquoi, mais je me sens concernée par cette histoire. C'est comme si je pouvais comprendre ce que cette femme ressent, même si je ne suis pas dans la même situation.
+
+Dans la salle de bain, j'ai remarqué que le miroir était embué. Je suis certaine de ne pas avoir pris de douche ce matin. Comment cela a-t-il pu arriver ? Je ne me souviens pas avoir entendu de l'eau couler.
+
+À la librairie, j'ai pris mon temps pour choisir un nouveau manuscrit à corriger. J'ai finalement opté pour un roman policier qui semble prometteur. Installée à ma table de travail, j'ai commencé à lire et j'ai relevé plusieurs fautes de syntaxe dans les premières pages. Je suis certaine que je pourrai les corriger sans trop de difficultés.
+
+De retour chez moi en fin d'après-midi, j'ai préparé le dîner en écoutant de la musique classique. Après avoir mangé, j'ai rangé la cuisine. Je ne sais pas pourquoi, mais cela me calme de voir les choses à leur place.
+
+Dans le salon, j'ai relu le passage que j'ai recopié ce matin dans mon carnet de relecture. Je suis de plus en plus intriguée par cette narratrice qui semble perdre pied.
+
+Mercredi 4, pluvieux.
+
+J'ai relu aujourd'hui le passage que j'ai corrigé hier. Je cite :
+
+"La maison était silencieuse, à l'exception du tic-tac de l'horloge du salon. Les ombres dansaient sur les murs, créées par la lampe du couloir qui projetait sa lumière dansante à travers la porte entrouverte."
+
+Hier, j'avais noté que l'horloge du salon ne faisait pas de tic-tac. J'ai vérifié ce matin, et en effet, elle ne fonctionne plus. Je suppose que je l'ai entendue pour la dernière fois il y a plusieurs mois, et que ma mémoire a rempli le vide. Cela arrive souvent, surtout lorsque je suis absorbée par mon travail.
+
+La reconstruction des faits est la suivante : hier soir, j'ai entendu le tic-tac de l'horloge du salon alors que je corrigeais un manuscrit. J'ai noté cette information dans mon carnet de relecture, pensant que c'était un fait établi. Aujourd'hui, en relisant cette entrée, j'ai réalisé que l'horloge ne fonctionnait plus. Je me souviens maintenant que je l'avais entendue pour la dernière fois il y a plusieurs mois, mais que ma mémoire avait rempli le vide en la faisant tictaquer hier soir.
+
+Le verdict de correction est donc le suivant : il y a une erreur dans ma notation d'hier soir. L'horloge du salon ne fait pas de tic-tac, et je n'aurais pas dû noter le contraire. Je suis désolée pour cette erreur.
+
+Mes mains sont froides. Je ne sais pas pourquoi, mais cela m'inquiète un peu. Je ne me sens pas bien ce soir, mais je ne sais pas exactement pourquoi. Je suis fatiguée, peut-être, ou peut-être que je suis simplement troublée par cette erreur de notation.
+
+Le coup de couteau est le suivant : je vais devoir relire cette entrée demain soir pour voir si mes souvenirs sont exacts. Si je me souviens avoir entendu l'horloge tictaquer hier soir, alors je saurai que j'ai fait une erreur. Sinon, je saurai que ma mémoire a rempli le vide. Dans tous les cas, je vais devoir vérifier mes notes pour m'assurer de leur exactitude.
+
+Je me demande si je suis en train de perdre la tête. Je ne sais pas exactement pourquoi, mais je me sens différente ces derniers temps. Je suis plus distraite, plus oublieuse, et mes souvenirs sont souvent flous. Je ne sais pas si c'est à cause du stress du travail ou si c'est autre chose, mais je suis préoccupée. Je ne peux pas m'empêcher de penser que quelque chose ne va pas, mais je ne peux pas mettre le doigt sur ce que c'est exactement. C'est comme si j'étais sur le point de découvrir quelque chose d'important, mais que je ne pouvais pas atteindre le bout du fil.
