@@ -476,6 +476,34 @@ reste tient au CONTENU et à la coordination, plus à l'implémentation.
   revenir à `brew services` (les deux agents se disputeraient le port 11434,
   celui de brew ayant `RunAtLoad`).
 
+## Règle de méthode — un instrument se falsifie avant de servir
+
+**Avant de faire confiance à un contrôle, exiger qu'il ÉCHOUE sur un cas
+connu** : injecter le défaut, ou le rejouer sur des sorties dont on sait déjà, à
+la main, qu'elles sont fautives. Un contrôle qui n'a jamais échoué n'a rien
+prouvé — il peut porter sur un ensemble vide, tester une condition impossible,
+ou être débranché de son rapport.
+
+**Le lint fantôme** — un détecteur juste dont le résultat n'atteint jamais la
+grille — est la forme la plus coûteuse, parce qu'elle se lit comme un succès.
+
+Le principe a sauvé le projet trois fois, et à chaque fois le contrôle était
+VERT avant qu'on le falsifie :
+- **Étanchéité (session 4)** : le test interrogeait la collection auteur pour
+  vérifier qu'aucun chunk profond n'en sortait — or le profond vivait dans une
+  autre collection. Il passait *par construction*. Le remède est le témoin
+  positif : on injecte volontairement un chunk profond, il DOIT remonter.
+- **Splitter (session 4)** : le contrôle filtrait les chunks par préfixe d'id,
+  et une divergence de `doc_id` le laissait porter sur **zéro chunk**. Vert sur
+  l'ensemble vide. Il échoue désormais explicitement si l'ensemble est vide.
+- **Grille (session 5)** : cinq détecteurs existaient dans `lint_style.py` et
+  aucun n'avait de ligne dans `grille_session.py`. Ils calculaient, on jetait le
+  résultat — d'où un attracteur passé sans croix sur un run entier.
+
+Corollaire pratique : **automatiser un contrôle et le rendre bloquant sont deux
+décisions distinctes.** Les confondre fait échouer un run sur un tic mineur
+pendant que les critères qui comptent passent.
+
 ## Points de vigilance connus
 
 - **LA MISE EN VEILLE CASSE OLLAMA, ET `/api/ps` NE LE DIT PAS (2026-08-07).**

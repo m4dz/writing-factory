@@ -12,3 +12,8 @@ orchestrator/.venv/
 sessions/*/
 !sessions/.gitkeep
 output/
+
+# Archives de TRANSPORT (paquets reçus des conversations de style, retours
+# envoyés). Leur contenu est déplié dans le dépôt : garder le zip en plus
+# dupliquerait la source de vérité.
+*.zip
