@@ -24,13 +24,22 @@ from typing import TypedDict
 
 from langgraph.graph import StateGraph, START, END
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "outillage"))
+
 import progress
+from lint_style import (ENTETE_ENTREE, MACHINERIE,  # noqa: E402
+                        MARQUES, META_TERMES, interdits_materiels)
 from llm import AUTHOR_MODEL, chat, unload
 from retrieval import STYLE_RELECTURE, assemble_system_prompt
-from style import delint, ends_mid_sentence, trim_to_sentence
+from style import delint, ends_mid_sentence, sentence_ends, trim_to_sentence
 from qa import QA_MODEL, repair, derive_facts, check_facts, check_plan
-from gestes import (approche_valide, assembler, composer_glissement,
+from gestes import (assembler, composer_glissement, passage_valide,
+                    position_frontiere, tirer_approche,
                     valider_accumulation)
+from lint_style import paragraphes_redits  # noqa: E402
 
 # Modèle des micro-nœuds. nemo par défaut, et non Qwen : les nœuds tournent DANS
 # la boucle d'écriture, nemo chaud — un appel Qwen y coûterait deux bascules par
@@ -89,6 +98,17 @@ class ChapterState(TypedDict):
     meteo_depart: str     # météo de la 1re entrée, quand le plan est court-circuité
     accumulation: str     # phrase produite par accumulate, mise de côté
     gestes: list[dict]    # un jeu de gestes par entrée, posé après repair
+    segments: bool        # session 6 : `write` en trois appels — LA variable mesurée
+    reconstruction: str   # le segment du milieu, contexte propre d'accumulate
+    entrees_spec: list    # plan d'entrées explicite — le ch. 7 en a deux le MÊME jour
+    plan_impose: list     # un beat par entrée, découpé du brief : le plan ne se demande pas
+    chute_posee: str      # dernière ligne imposée au mot près — posée par le code
+    prompts_servis: list  # (segment, prompt) — livrable, et mesure de la recopie
+    entete_pose: str      # l'en-tête composé pour l'entrée courante — re-tamponné
+    ancre_posee: str      # l'ancre de citation posée — re-tamponnée après repair
+    graine: int           # tirage du glissement, consigné au frontmatter du run
+    chapitre: int         # numéro du chapitre — scope des interdits matériels
+    approches_tirees: list[str]  # jamais deux fois la même dans un chapitre
 
 
 # --- Nœuds -------------------------------------------------------------------
@@ -130,9 +150,24 @@ METEO_DU_BEAT = re.compile(r"^\s*\[([^\]]{2,40})\]\s*(.*)$")
 # produit par le modèle est parasite par définition. C1 en a inventé un second
 # (« Vendredi 15. Pluie fine. ») dans une entrée censée être unique, et le lint
 # découpait deux entrées là où il n'y en avait qu'une.
+# Le numéro est OPTIONNEL : le modèle produit aussi « Samedi. Beau temps. »,
+# un en-tête sans date qui a traversé tous les filtres et s'est retrouvé sous
+# celui du code, dans le texte lu par la voix clonée. Le code est propriétaire
+# du format ; une imitation approximative reste une imitation.
 ENTETE_PARASITE = re.compile(
-    r"^[ \t]*(?:Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)[ \t]+"
-    r"\d{1,2}[.,][^\n]{0,40}\n+", re.MULTILINE | re.IGNORECASE)
+    # ⚠ PAS de `re.IGNORECASE` global : il rendrait la classe [A-Z] sensible aux
+    # minuscules, et c'est précisément la majuscule de la météo qui distingue un
+    # en-tête d'une phrase ouvrant sur un jour. L'insensibilité est limitée aux
+    # noms de jours, par un groupe en ligne.
+    r"^[ \t]*(?i:Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)"
+    r"(?:"
+    # avec numéro : la forme complète, celle que le code compose
+    r"[ \t]+\d{1,2}[.,][^\n]{0,40}"
+    # SANS numéro : « Samedi. Beau temps. » — un en-tête sans date, qui a
+    # traversé tous les filtres et s'est retrouvé dans le texte lu par la voix
+    # clonée. Reconnu par la majuscule de la météo et la fin de ligne.
+    r"|[.,][ \t]*[A-ZÀÂÇÉÈÊËÎÏÔÛÙÜŒ][^\n,]{1,28}\."
+    r")[ \t]*\n+", re.MULTILINE)
 
 # Les POINTS DE SUSPENSION du modèle. La fiche est explicite : ils n'existent
 # nulle part ailleurs que comme marque du glissement — « c'est leur seul
@@ -246,7 +281,8 @@ def _recoller(debut: str, suite: str) -> str:
 
 
 def _generate_whole(system: str, user: str, *, num_predict: int,
-                    temperature: float, label: str) -> tuple[str, list[dict], list[str]]:
+                    temperature: float, label: str,
+                    continuer: bool = True) -> tuple[str, list[dict], list[str]]:
     """Génère un texte ENTIER : relance si `num_predict` a coupé la génération.
 
     Ollama ne signale l'amputation que par `done_reason: "length"` — le texte
@@ -264,7 +300,7 @@ def _generate_whole(system: str, user: str, *, num_predict: int,
     metrics = [m]
     warns: list[str] = []
 
-    for _ in range(MAX_CONTINUATIONS):
+    for _ in range(MAX_CONTINUATIONS if continuer else 0):
         if m.get("done_reason") != "length":
             break
         progress.note(f"{label} : génération coupée à {num_predict} tokens, "
@@ -390,6 +426,22 @@ def plan_node(state: ChapterState) -> dict:
     # COURT-CIRCUIT MONO-ENTRÉE (item 10). Planifier une entrée unique est
     # dégénéré : le modèle rédige au lieu de découper, et on se replie sur le
     # brief. En étage B, ce détour coûtait 139 à 222 secondes — pour rien.
+    # COURT-CIRCUIT SUR PLAN FOURNI. Quand le brief porte déjà un beat par
+    # entrée (`plan_impose`), planifier n'ajoute rien et peut tout défaire : au
+    # premier tirage du chapitre 7, le nœud n'a produit aucune ligne numérotée
+    # sur un brief en prose formatée, et le repli a donné le brief ENTIER à
+    # chaque entrée — les deux ont donc reçu la consigne décrivant les deux.
+    # Planifier ce qui est déjà écrit, c'est offrir l'occasion de le défaire.
+    if state.get("plan_impose"):
+        progress.phase("Plan", f"fourni par le brief "
+                               f"({len(state['plan_impose'])} entrées)")
+        return {
+            "plan": list(state["plan_impose"]), "facts": [],
+            "plan_report": "plan FOURNI par le brief — nœud court-circuité "
+                           "(structure imposée, un beat par entrée)",
+            "idx": 0, "scenes": [], "metrics": [], "warnings": [],
+        }
+
     if state.get("entrees_attendues", 0) == 1:
         progress.phase("Plan", "court-circuité (brief mono-entrée)")
         return {
@@ -484,6 +536,29 @@ def plan_node(state: ChapterState) -> dict:
         )
         progress.note("plan non découpé : le brief fait office d'entrée unique")
 
+    # LE PLAN D'ENTRÉES FAIT LOI SUR LE NOMBRE (micro-lot, correctif CH7).
+    #
+    # `entrees_spec` décrit une structure imposée par le brief — deux entrées du
+    # même jour pour le chapitre 7. Le nœud de plan, lui, n'en savait rien : il
+    # a rendu QUATRE beats, et les entrées 3 et 4, hors spec, sont retombées sur
+    # les dates dérivées (« Lundi 16 », « Mardi 17 »). Un chapitre de 2281 mots
+    # là où le brief en demande deux entrées, et une structure de scène détruite
+    # — la bascule se pose sur le second en-tête, elle aurait ouvert l'audio sur
+    # une entrée qui n'existe pas au brief.
+    #
+    # Quand la structure est donnée, elle n'est pas négociable : on coupe. Et on
+    # le DIT — un plan tronqué en silence se relit comme un plan obéi.
+    spec = state.get("entrees_spec") or []
+    if spec and len(beats) != len(spec):
+        warnings.append(
+            f"plan à {len(beats)} entrée(s) contre {len(spec)} imposée(s) par "
+            f"le brief — tronqué. Beats écartés : "
+            f"{[b[:60] for b in beats[len(spec):]] or 'aucun'}")
+        progress.note(f"plan ramené de {len(beats)} à {len(spec)} entrées")
+        beats = beats[:len(spec)]
+        while len(beats) < len(spec):
+            beats.append(state["brief"])
+
     # L'écriture veut nemo seul : Qwen a pu rester chaud après la vérification.
     # Sans RAG, Qwen n'a jamais été chargé — rien à décharger.
     if rag:
@@ -504,6 +579,11 @@ def write_node(state: ChapterState) -> dict:
     """
     idx = state["idx"]
     beat = state["plan"][idx]
+    # La fiche de CETTE entrée, lue en tête du nœud : elle commande l'en-tête,
+    # la citation, la cible de mots et le découpage. Vide hors chapitre 7 —
+    # tout le reste du pipeline est alors inchangé.
+    spec = state.get("entrees_spec") or []
+    fiche = spec[idx] if idx < len(spec) else {}
     progress.phase("Écriture", f"entrée {idx + 1}/{len(state['plan'])} (nemo)",
                    i=idx + 1, n=len(state["plan"]))
     system = assemble_system_prompt(
@@ -528,7 +608,7 @@ def write_node(state: ChapterState) -> dict:
     # le continuer mot pour mot.
     prior_block = ""
 
-    lo, hi = MOTS_PAR_ENTREE
+    lo, hi = fiche.get("mots") or MOTS_PAR_ENTREE  # cible propre à l'entrée
     # PRÉFIXAGE PAR LE CODE (item 5) : l'en-tête et la citation ancre ne sont
     # pas DEMANDÉS au modèle, ils lui sont DONNÉS déjà écrits — il continue.
     # A3 avait altéré l'ancre et corrompu les beats 2-3 qui en dépendaient ;
@@ -544,11 +624,32 @@ def write_node(state: ChapterState) -> dict:
     # se dérive de l'ancre de séquence, donc les entrées d'un chapitre sont
     # consécutives sans qu'on ait à le vérifier.
     meteo, beat = separer_meteo(beat)
+    # PLAN D'ENTRÉES EXPLICITE (session 7) — le brief le fournit, au lieu que le
+    # code le dérive. Sans lui, rien ne change : les dates se dérivent comme
+    # depuis la session 5, et les chapitres 1-6 et 8-11 sont inchangés.
+    #
+    # Il existe pour le CHAPITRE 7, qui demande DEUX ENTRÉES DU MÊME JOUR
+    # (« Samedi 14. » deux fois : l'après-midi et la nuit de l'anniversaire).
+    # Trois dispositifs s'y opposaient, tous construits délibérément :
+    #   · `entete()` dérive `numero_depart + idx` — l'entrée 2 sortait
+    #     « Dimanche 15 », et la structure du chapitre était impossible ;
+    #   · `entetes_coherents` refuse deux en-têtes identiques ;
+    #   · les 450-600 mots en trois segments contre « entrée 1 : DEUX PHRASES ».
+    # L'enjeu n'est pas cosmétique : la bascule audio se place sur le SECOND
+    # en-tête normalisé. Pas d'en-tête conforme, pas de coïncidence scénique.
     jour_depart = state.get("jour_depart") or "Mardi"
     numero_depart = state.get("numero_depart") or 12
-    tete = entete(jour_depart, numero_depart, idx,
-                  meteo or (state.get("meteo_depart") if idx == 0 else ""))
-    ancre = state.get("prefixe") or ""
+    if fiche.get("jour"):
+        tete = entete(fiche["jour"], fiche["numero"], 0,
+                      fiche.get("meteo") or meteo or "")
+    else:
+        tete = entete(jour_depart, numero_depart, idx,
+                      meteo or (state.get("meteo_depart") if idx == 0 else ""))
+    # La citation d'ancre devient un champ de l'entrée : au chapitre 7, l'entrée
+    # 1 NE CITE PAS (« première entorse au rituel, premier signal ») et l'entrée
+    # 2 s'ouvre sur [CIT-2]. Servir la même ancre aux deux détruirait le signal.
+    ancre = (fiche.get("citation") if "citation" in fiche
+             else state.get("prefixe") or "")
     prefixe = f"{tete}\n\n{ancre}" if ancre else tete
     bloc_prefixe = (
         "L'entrée est DÉJÀ COMMENCÉE par ce texte, que tu ne réécris PAS :\n"
@@ -576,8 +677,91 @@ def write_node(state: ChapterState) -> dict:
         # « fais entendre les voix distinctes » a disparu : une seule voix,
         # aucun dialogue. La consigne poussait vers ce que la fiche interdit.
     )
-    text, ms, wg = _generate_whole(system, user, num_predict=1400,
-                                   temperature=0.7, label=f"entrée {idx + 1}")
+    # --- LA VARIABLE MESURÉE DE LA SESSION 6 ------------------------------
+    # Un seul appel traitait cinq beats : le modèle écrivait un paragraphe par
+    # beat et s'arrêtait. La masse vit dans UN beat — la reconstruction — et
+    # elle n'avait jamais eu d'appel à elle. On décompose, ce qui est le
+    # principe qui vient de gagner l'accumulation, appliqué un cran plus haut.
+    #
+    # Hors étage S6, la branche d'origine reste intacte À L'OCTET PRÈS : c'est
+    # par elle que tout le pipeline a été chronométré, et l'habillage d'un
+    # étage ne doit jamais rejouer la validation d'un autre.
+    reconstruction = ""
+    # Le PROMPT SERVI est conservé : c'est un livrable de la méthode du
+    # mouvement (« dump du prompt servi »), et c'est aussi ce qui permet de
+    # mesurer la recopie — le contrôle qui manquait au tirage 6.
+    prompts_servis: list[tuple[str, str]] = []
+    if fiche.get("segments", state.get("segments")):
+        text, ms, wg = "", [], []
+        for nom, num_predict, mots_cible, consigne in SEGMENTS:
+            progress.phase("Écriture", f"entrée {idx + 1}/"
+                           f"{len(state['plan'])} — {nom}",
+                           i=idx + 1, n=len(state["plan"]))
+            # Le texte déjà écrit devient le PRÉFIXE du segment suivant :
+            # doctrine du préfixage étendue, sans mécanisme nouveau. La
+            # continuité est garantie par construction, et `_recoller` absorbe
+            # la reprise si le modèle redonne la fin malgré la consigne.
+            deja = f"{prefixe}\n\n{text}".strip() if prefixe else text.strip()
+            bloc = (
+                "L'entrée est DÉJÀ COMMENCÉE par ce texte, que tu ne réécris "
+                f"PAS :\n---\n{deja}\n---\n"
+                "Écris uniquement CE QUI SUIT, en enchaînant directement. Ne "
+                "répète rien de ce qui précède.\n" if deja else "")
+            matiere = (_matiere_reconstruction(state)
+                       if nom == "reconstruction" else "")
+            stations = "\n".join(
+                f"  {k}. {lieu}" for k, lieu in
+                enumerate(STATIONS.get(state.get("chapitre") or 2, ()), 1))
+            if fiche.get("mouvement"):
+                # Méthode du mouvement : le brief porte tout, les consignes de
+                # segment ne portent plus que la POSITION dans la trajectoire.
+                seg_user = _prompt_mouvement(
+                    fiche, mots_cible, POSITION_TRAJECTOIRE[nom], bloc)
+            else:
+                seg_user = (
+                    f"Plan du chapitre (>> = l'entrée à écrire maintenant) :\n"
+                    f"{plan_txt}\n\n"
+                    f"Ce que l'entrée {idx + 1} raconte : {beat}\n\n"
+                    f"{bloc}\n"
+                    + consigne.format(mots=mots_cible, matiere=matiere,
+                                    stations=stations) + "\n"
+                    "Prose seule, sans titre, sans en-tête, sans "
+                    "méta-commentaire. Montre la tension sans la nommer."
+                )
+            prompts_servis.append((nom, seg_user))
+            seg, m, w = _generate_whole(
+                system, seg_user, num_predict=num_predict, temperature=0.7,
+                label=f"entrée {idx + 1}/{nom}")
+            # Les filtres propriétaires du code s'appliquent AU SEGMENT, avant
+            # qu'il devienne le préfixe du suivant : un en-tête réémis en tête
+            # de la reconstruction serait recopié par la fermeture, qui le lit
+            # comme du texte légitime déjà écrit.
+            seg, wn = _nettoyer_segment(seg, f"entrée {idx + 1}/{nom}")
+            wg += w + wn
+            if nom == "reconstruction":
+                reconstruction = seg.strip()
+            text = _recoller(text, seg) if text else seg
+            ms += [dict(m2, segment=nom) for m2 in m]
+    else:
+        # `num_predict` DÉRIVÉ DE LA CIBLE quand le brief en donne une.
+        #
+        # Le modèle occupe l'espace offert — mesuré trois fois (l'accumulation à
+        # 214 mots sans plafond, la scène à 1400/1400, et ici l'entrée 1 du
+        # chapitre 7 à 471 mots là où le brief en demande DEUX PHRASES). Offrir
+        # 1400 tokens pour soixante mots, c'est demander soixante mots et en
+        # autoriser six cents : la consigne dit une chose, le budget en dit une
+        # autre, et c'est le budget qui gagne.
+        budget = (int(hi * 1.6) + 40 if fiche.get("mots") else 1400)
+        # PAS DE CONTINUATION quand la brièveté est VOULUE. La continuation
+        # existe contre l'amputation accidentelle — un texte coupé en plein mot
+        # à 1400 tokens. Sur une entrée bornée à soixante mots, `done_reason:
+        # length` est le résultat DEMANDÉ, et relancer défait la borne : le
+        # tirage précédent est reparti pour 300 tokens et a rendu 314 mots.
+        # On coupe à la dernière phrase complète, ce que `_generate_whole` fait
+        # déjà en filet.
+        text, ms, wg = _generate_whole(system, user, num_predict=budget,
+                                      temperature=0.7, label=f"entrée {idx + 1}",
+                                      continuer=not fiche.get("mots"))
     # La concaténation elle-même. `_recoller` retire le chevauchement au
     # caractère près si le modèle a redonné l'en-tête ou l'ancre malgré la
     # consigne — on ne veut ni doublon, ni ancre recomposée.
@@ -600,15 +784,364 @@ def write_node(state: ChapterState) -> dict:
                   "par le modèle, retiré(s) — le code compose les en-têtes")
     if prefixe:
         text = _recoller(prefixe, _retirer_reprise_approximative(prefixe, text))
+
+    # LES VÉTOS SUR LE TEXTE DE SCÈNE (lot orthogonal du chapitre 7).
+    #
+    # Jusqu'ici les interdits matériels et les marques n'étaient bloquants que
+    # DANS `accumulate` : ils vivaient donc dans le texte d'écriture, où rien ne
+    # les relançait. Sur un chapitre qui monte sur scène, le décor générique
+    # n'est pas un défaut de style, c'est un objet qui n'existe pas — et une
+    # marque déposée date le texte et le sort du monde clos de la maison.
+    #
+    # Une seule relance, comme partout ailleurs : au-delà, on garde et on crie.
+    text, wv = _vetos_de_scene(text, idx, state, tentative=1)
+    wg += wv
+
+    # BORNE EN PHRASES quand le brief en pose une. La borne en mots a divisé
+    # l'entrée 1 du chapitre 7 par cinq sans jamais compter les phrases : huit
+    # produites là où le brief en demande deux, et c'est l'entrée que le
+    # locuteur lit à voix nue. Une contrainte de scène se compte dans l'unité
+    # de la scène.
+    if fiche.get("phrases_max"):
+        text, wp = _borner_en_phrases(text, fiche["phrases_max"], idx, prefixe)
+        wg += wp
+
     text, w = delint(text)
     return {
         "scenes": state["scenes"] + [text],
         "idx": idx + 1,
+        # Le segment de reconstruction est mis de côté pour `accumulate` : c'est
+        # LUI qui devient son contexte, plus l'entrée entière. Le découpage rend
+        # cette matière identifiable sans avoir à la deviner dans le texte.
+        "reconstruction": reconstruction,
+        # Ce que le code a COMPOSÉ pour cette entrée, mis de côté pour le
+        # tampon de `poser_gestes_node` : lui seul peut le reposer à l'identique
+        # après que la réparation l'a réécrit.
+        "entete_pose": tete,
+        "ancre_posee": ancre,
+        "chute_posee": fiche.get("chute", ""),
+        "prompts_servis": (state.get("prompts_servis") or []) + prompts_servis,
         "metrics": state["metrics"] + _tag(ms, f"write/{idx + 1}"),
         "warnings": state["warnings"] + wg
         + [f"entrée {idx + 1}: {x}" for x in w],
     }
 
+
+
+# --- `write` en trois segments (session 6, §1) --------------------------------
+#
+# Trois appels séquentiels, chacun préfixé du précédent. Le découpage n'ajoute
+# aucun mécanisme : il réemploie le préfixage par concaténation réelle, déjà
+# éprouvé sur l'en-tête et l'ancre. Ce qu'il change, c'est le RAPPORT DE FORCE
+# entre les beats — la reconstruction cesse d'être un beat parmi cinq et devient
+# une tâche narrative nourrie, avec sa propre matière servie.
+#
+# Aucune de ces consignes ne nomme un terme d'atelier : c'est notre propre
+# squelette servi qui avait fait sortir « Couperet : » en texte sur C2 et C3.
+# Une assertion le vérifie plus bas — la relecture ne suffit pas, elle a déjà
+# laissé passer le cas.
+# LES CONSIGNES SONT EN FAITS, PLUS EN INTENTIONS (session 7).
+#
+# « Elle rétablit sa soirée » nomme ce que le personnage DÉCIDE de faire, et le
+# modèle rend la décision en texte : « Je décide de rétablir ma soirée », « Je
+# décide de refaire le fil de ma soirée ». Mesuré ×3 sur « je décide de » à la
+# session 6 (sept occurrences sur S6-1, six sur S6-3), et les occurrences sont
+# DISPERSÉES dans l'entrée — ce n'est donc pas la couture des segments, c'est la
+# forme de la consigne. Une consigne qui décrit une intention produit un
+# personnage qui décrit ses intentions.
+#
+# On ne demande donc plus une intention, on donne des FAITS et des LIEUX.
+_SEG_OUVERTURE = """Écris seulement le DÉBUT de l'entrée, {mots}.
+
+Le soir, le cahier ouvert : la phrase relue, l'écart entre ce qu'elle lit et \
+ce dont elle se souvient, la chaise repoussée.
+
+ARRÊTE-TOI AU SEUIL DE LA CUISINE. N'écris pas ce qu'elle y trouve."""
+
+# LES STATIONS (session 7). Le plancher de masse devient mécanique : on ne
+# demande plus « raconte longuement » — une consigne de longueur que le modèle
+# lit comme un ton —, on donne des lieux à traverser. Une station traversée est
+# un paragraphe ; six stations font une reconstruction.
+#
+# Aucune station ne fait revenir la narratrice de l'extérieur : elle travaille à
+# la table du séjour. C'est par cette porte que « je suis revenue du travail »
+# entrait (S6-3, C3), alors qu'elle ne sort pas.
+_SEG_RECONSTRUCTION = """Écris maintenant le MILIEU de l'entrée, {mots} — \
+c'est la partie la plus longue, et de loin.
+
+Sa soirée, heure par heure, station par station. Chaque station tient en \
+quelques lignes : l'heure, ce qu'elle a dans les mains, ce qu'elle voit.
+
+{stations}
+
+Un relevé, pas un résumé : aucune station n'est sautée, aucune n'est résumée \
+en une proposition. Les heures sont écrites.
+
+CHAQUE STATION SE FERME SUR UN FAIT — jamais sur un commentaire, jamais sur \
+une question, jamais sur ce qu'elle en pense. Le relevé enchaîne sans \
+récapituler : on passe à la station suivante, c'est tout.
+
+{matiere}
+Aucun verdict ici, aucune conclusion : ce segment ne fait que relever."""
+
+_SEG_FERMETURE = """Écris la FIN de l'entrée, {mots}.
+
+Le verdict, dans ses mots. Puis une ligne du corps, sans cause. Puis une \
+phrase brève, qui referme.
+
+LA DERNIÈRE LIGNE REFERME, ELLE NE CONSOLE PAS : aucune promesse au \
+lendemain, aucune adresse à personne, aucun réconfort. Elle constate et \
+s'arrête."""
+
+# Le programme du jour — les stations du chapitre 2. Elles viennent de la table
+# de pilotage côté PERÇU : ce sont les lieux d'une soirée ordinaire chez elle.
+STATIONS = {
+    # CHAPITRE 7 — la journée de l'anniversaire, entrée 2 (la nuit).
+    #
+    # Chaque station est l'ÉTAT CONSTATÉ d'un objet qu'elle avait entrepris
+    # d'effacer. La contradiction est donc dans la matière, pas dans la
+    # consigne : le brief porte déjà l'intention (« chaque geste d'effacement
+    # dont elle se souvient d'avoir décidé est contredit par l'état de la
+    # maison »), et la répéter ici en langue d'intention ferait revenir « je
+    # décide de » — le défaut que ce même lot vient d'éteindre. Les stations
+    # ne disent que ce qui EST.
+    7: ("la table du séjour, la boîte ouverte, les photos étalées",
+        "le salon, l'enceinte allumée, la musique qui tourne",
+        "la cuisine, le plat au four, l'odeur",
+        "la table, deux couverts mis",
+        "le cahier ouvert, la ligne relue",
+        "la lampe, la fin de la journée"),
+    2: ("la table du séjour, le cahier refermé",
+        "la cuisine, l'égouttoir",
+        "le dîner, l'assiette",
+        "la vaisselle, l'eau",
+        "la relecture de l'entrée de la veille",
+        "la lampe éteinte, le couloir"),
+}
+
+# (nom, num_predict, mots visés, consigne)
+#
+# `num_predict` est dimensionné segment par segment plutôt que laissé à 1400
+# pour tous : offrir l'espace de l'entrée entière à l'ouverture, c'est l'inviter
+# à écrire l'entrée entière — le modèle occupe l'espace offert, mesuré deux fois
+# (l'accumulation à 214 mots sans plafond, la scène à 1400/1400).
+SEGMENTS = (
+    ("ouverture", 300, "80 à 120 mots", _SEG_OUVERTURE),
+    ("reconstruction", 800, "250 à 350 mots", _SEG_RECONSTRUCTION),
+    ("fermeture", 260, "60 à 100 mots", _SEG_FERMETURE),
+)
+
+
+# --- LA MÉTHODE DU MOUVEMENT (2026-08-27) -----------------------------------
+#
+# Le prompt cesse de décrire des cases à traverser. Il déclare un MOUVEMENT à
+# accomplir, des directives de PROSE, une MATIÈRE disponible — dans cet ordre,
+# et l'ordre fait partie de la méthode : l'intention avant la matière.
+#
+# Ce qui a rendu ce changement nécessaire se mesure. Le tirage 6 du chapitre 7
+# s'ouvre sur « Le soir, le cahier ouvert : la phrase relue, l'écart entre ce
+# que je lis et ce dont je me souviens, la chaise repoussée » — c'est la
+# consigne d'ouverture, RECOPIÉE, à 0,94 de similarité. Sur les runs du
+# chapitre 2 elle ne dépasse pas 0,37 : elle y décrit le rituel du chapitre et
+# se fond. Au chapitre 7 elle est étrangère, donc le modèle l'a transcrite.
+#
+# C'est la leçon de la session 3 (« ce qui est montré se recopie ») retournée
+# contre notre propre correctif : la session 6 avait écrit les consignes « en
+# faits, plus en intentions » pour tuer les « je décide de ». Devenues de la
+# prose, elles se sont fait recopier. Une consigne doit être une INSTRUCTION,
+# reconnaissable comme telle.
+POSITION_TRAJECTOIRE = {
+    "ouverture": "Tu écris le DÉBUT de cette trajectoire.",
+    "reconstruction": "Tu écris la SUITE de cette trajectoire — c'est la partie "
+                      "la plus longue, et de loin.",
+    "fermeture": "Tu écris la FIN de cette trajectoire.",
+}
+
+
+def _sans_machinerie(directive: str) -> str:
+    """Retire d'une directive servie la clause qui parle de notre machinerie.
+
+    Le brief est écrit pour deux lecteurs à la fois : l'implémenteur et le
+    modèle. « Rien ne se résout… : la dernière ligne est posée d'office par le
+    code » — la première moitié est une directive de prose, la seconde une note
+    d'implémentation. Servir la seconde apprend au modèle qu'un code pose des
+    lignes derrière lui, et c'est exactement ce que le firewall des méta-termes
+    existe pour empêcher.
+    """
+    morceaux = re.split(r"\s*(?:—|:)\s*", directive)
+    gardes = [m for m in morceaux if not MACHINERIE.search(m)]
+    if len(gardes) == len(morceaux):
+        return directive
+    return (" : ".join(gardes) if gardes else "").rstrip(" :,;") + "."
+
+
+def _prompt_mouvement(fiche: dict, mots_cible: str, position: str,
+                      bloc_prefixe: str) -> str:
+    """Assemble le prompt d'une entrée sous méthode du mouvement.
+
+    Ordre STRICT : intention → trajectoire → matière → vétos. Rien avant
+    l'intention ; la matière ne vient qu'après le comportement de la prose,
+    parce qu'elle est à disposition et non à cocher.
+    """
+    blocs = [f"MOUVEMENT À ACCOMPLIR — {fiche['mouvement']}"]
+    if fiche.get("trajectoire"):
+        blocs.append("COMPORTEMENT DE LA PROSE :\n"
+                     + "\n".join(f"  - {_sans_machinerie(d)}"
+                                   for d in fiche["trajectoire"]))
+    if fiche.get("matiere"):
+        blocs.append("MATIÈRE DISPONIBLE — à ta disposition pour accomplir ce "
+                     "mouvement, jamais une liste à épuiser :\n"
+                     + "\n".join(f"  - {_sans_machinerie(m)}"
+                                   for m in fiche["matiere"]))
+    forme = fiche.get("forme") or {}
+    vetos = [f"Longueur visée : {mots_cible}."]
+    if forme.get("verdict") == "absent":
+        vetos.append("Aucun verdict ne se rend : la dernière ligne en tient "
+                     "lieu, et elle est déjà écrite ailleurs.")
+    if forme.get("accumulation") == "absente":
+        vetos.append("Pas de phrase-récapitulatif.")
+    if fiche.get("vetos"):
+        vetos.append(fiche["vetos"])
+    # Le libellé aussi est servi : « VÉTOS » est un mot de notre atelier. Ce
+    # que le modèle doit lire, c'est ce que le texte ne fait pas.
+    blocs.append("CE QUE LE TEXTE NE FAIT PAS :\n"
+                 + "\n".join(f"  - {v}" for v in vetos))
+    blocs.append(bloc_prefixe.strip() if bloc_prefixe else "")
+    blocs.append(position + "\nProse seule, sans titre, sans en-tête, sans "
+                 "méta-commentaire.")
+    prompt = "\n\n".join(b for b in blocs if b)
+
+    # LA GARDE D'ENTRÉE, sur le prompt ASSEMBLÉ et non sur ses morceaux : c'est
+    # l'assemblage qui est servi. Elle a déjà attrapé « matériau » (session 6)
+    # et `fiche-romane.md` (session 7) ; élargie à la machinerie, elle attrape
+    # les neuf termes que le §5 du brief servait tels quels.
+    fuites = sorted({m.group(0).lower() for m in META_TERMES.finditer(prompt)}
+                    | {m.group(0).lower() for m in MACHINERIE.finditer(prompt)}
+                    | set(re.findall(r"\b[\w-]+\.md\b", prompt)))
+    assert not fuites, (f"le prompt servi porte des termes d'atelier ou de "
+                        f"machinerie : {fuites}")
+    return prompt
+
+
+def _matiere_reconstruction(state: ChapterState) -> str:
+    """La matière propre de l'appel de reconstruction.
+
+    ⚠ Le protocole dit « la micro-scène du chapitre (grade, objet, événement) —
+    depuis la table de pilotage ». Pris au mot, cela lit
+    `bible/profond/chronologie-partie-double.md`, dont la colonne « Événement
+    réel payeur » est LA COLONNE RÉELLE de la partie double : la vérité que tout
+    le firewall existe pour cacher au modèle auteur. Inoffensive par coïncidence
+    au chapitre 2, elle dit « *ce genre de veuve* écrit » au chapitre 3.
+
+    C'est l'erreur exacte de la session 5, où la traduction diégétique lisait
+    cette colonne et sortait « le journal prescrit ». On passe donc par les deux
+    fonctions qui savent déjà où regarder : `lire_table` (qui SAUTE cette
+    colonne, commentaire à l'appui) et `lire_ancres`, qui lit l'Ancre du bloc
+    [VALEURS] — l'événement tel que la narratrice le PERÇOIT.
+
+    Les interdits matériels sont servis en CATÉGORIES, jamais en instances.
+    Nommer « télévision » et « sac à main » pour les interdire, c'est les
+    montrer, et le projet a mesuré trois fois que ce qui est montré se recopie.
+    Ce qui tient l'interdit est le validateur d'`accumulate`, bloquant ; le
+    prompt ne fait que préparer le terrain — en donnant du mobilier RÉEL, parce
+    que le nœud inventait faute d'en avoir.
+    """
+    ch = state.get("chapitre") or 2
+    objets = state.get("objets_actifs") or ""
+    lignes = []
+    try:
+        from build_etat_narratif import lire_ancres, lire_table
+        table, ancres = lire_table().get(ch) or {}, lire_ancres()
+        objets = objets or table.get("objets", "")
+        if ancres.get(ch):
+            lignes.append(f"Où elle en est ce soir : {ancres[ch]}.")
+        if table.get("marche"):
+            lignes.append(f"Ce par quoi elle explique l'écart : "
+                          f"{table['marche']}.")
+    except Exception as exc:                       # pragma: no cover
+        # Un échec de lecture ne doit pas coûter l'entrée : on écrit sans cette
+        # matière, en le DISANT. Un contexte silencieusement amputé est ce qui a
+        # produit le manuscrit intérieur de B′C.
+        progress.note(f"matière de reconstruction indisponible ({exc}) — "
+                      "l'appel se fait sans elle")
+    if objets:
+        lignes.append(f"Dans cette maison, ce soir : {objets}.")
+    lignes.append(
+        "Elle travaille chez elle et ne sort pas ce soir-là ; personne d'autre "
+        "n'entre ; il n'y a aucun écran dans cette maison, et rien qui vienne "
+        "d'un magasin. Tout ce qu'elle touche est déjà là.")
+    return "\n".join(lignes) + "\n"
+
+
+def _vetos_de_scene(text: str, idx: int, state: ChapterState,
+                    tentative: int) -> tuple[str, list[str]]:
+    """Signale le décor générique et les marques dans le texte d'écriture.
+
+    On SIGNALE sans réécrire : contrairement à l'en-tête ou à l'ancre, le code
+    n'est pas propriétaire de ces phrases — retirer « l'enceinte Bluetooth »
+    laisserait un trou dans une phrase qu'il faudrait recoudre, et recoudre de
+    la prose est exactement ce qu'on refuse de faire depuis six sessions.
+    L'avertissement nomme l'objet et cite l'extrait ; le véto vit dans la grille.
+    """
+    warns: list[str] = []
+    ch = state.get("chapitre") or 2
+    for extrait in interdits_materiels(text, ch):
+        warns.append(f"entrée {idx + 1} : VÉTO décor — {extrait[:110]}")
+    for m in MARQUES.finditer(text):
+        a = max(0, m.start() - 40)
+        warns.append(f"entrée {idx + 1} : VÉTO marque déposée — "
+                     f"« {' '.join(text[a:m.end() + 30].split())} »")
+    return text, warns
+
+
+def _borner_en_phrases(text: str, maxi: int, idx: int,
+                       prefixe: str) -> tuple[str, list[str]]:
+    """Coupe l'entrée à `maxi` phrases APRÈS le préfixe, sur une fin de phrase.
+
+    Le préfixe (en-tête, ancre) n'est pas compté : il est posé par le code, il
+    n'appartient pas au texte que le brief borne.
+    """
+    corps = text[len(prefixe):] if prefixe and text.startswith(prefixe) else text
+    fins = sentence_ends(corps)
+    if len(fins) <= maxi:
+        return text, []
+    coupe = fins[maxi - 1]
+    retire = corps[coupe:].strip()
+    return (text[:len(text) - len(corps)] + corps[:coupe].rstrip(),
+            [f"entrée {idx + 1} : bornée à {maxi} phrase(s) — "
+             f"{len(fins) - maxi} retirée(s), à partir de "
+             f"« {' '.join(retire.split())[:80]}… »"])
+
+
+def _nettoyer_segment(seg: str, label: str) -> tuple[str, list[str]]:
+    """Retire du segment les marqueurs dont le CODE est propriétaire.
+
+    Appliqué segment par segment, et non seulement sur l'entrée assemblée : un
+    en-tête réémis en tête de la reconstruction deviendrait le préfixe de la
+    fermeture, qui le lirait comme du texte légitime déjà écrit et enchaînerait
+    dessus. Le code propriétaire d'un marqueur doit le nettoyer partout — et
+    « partout » inclut les états intermédiaires.
+    """
+    warns: list[str] = []
+    seg, repetees = SUSPENSION_REPETEE.subn(r"\1", seg)
+    seg, isolees = SUSPENSION_PARASITE.subn(", ", seg)
+    if repetees + isolees:
+        warns.append(f"{label} : {repetees + isolees} point(s) de suspension "
+                     "produit(s) par le modèle, retiré(s) — le marqueur est "
+                     "réservé au glissement, que le code compose")
+    seg, retires = ENTETE_PARASITE.subn("", seg)
+    if retires:
+        warns.append(f"{label} : {retires} en-tête(s) daté(s) produit(s) par le "
+                     "modèle, retiré(s) — le code compose les en-têtes")
+    return seg.strip(), warns
+
+
+# LA GARDE D'ENTRÉE EST LE LINT DE SORTIE. Le détecteur qui attrape « Couperet »
+# dans le texte est celui qui aurait dû interdire de le servir.
+for _nom, _, _, _consigne in SEGMENTS:
+    _fuites = sorted({m.group(0).lower() for m in META_TERMES.finditer(_consigne)})
+    assert not _fuites, (f"consigne du segment « {_nom} » : termes d'atelier "
+                         f"servis au modèle — {_fuites}")
 
 
 # --- Micro-nœuds d'assemblage (étage C) --------------------------------------
@@ -617,11 +1150,27 @@ def write_node(state: ChapterState) -> dict:
 # étalon montré se recopie caractère pour caractère, et `valider_accumulation`
 # le détecte. On décrit le mouvement, on chiffre la contrainte, on ancre dans
 # les objets de l'entrée.
-_ACC_CONSIGNE = """Voici une entrée de carnet.
+# LA CHUTE EST IMPOSÉE (session 6, §3.1). « celui qui cloche » laissait le
+# modèle choisir l'anomalie, et il en choisissait une à lui — un robinet resté
+# ouvert (C1). L'anomalie du chapitre est un fait du roman, pas une trouvaille
+# de fin de phrase : elle se donne, comme le verdict et le fait imposé.
+_CHUTE_IMPOSEE = {
+    2: "l'assiette",
+    # Chapitre 7 : la chute tombe sur un objet du quatuor, celui que le brief
+    # rend le plus contradictoire — elle a décidé de supprimer la playlist, et
+    # la musique tourne.
+    7: "la playlist qui tourne encore",
+}
 
-Écris UNE SEULE PHRASE qui reprenne, dans l'ordre, les faits de la soirée que \
-cette entrée raconte : le retour, les gestes, les objets, les heures — jusqu'à \
-celui qui cloche, sur lequel la phrase s'achève.
+_ACC_CONSIGNE = """Voici la partie d'une entrée de carnet où la narratrice \
+rétablit sa soirée.
+
+Écris UNE SEULE PHRASE qui reprenne, dans l'ordre, les faits de cette soirée : \
+le retour, les gestes, les objets, les heures — jusqu'à celui qui cloche, sur \
+lequel la phrase s'achève.
+
+L'étape qui cloche, imposée : {chute}. La phrase finit sur elle.
+Les objets de cette maison, les seuls : {objets}.
 
 Contraintes, vérifiées :
 - une seule phrase : AUCUN point, aucun point-virgule à l'intérieur ;
@@ -631,22 +1180,32 @@ jusqu'au coucher ;
 - pas de « et » ni de « puis » pour les relier : la virgule seule ;
 - puis la rupture (« sauf une, une seule ») et l'étape qui cloche ;
 - entre douze et vingt étapes : au-delà, c'est un emballement, pas une spirale ;
-- uniquement des faits DE CETTE ENTRÉE, aucun objet ni lieu nouveau.
+- uniquement des faits DE CE TEXTE, aucun objet ni lieu nouveau ;
+- des ÉTAPES, pas des états d'âme : ce qu'elle fait et ce qu'elle touche, \
+jamais ce qu'elle ressent ni ce qu'elle conclut.
 
 Rends la phrase seule, rien d'autre."""
 
-_GLI_CONSIGNE = """Voici une entrée de carnet.
+# La consigne du glissement a été RETIRÉE, pas commentée : le geste ne se
+# demande plus au modèle, il se prend en banque (cf. `glisse_node`). Une
+# consigne morte laissée en place se relit un jour comme une consigne active.
 
-Ne RECOPIE RIEN de cette entrée — ni son en-tête, ni ses phrases.
 
-Écris deux choses, sur deux lignes :
-1. une phrase où la narratrice commence à s'approcher du POURQUOI ou du OÙ du \
-départ de celle qui est partie — elle s'interrompt d'elle-même, tu laisses la \
-phrase inachevée, sans ponctuation finale ;
-2. un fait matériel très court sur un objet de la maison ({objets}) : ce qu'elle \
-voit, son état, un compte. Déclaratif, six mots au plus.
 
-Rends exactement deux lignes, rien d'autre."""
+def _gestes_permis(state: ChapterState) -> bool:
+    """Cette entrée accueille-t-elle les gestes signatures ?
+
+    Le chapitre 7 le décide par entrée : l'entrée 1 tient en deux phrases,
+    elle n'a la place ni d'une accumulation ni d'un glissement. Au tirage
+    précédent, l'accumulation y a été épissée quand même — 471 mots au lieu de
+    deux phrases, et c'est par elle que « les courses » et « la télévision »
+    sont entrés dans le chapitre.
+    """
+    spec = state.get("entrees_spec") or []
+    idx = len(state["scenes"]) - 1
+    if idx < 0 or idx >= len(spec):
+        return True
+    return bool(spec[idx].get("gestes", True))
 
 
 def accumulate_node(state: ChapterState) -> dict:
@@ -658,12 +1217,24 @@ def accumulate_node(state: ChapterState) -> dict:
     """
     if not state.get("micro_noeuds") or not state["scenes"]:
         return {}
-    entree = state["scenes"][-1]
+    if not _gestes_permis(state):
+        return {}
+    # LE CONTEXTE EST LE SEGMENT DE RECONSTRUCTION, plus l'entrée entière.
+    # `accumulate` était devenu le canal de famine de l'étage C : il ne recevait
+    # que l'entrée et une consigne de forme, donc quand la reconstruction était
+    # mince il inventait les étapes manquantes depuis ses priors — télévision et
+    # messages (C1), « revenue du travail » (C3), sac à main et barquette (CC).
+    # Le monde générique de nemo, chassé de `write` par le RAG, rentrait par ici.
+    # Le découpage de `write` rend ce segment identifiable sans le deviner.
+    entree = state.get("reconstruction") or state["scenes"][-1]
+    consigne = _ACC_CONSIGNE.format(
+        objets=state.get("objets_actifs") or "le cahier, l'assiette, l'égouttoir",
+        chute=_CHUTE_IMPOSEE.get(state.get("chapitre") or 2, "celui qui cloche"))
     metrics, warns, phrase = [], [], ""
     for essai in range(1, MAX_TENTATIVES_GESTE + 1):
         progress.phase("Accumulation",
                        f"entrée {len(state['scenes'])} (essai {essai})")
-        txt, m = chat(_ACC_CONSIGNE, entree, model=MODELE_GESTES,
+        txt, m = chat(consigne, entree, model=MODELE_GESTES,
                       temperature=TEMP_GESTES, num_predict=300)
         metrics.append(m)
         candidat = " ".join(txt.strip().split())
@@ -672,7 +1243,8 @@ def accumulate_node(state: ChapterState) -> dict:
         # deux fois de suite. Le code, lui, continue de vérifier en mots : la
         # consigne vise ce qui est atteignable, la garde mesure ce qui compte.
         ok, raison = valider_accumulation(
-            candidat, dernier_essai=(essai == MAX_TENTATIVES_GESTE))
+            candidat, dernier_essai=(essai == MAX_TENTATIVES_GESTE),
+            chapitre=state.get("chapitre") or 2)
         if ok:
             phrase = candidat
             if raison:
@@ -690,47 +1262,72 @@ def accumulate_node(state: ChapterState) -> dict:
 
 
 def glisse_node(state: ChapterState) -> dict:
-    """Produit le glissement, puis ASSEMBLE les deux gestes dans l'entrée.
+    """Compose le glissement DEPUIS LA BANQUE, puis met les gestes de côté.
 
-    L'assemblage vit ici, dans le second nœud, et non dans chacun : les deux
-    positions doivent se calculer sur le texte ORIGINAL. Si `accumulate` avait
-    déjà inséré sa phrase, les offsets du glissement porteraient sur un texte
-    décalé et le geste atterrirait à côté.
+    LE GESTE A QUITTÉ LE MODÈLE (session 6, §2). Onze runs, trois modes d'échec
+    distincts, zéro glissement : la difficulté n'est pas la longueur mais la
+    NATURE de la demande — approcher un sujet puis s'interrompre est un geste de
+    sens, pas de forme. La matière est donc écrite main, dans `BANQUE_GLISSEMENT`,
+    et le code choisit, coupe et colle. C'est la doctrine des citations du
+    cahier, étendue : ce qu'il y a de plus intime dans le roman est déjà écrit.
+
+    Ce nœud ne fait plus AUCUN appel au modèle. Il en reste un nœud parce que
+    l'assemblage doit vivre après `accumulate` : les deux positions se calculent
+    sur le texte ORIGINAL, et si `accumulate` avait déjà inséré sa phrase, les
+    offsets du glissement porteraient sur un texte décalé.
     """
     if not state.get("micro_noeuds") or not state["scenes"]:
         return {}
-    entree = state["scenes"][-1]
-    objets = state.get("objets_actifs") or "le cahier, le carnet, l'égouttoir"
-    glissement, warns, metrics = "", [], []
-    # DEUX TENTATIVES, comme `accumulate`. Le modèle a rendu une poubelle trois
-    # fois sur trois au premier câblage — en réémettant l'en-tête de l'entrée
-    # qu'on lui donnait à lire. Un seul essai transformait ce travers en zéro
-    # glissement, or M1 est bloquant à l'étage C.
-    for essai in range(1, MAX_TENTATIVES_GESTE + 1):
-        progress.phase("Glissement",
-                       f"entrée {len(state['scenes'])} (essai {essai})")
-        txt, m = chat(_GLI_CONSIGNE.format(objets=objets), entree,
-                      model=MODELE_GESTES, temperature=TEMP_GESTES,
-                      num_predict=160)
-        metrics.append(m)
-        lignes = [l.strip(" -–—123.").strip() for l in txt.strip().splitlines()
-                  if l.strip()]
-        if len(lignes) < 2:
-            warns.append(f"glissement entrée {len(state['scenes'])}, essai "
-                         f"{essai} : moins de deux lignes exploitables")
-            continue
-        ok, raison = approche_valide(lignes[0])
-        if ok:
-            glissement = composer_glissement(lignes[0], lignes[1])
-            break
-        warns.append(f"glissement entrée {len(state['scenes'])}, essai "
-                     f"{essai} : approche rejetée — {raison}")
-    if False:
-        # `approche_valide` était ÉCRITE et JAMAIS APPELÉE — un lint fantôme de
-        # ma main, une heure après avoir gravé le principe. D'où, au second run
-        # C encore, un « Mardi 12. Ciel couvert… » composé en fin d'entrée : le
-        # validateur existait, le code ne le consultait pas.
-        pass
+    if not _gestes_permis(state):
+        # L'entrée n'accueille pas de geste : on pousse un jeu VIDE pour que
+        # l'indexation de `gestes` reste alignée sur celle des entrées. Sans ce
+        # jeu vide, les gestes de l'entrée 2 seraient posés dans l'entrée 1.
+        gestes = list(state.get("gestes") or [])
+        gestes.append({})
+        return {"gestes": gestes, "accumulation": ""}
+    warns: list[str] = []
+    spec = state.get("entrees_spec") or []
+    idx = len(state["scenes"]) - 1
+    fiche = spec[idx] if 0 <= idx < len(spec) else {}
+
+    # PASSAGE RÉDIGÉ (méthode du mouvement) : le brief le fournit entier, avec
+    # sa frontière. Plus de suture approche + « … » + fait — l'interruption
+    # porte l'approche et le retour au matériel EST la découverte suivante.
+    # Les deux formes cohabitent : la banque reste pour les chapitres non
+    # migrés, et c'est la présence du champ qui tranche.
+    if fiche.get("glissement", {}).get("texte"):
+        passage = fiche["glissement"]["texte"]
+        ok, raison = passage_valide(passage)
+        if not ok:
+            warns.append(f"glissement entrée {idx + 1} : passage REFUSÉ par "
+                         f"son validateur — {raison}")
+            passage = ""
+        gestes = list(state.get("gestes") or [])
+        gestes.append({"accumulation": state.get("accumulation") or "",
+                       "glissement": passage,
+                       "frontiere": fiche["glissement"].get("position", ""),
+                       "reconstruction": state.get("reconstruction") or "",
+                       "entete": state.get("entete_pose") or "",
+                       "ancre": state.get("ancre_posee") or "",
+                       "chute": state.get("chute_posee") or ""})
+        return {"gestes": gestes, "accumulation": "",
+                "warnings": state["warnings"] + warns}
+
+    tirees = list(state.get("approches_tirees") or [])
+    approche, fait = tirer_approche(state.get("chapitre") or 2, tirees,
+                                   state.get("graine") or 0)
+    glissement = ""
+    if approche:
+        progress.phase("Glissement", f"entrée {len(state['scenes'])} (banque)")
+        # Le fait matériel se prend dans les objets actifs quand le chapitre en
+        # donne d'autres que celui de la banque — la variation reste possible
+        # sans que la forme dépende du modèle.
+        glissement = composer_glissement(approche, fait)
+        tirees.append(approche)
+    else:
+        warns.append(f"glissement entrée {len(state['scenes'])} : aucune "
+                     "approche disponible en banque pour ce chapitre — M1 se "
+                     "lit « non prévu », pas « manqué »")
 
     # Les fragments sont MIS DE CÔTÉ, pas insérés ici. Posés dans `scenes`, ils
     # traversaient ensuite `review` (« resserre la prose ») et `repair` — qui
@@ -739,10 +1336,89 @@ def glisse_node(state: ChapterState) -> dict:
     # geste se pose donc sur le texte FINAL, dans `poser_gestes`.
     gestes = list(state.get("gestes") or [])
     gestes.append({"accumulation": state.get("accumulation") or "",
-                   "glissement": glissement})
-    return {"gestes": gestes, "accumulation": "",
-            "metrics": state["metrics"] + _tag(metrics, "glisse"),
+                   "glissement": glissement,
+                   "reconstruction": state.get("reconstruction") or "",
+                   "entete": state.get("entete_pose") or "",
+                   "ancre": state.get("ancre_posee") or "",
+                   "chute": state.get("chute_posee") or ""})
+    return {"gestes": gestes, "accumulation": "", "approches_tirees": tirees,
             "warnings": state["warnings"] + warns}
+
+
+# Un en-tête daté, même MAL FORMÉ — virgule au lieu du point, minuscule à la
+# météo. C'est ce que le tampon doit reconnaître pour le remplacer plutôt que
+# d'en ajouter un second à côté.
+ENTETE_APPROCHANT = re.compile(
+    r"^\s*(?:Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)\s+\d{1,2}"
+    r"\s*[.,;:]?\s*\S", re.IGNORECASE)
+
+
+def _retamponner(entree: str, *, tete: str, ancre: str) -> tuple[str, list[str]]:
+    """Repose l'en-tête et l'ancre, exactement, en tête de l'entrée.
+
+    Le code POSSÈDE ces deux marqueurs. Le préfixage par concaténation réelle
+    (session 5) les rendait inaltérables pendant l'écriture — mais `review` et
+    `repair` reçoivent l'entrée ENTIÈRE et la réécrivent, ancre comprise. Mesuré :
+    0/3 verbatim à B′, 2/3 à l'étage C, ✗ sur S6-1, où les guillemets français
+    étaient devenus droits.
+
+    L'enjeu n'est pas typographique. `chapitre.py` et `lire_chapitre.py` placent
+    la bascule audio sur l'en-tête normalisé : un en-tête réécrit, c'est une
+    bascule perdue sur scène.
+
+    On remplace le premier bloc s'il RESSEMBLE à ce qu'on repose (le modèle l'a
+    altéré) ; on l'insère s'il a disparu.
+    """
+    notes: list[str] = []
+    paras = [p for p in entree.split("\n\n") if p.strip()]
+
+    def poser(attendu: str, reconnait, quoi: str) -> None:
+        if not attendu:
+            return
+        for k, para in enumerate(paras[:3]):
+            if para.strip() == attendu.strip():
+                return                          # déjà exact, rien à faire
+            if reconnait(para):
+                if difflib.SequenceMatcher(None, para.strip(),
+                                           attendu.strip()).ratio() > 0.55:
+                    notes.append(f"{quoi} re-tamponné — le texte portait "
+                                 f"« {' '.join(para.split())[:70]} »")
+                    paras[k] = attendu
+                    return
+        # Disparu : on le repose en tête, dans l'ordre en-tête puis ancre.
+        notes.append(f"{quoi} ABSENT après réparation — reposé par le code")
+        paras.insert(0 if quoi == "en-tête" else min(1, len(paras)), attendu)
+
+    # Le reconnaisseur d'en-tête accepte AUSSI la forme abîmée : `ENTETE_ENTREE`
+    # exige le point, or c'est précisément la virgule que la réparation
+    # introduit (B′C : « Lundi 2, nuageux. »). Ne reconnaître que la forme
+    # correcte faisait INSÉRER le bon en-tête sans retirer le mauvais — deux
+    # en-têtes, soit le défaut que ce tampon existe pour éteindre.
+    poser(tete,
+          lambda p: bool(ENTETE_ENTREE.match(p.strip()))
+          or bool(ENTETE_APPROCHANT.match(p.strip())), "en-tête")
+    poser(ancre, lambda p: re.match(r'^\s*[«"“]', p.strip()), "ancre")
+    # L'ANCRE EN DOUBLE. Le code la pose en tête ; le modèle l'a parfois
+    # recopiée juste après, en ouverture de son propre texte. Deux fois la même
+    # citation à trois lignes d'intervalle se lit comme un bégaiement — et sur
+    # le chapitre 7, c'est la ligne la plus chargée du roman.
+    if ancre:
+        noyau = " ".join(ancre.split()).strip('«»"“” ')
+        garde, vue = [], False
+        for para in paras:
+            plat = " ".join(para.split()).strip('«»"“” ')
+            if plat and (plat in noyau or noyau in plat):
+                # La PREMIÈRE est l'ancre que le code vient de poser ; les
+                # suivantes sont les recopies du modèle. Garder la première et
+                # non « toutes sauf le premier paragraphe » : l'en-tête occupe
+                # déjà l'index 0, et la version naïve retirait les DEUX copies.
+                if vue:
+                    notes.append("ancre recopiée par le modèle — doublon retiré")
+                    continue
+                vue = True
+            garde.append(para)
+        paras = garde
+    return "\n\n".join(paras), notes
 
 
 def poser_gestes_node(state: ChapterState) -> dict:
@@ -764,11 +1440,86 @@ def poser_gestes_node(state: ChapterState) -> dict:
     sorties, warns = [], []
     for i, entree in enumerate(entrees_finales):
         g = gestes[i] if i < len(gestes) else {}
+        # BORNES DE LA RECONSTRUCTION, retrouvées par RECHERCHE et non par
+        # comptage d'offsets : entre la génération et ici, le texte a traversé
+        # `review` puis `repair`, qui le réécrivent. Des offsets mémorisés
+        # pointeraient à côté ; le début du segment, lui, survit assez pour être
+        # retrouvé — et s'il ne survit pas, le repli lexical joue.
+        recon = (g.get("reconstruction") or "").strip()
+        bornes = None
+        if recon:
+            tete = " ".join(recon.split()[:6])
+            # `debut`, PAS `i` : la version précédente écrasait l'index de la
+            # boucle avec un offset de caractère, si bien que les avertissements
+            # d'assemblage annonçaient « entrée 26 » sur un run d'UNE entrée
+            # (relevé tel quel dans S6-2). Un message qui désigne la mauvaise
+            # entrée envoie relire le mauvais texte.
+            debut = entree.find(tete)
+            if debut >= 0:
+                bornes = (debut, debut + len(recon))
+
+        # LE TAMPON (session 7). Le code est PROPRIÉTAIRE de l'en-tête et de
+        # l'ancre : le préfixage les garantissait jusqu'à la fin de l'écriture,
+        # mais `review` et `repair` repassent sur l'entrée entière et les
+        # réécrivent — guillemets français devenus droits, 0/3 verbatim à B′,
+        # ✗ sur S6-1. Ce nœud est le dernier à toucher le texte : il les repose.
+        entree, notes_tampon = _retamponner(
+            entree, tete=g.get("entete") or "", ancre=g.get("ancre") or "")
+
+        # LA CHUTE, POSÉE PAR LE CODE quand le brief l'impose au mot près.
+        #
+        # « Constat : anniversaire. » est la dernière ligne du chapitre 7 et le
+        # point de bascule du roman : le jour gagne en entrant dans son
+        # vocabulaire. Le modèle l'a manquée TROIS fois sur trois — il referme
+        # sur une ligne du corps et s'arrête là.
+        #
+        # Même raisonnement que pour l'en-tête et l'ancre : ce dont la scène
+        # dépend au mot près ne se demande pas, il se compose. Et comme eux,
+        # elle se pose EN DERNIER, après la réparation qui la réécrirait.
+        chute = (g.get("chute") or "").strip()
+        if chute and chute not in entree:
+            entree = entree.rstrip() + "\n\n" + chute
+            notes_tampon.append(f"chute imposée absente — posée par le code : "
+                                f"« {chute} »")
+
+        # LA FRONTIÈRE DÉCLARÉE prime sur le calcul d'offset : elle est un
+        # lieu du récit, pas une position dans le texte. Si l'ancre est
+        # introuvable, on le DIT et on retombe sur l'offset — un geste placé au
+        # hasard est pire qu'un geste absent, mais un geste tu est pire encore.
+        frontiere = None
+        if g.get("frontiere") and g.get("glissement"):
+            frontiere = position_frontiere(entree, g["frontiere"])
+            if frontiere is None:
+                warns.append(f"assemblage entrée {i + 1} : frontière « "
+                             f"{g['frontiere'][:60]} » introuvable dans le "
+                             "texte — repli sur le placement par offset")
         texte, notes = assembler(entree, g.get("accumulation") or "",
                                  g.get("glissement") or "",
-                                 state.get("verdict") or "")
+                                 state.get("verdict") or "", bornes,
+                                 frontiere=frontiere)
+
+        # LE DÉDOUBLONNAGE, en dernier — après les gestes, pour que les
+        # paragraphes composés soient dans le texte et donc explicitement
+        # protégés. Falsifié sur S6-C : sans protection, les trois plus fortes
+        # similarités du chapitre étaient l'en-tête, l'ancre et le glissement.
+        proteges = tuple(x for x in (g.get("accumulation"), g.get("glissement"),
+                                     g.get("ancre"), g.get("entete")) if x)
+        for _, j, ratio, _ in reversed(paragraphes_redits(texte,
+                                                          proteges=proteges)):
+            paras = [p for p in texte.split("\n\n") if p.strip()]
+            if j >= len(paras):
+                continue
+            retire = paras.pop(j)
+            texte = "\n\n".join(paras)
+            # Dire CE QU'ON RETIRE : la règle du filet de coupe depuis la
+            # session 4. Un retrait muet est indistinguable d'un modèle qui
+            # n'aurait rien écrit là.
+            notes.append(f"paragraphe redit retiré ({ratio}) — « "
+                         f"{' '.join(retire.split())[:90]}… »")
+
         sorties.append(texte)
-        warns += [f"assemblage entrée {i + 1} : {n}" for n in notes]
+        warns += [f"assemblage entrée {i + 1} : {n}"
+                  for n in notes + notes_tampon]
         if not (g.get("accumulation") or "").strip():
             warns.append(f"assemblage entrée {i + 1} : aucune accumulation à "
                          "poser")
@@ -778,6 +1529,42 @@ def poser_gestes_node(state: ChapterState) -> dict:
 def route_after_write(state: ChapterState) -> str:
     """Boucle tant qu'il reste des scènes à écrire, sinon passe à la relecture."""
     return "write" if state["idx"] < len(state["plan"]) else "review"
+
+
+def _cible_entree(state: ChapterState, i: int) -> tuple[int, int]:
+    """Fourchette de mots de l'entrée `i` — celle du brief si elle en donne une."""
+    spec = state.get("entrees_spec") or []
+    if i < len(spec) and spec[i].get("mots"):
+        return tuple(spec[i]["mots"])
+    return MOTS_PAR_ENTREE
+
+
+def _coupe_acceptable(avant: int, apres: int, cible: tuple[int, int]) -> bool:
+    """Une coupe qui RAPPROCHE de la cible est bonne, si profonde soit-elle.
+
+    Le seuil des 60 % existe contre l'escamotage : une passe de réécriture ne
+    doit pas faire disparaître l'entrée. Mais il ne regardait que la PROFONDEUR
+    de la coupe, jamais sa DIRECTION — et il a coûté cher.
+
+    Mesuré sur S6-C : `review` a taillé l'entrée 1 de 1033 à 495 mots et
+    l'entrée 3 de 1567 à 709. Les deux visaient 450-600, les deux ont été
+    rejetées (48 %, 45 %), et le chapitre est resté à 1008 mots par entrée.
+    La relecture faisait exactement le travail qu'on lui demande — corriger une
+    masse en excès — et le garde-fou l'en a empêchée deux fois.
+
+    La règle devient : si le texte relu tombe DANS la cible, ou s'en approche
+    sans la traverser par le bas, on accepte quelle que soit la profondeur. Le
+    seuil ne s'applique plus qu'aux coupes qui éloignent — celles qui passent
+    sous le plancher, qui sont l'escamotage que le garde-fou visait vraiment.
+    """
+    lo, hi = cible
+    if apres >= lo:                 # dans la cible ou encore au-dessus
+        return True
+    if avant < lo:                  # déjà trop court : toute coupe éloigne
+        return apres >= 0.6 * avant
+    # La coupe est passée SOUS le plancher : acceptable seulement si elle a
+    # moins éloigné qu'elle n'a rapproché.
+    return (lo - apres) < (avant - hi) and apres >= 0.6 * avant
 
 
 def review_node(state: ChapterState) -> dict:
@@ -827,13 +1614,24 @@ def review_node(state: ChapterState) -> dict:
         # était annulée en bloc sans que rien ne le dise, et un travail de style
         # visant la concision disparaissait sans trace. On le fait parler.
         avant, apres = len(scene.split()), len(text.split())
-        if apres < 0.6 * avant:
+        # LA CIBLE DE CETTE ENTRÉE, pas celle du chapitre. Sur le ch. 7,
+        # l'entrée 1 vise 25-60 mots : la relecture l'avait ramenée de 315 à
+        # 156 — vers le brief — et le garde l'a rejetée en la comparant à
+        # 450-600. Un garde-fou « conscient de la cible » qui lit la mauvaise
+        # cible combat exactement ce qu'il est censé servir.
+        cible = _cible_entree(state, i)
+        if not _coupe_acceptable(avant, apres, cible):
             warns.append(
-                f"relecture entrée {i + 1}: garde-fou 60 % déclenché "
-                f"({apres} mots contre {avant}, soit {apres / max(avant, 1):.0%}) "
+                f"relecture entrée {i + 1}: garde-fou déclenché "
+                f"({apres} mots contre {avant}, soit {apres / max(avant, 1):.0%} "
+                f"— hors cible {cible[0]}-{cible[1]}) "
                 "— relecture REJETÉE, original conservé"
             )
             text = scene
+        elif apres < 0.6 * avant:
+            warns.append(
+                f"relecture entrée {i + 1}: coupe profonde ACCEPTÉE "
+                f"({apres} mots contre {avant}) — elle rapproche de la cible")
         text, w = delint(text)
         warns.extend(f"relecture entrée {i + 1}: {x}" for x in w)
         reviewed.append(text)
@@ -866,13 +1664,24 @@ def repair_node(state: ChapterState) -> dict:
         # Garde-fou : une réparation ne doit pas escamoter l'entrée. Bavard
         # pour la même raison que celui de la relecture.
         avant, apres = len(scene.split()), len(text.split())
-        if apres < 0.6 * avant:
+        # LA CIBLE DE CETTE ENTRÉE, pas celle du chapitre. Sur le ch. 7,
+        # l'entrée 1 vise 25-60 mots : la relecture l'avait ramenée de 315 à
+        # 156 — vers le brief — et le garde l'a rejetée en la comparant à
+        # 450-600. Un garde-fou « conscient de la cible » qui lit la mauvaise
+        # cible combat exactement ce qu'il est censé servir.
+        cible = _cible_entree(state, i)
+        if not _coupe_acceptable(avant, apres, cible):
             warns.append(
-                f"réparation entrée {i + 1}: garde-fou 60 % déclenché "
-                f"({apres} mots contre {avant}, soit {apres / max(avant, 1):.0%}) "
+                f"réparation entrée {i + 1}: garde-fou déclenché "
+                f"({apres} mots contre {avant}, soit {apres / max(avant, 1):.0%} "
+                f"— hors cible {cible[0]}-{cible[1]}) "
                 "— réparation REJETÉE, texte relu conservé"
             )
             text = scene
+        elif apres < 0.6 * avant:
+            warns.append(
+                f"réparation entrée {i + 1}: coupe profonde ACCEPTÉE "
+                f"({apres} mots contre {avant}) — elle rapproche de la cible")
         # Re-lint pour tracer ce qui resterait (anglais tenace, tokens collés).
         text, w = delint(text)
         warns.extend(f"réparation entrée {i + 1}: {x}" for x in w)

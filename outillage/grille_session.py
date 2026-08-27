@@ -21,7 +21,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from lint_style import (ENTETE_ENTREE, L3_MOTS, L3_VIRGULES,  # noqa: E402
+from lint_style import (ACC_ABSTRAIT_MAX, ENTETE_ENTREE,  # noqa: E402
+                        L3_MOTS, L3_VIRGULES,
                         analyse, contraintes_chapitre, controles_chapitre,
                         strip_frontmatter)
 
@@ -72,6 +73,11 @@ def decouvrir(dossier: str = "runs") -> list[tuple[str, Path]]:
 # Lignes que le code ne peut PAS trancher sans comprendre le texte. Elles sont
 # listées explicitement plutôt qu'omises : une grille silencieuse sur une ligne
 # se lit comme une ligne tenue.
+# LE JUGE. Une ligne, en tête, manuelle : la grille automatique ne dit plus si
+# c'est bon, elle dit si c'est disqualifié. Cette question-là est le seul
+# jugement qui distingue une structure conforme d'un texte qui tient.
+MANUELLE_JUGE = "**Le mouvement déclaré est-il accompli ?**"
+
 MANUELLES_MECANIQUE = [
     "Deux adjectifs ou plus coordonnés sur un même nom",
     "Émotion annoncée avant d'être montrée",
@@ -170,6 +176,17 @@ def main() -> int:
         "durcir la fiche par l'exemple négatif. Échec **structurel** → c'est le "
         "prompt d'orchestration, donc LangGraph, PAS la fiche.",
         "",
+        "## Le juge — ligne manuelle, elle prime sur tout ce qui suit",
+        "",
+        "Tout ce qui est AUTO ci-dessous est un **véto** : ces lignes ne disent "
+        "pas si le texte est bon, elles disent s'il est disqualifié (fuites, "
+        "ancre, interdits, bornes). Le jugement est ici, et il se rend à la "
+        "lecture debout.",
+        "",
+        entete,
+        sep,
+        ligne(MANUELLE_JUGE, [" "] * len(noms)),
+        "",
         "## Conditions des runs",
         "",
         "| | " + " | ".join(noms) + " |",
@@ -252,11 +269,24 @@ def main() -> int:
         jours = [int(j) for _, j in entetes[n]]
         if not jours:
             return "—"
-        doublons = len(jours) - len(set(jours))
-        suite = all(b - a == 1 for a, b in zip(jours, jours[1:]))
-        if doublons:
-            return f"✗ {doublons} doublon(s) : {jours}"
-        return f"{'✓' if suite else '✗ non consécutives'} : {jours}"
+        # DEUX ENTRÉES LE MÊME JOUR sont légitimes : c'est la structure du
+        # chapitre 7 (l'après-midi et la nuit de l'anniversaire), et la bascule
+        # audio se pose justement sur le second en-tête. La règle avait déjà été
+        # apprise à `entetes_coherents` ; cette ligne-ci l'ignorait encore et
+        # marquait la structure imposée comme un défaut.
+        #
+        # Ce qui reste fautif : une date qui RECULE, ou un saut de plus d'un
+        # jour entre deux entrées de dates différentes.
+        ecarts = [b - a for a, b in zip(jours, jours[1:])]
+        recule = [e for e in ecarts if e < 0]
+        saute = [e for e in ecarts if e > 1]
+        if recule:
+            return f"✗ la date recule : {jours}"
+        if saute:
+            return f"✗ saut de date : {jours}"
+        memes = ecarts.count(0)
+        return (f"✓ : {jours}" if not memes
+                else f"✓ : {jours} ({memes} même jour — structure imposée)")
 
     out.append(ligne("Dates consécutives, sans répétition", [_dates(n) for n in noms]))
 
@@ -289,9 +319,16 @@ def main() -> int:
         detail = "/".join(str(c) for c in compte) or "0"
         return f"{marque} ({detail})" + (f" ⛔{recop} recopie(s)" if recop else "")
 
+    # L3 EXEMPTÉ quand la table met le chapitre hors échelle — le chapitre 7
+    # n'exige pas d'accumulation, elle y est autorisée. Afficher « ✗ (0) » sur
+    # un contrôle non exigé, c'est un vert impossible lu comme un défaut : le
+    # tirage 6 en portait un.
+    l3_exempte = bool(contraintes
+                      and "hors échelle" in (contraintes.get("verdict") or ""))
     out.append(ligne(
-        f"L3 · Accumulation par entrée (≥{L3_MOTS} mots, ≥{L3_VIRGULES} virg.)",
-        [_l3(n) for n in noms]))
+        f"L3 · Accumulation par entrée (≥{L3_MOTS} mots, ≥{L3_VIRGULES} virg.)"
+        + (" — *non exigée à ce chapitre*" if l3_exempte else ""),
+        ["— non exigée" if l3_exempte else _l3(n) for n in noms]))
 
     # L4 — le glissement est le seul emploi autorisé des « … ». Deux façons
     # d'échouer : trop d'occurrences, ou une occurrence loin du champ du départ.
@@ -345,6 +382,18 @@ def main() -> int:
             [("—" if not contraintes["quatuor_interdit"]
               else f"{'✓' if not scope[n]['quatuor'] else '✗'} "
                    f"({len(scope[n]['quatuor'])})") for n in noms]))
+        # INTERDITS MATÉRIELS — le décor générique de nemo, en DRAPEAU sur le
+        # texte d'écriture. Bloquant dans `accumulate` (le validateur relance),
+        # drapeau ici : automatiser un contrôle et le rendre bloquant sont deux
+        # décisions distinctes, et un run ne doit pas échouer sur un mot de
+        # mobilier pendant que la masse et les gestes passent. La famille est
+        # nommée pour que la lecture sache quoi chercher.
+        out.append(ligne(
+            "⚑ Interdits matériels *(drapeau — décor hors du monde)*",
+            [(lambda fam: f"{'—' if not fam else '⚑'} "
+                          f"({', '.join(sorted(fam)) or '0'})")(
+                {x.split(" : ")[0] for x in scope[n]["materiels"]})
+             for n in noms]))
 
     # --- Session 5 : les cinq détecteurs, ENFIN branchés ---------------------
     #
@@ -353,11 +402,23 @@ def main() -> int:
     # un autre jour » est passé sans croix en B′3 — l'instrument n'était pas
     # troué, il était débranché. Le lint fantôme est la forme la plus coûteuse
     # d'échec d'outillage, parce qu'elle se lit comme un succès.
-    out += ["", "## Session 5 — voix et formulaire (AUTO)", "", entete, sep]
+    out += ["", "## Sessions 5-6 — voix, formulaire et décor (AUTO)", "",
+            entete, sep]
     for cle, lib in [
-        ("attracteurs", "Attracteurs (« Demain est un autre jour », bouée, océan)"),
+        ("attracteurs", "Attracteurs *(familles : folie, demain qui résout, "
+                        "bouée/océan)*"),
         ("meta_termes", "Méta-termes en sortie (couperet, squelette, beat…)"),
         ("formulaire", "Formulaire par paraphrase (« … est le suivant : »)"),
+        # Session 6 : les instances ne sont plus servies au modèle (la section
+        # *Interdits* ne garde que les catégories), donc elles se vérifient ici.
+        # Sans cette ligne, fermer « perplexe » au service l'aurait rendu
+        # invisible au lieu de le rendre absent.
+        ("etats_mentaux", "État mental nommé en apposition *(perplexe, "
+                          "songeuse, incrédule…)*"),
+        # Une marque déposée date le texte et le sort du monde clos de la
+        # maison. L1 la voyait déjà comme nom propre, mais noyée : on la nomme
+        # pour pouvoir la retirer.
+        ("marques", "Marque déposée *(Bluetooth, Frigidaire…)*"),
     ]:
         out.append(ligne(lib, [f"{'✓' if not res[n].get(cle) else '✗'} "
                               f"({len(res[n].get(cle) or [])})" for n in noms]))
@@ -380,6 +441,82 @@ def main() -> int:
         "En-têtes cohérents (jour de semaine ↔ date)",
         [f"{'✓' if not res[n].get('entetes_incoherents') else '✗'} "
          f"({len(res[n].get('entetes_incoherents') or [])})" for n in noms]))
+
+    # L'ACCUMULATION QUI SE RÉSUME. Bloquant DANS le nœud (le validateur
+    # relance), donc une croix ici signale que le nœud a rendu son dernier essai
+    # malgré tout — pas un défaut de plume, un défaut de dispositif.
+    # Le ratio est affiché, pas seulement le verdict : le seuil de 0,20 est un
+    # arbitrage, et il doit rester rediscutable avec les chiffres sous les yeux.
+    def _resume(n: str) -> str:
+        ratios = res[n].get("accumulations_abstraction") or []
+        if not ratios:
+            return "— (aucune accumulation)"
+        marque = "✓" if all(r <= ACC_ABSTRAIT_MAX for r in ratios) else "✗"
+        return f"{marque} ({'/'.join(f'{r:.0%}' for r in ratios)})"
+
+    out.append(ligne(
+        "Accumulation d'étapes, non de beats *(≤ 20 % d'items abstraits)*",
+        [_resume(n) for n in noms]))
+
+    # M1 EN CONTRÔLE DE COMPOSITION (session 6, §2). Le glissement ne se demande
+    # plus au modèle : il se prend en banque, le code le coupe et le colle. Ce
+    # qui se vérifie donc n'est plus « le modèle a-t-il produit le geste » mais
+    # « la composition a-t-elle tenu ses promesses » — présence, unicité,
+    # conformité L4. Vert par construction, et c'est le but : la ligne M1
+    # manuelle reste, pour le jugement à l'oral qu'aucun compteur ne remplace.
+    #
+    # La position et la non-adjacence sont garanties dans `gestes.assembler` et
+    # ne sont PAS re-vérifiées ici : elles n'existent qu'en offsets, invisibles
+    # dans le texte rendu. Le dire plutôt que laisser croire que la ligne les
+    # couvre — une grille muette sur un critère se lit comme un critère tenu.
+    def _compo(n: str) -> str:
+        par_entree = res[n].get("l4_par_entree") or []
+        if not par_entree:
+            return "—"
+        total = sum(c for c, _ in par_entree)
+        hors = sum(len(h) for _, h in par_entree)
+        trop = [c for c, _ in par_entree if c > 1]
+        if not total:
+            return "✗ (aucun glissement)"
+        if hors or trop:
+            return (f"✗ ({total} posé(s), {hors} non conforme(s), "
+                    f"{len(trop)} entrée(s) à plus d'un)")
+        return f"✓ ({total} posé(s), un par entrée, conformes)"
+
+    # LA REDITE — bloquante. Le code retire le doublon à l'assemblage (cf.
+    # `graph.poser_gestes_node`), donc une croix ici signale ce qu'il n'a pas su
+    # retirer : une redite trop reformulée pour le seuil, ou une phrase reprise
+    # dans un paragraphe par ailleurs différent. Ce que le CODE compose est
+    # exclu des deux comptes — en-têtes, ancre, glissements se répètent par
+    # fonction, et les compter aurait fait retirer la bascule et le geste.
+    out.append(ligne(
+        "Aucun paragraphe redit *(similarité ≥ 50 %, hors artefacts du code)*",
+        [(lambda r: f"{'✓' if not r else '✗'} ({len(r)})")(
+            res[n].get("paragraphes_redits") or []) for n in noms]))
+    # LA PERSONNE de l'accumulation — bloquante dans le nœud, donc une croix
+    # ici signale que le dernier essai est passé malgré tout.
+    out.append(ligne(
+        "Accumulation à la première personne",
+        [(lambda r: f"{'✓' if not r else '✗'} ({len(r)})")(
+            res[n].get("accumulations_3p") or []) for n in noms]))
+    # LES CITATIONS FABRIQUÉES — drapeau. L'ancre et le verdict sont retirés du
+    # compte par `citations_hors_ancre` quand on les lui donne ; ici la grille
+    # ne connaît pas l'ancre du run, donc elle passe l'ancre du chapitre.
+    out.append(ligne(
+        "⚑ Citation hors ancre *(drapeau — le cahier est fourni, pas fabriqué)*",
+        [(lambda r: f"{'—' if not r else '⚑'} ({len(r)})")(
+            [c for c in (res[n].get("citations") or [])
+             if not (contraintes and contraintes.get("verdict")
+                     and contraintes["verdict"].split("(")[0].strip().lower()
+                     in c.lower())]) for n in noms]))
+    out.append(ligne(
+        "Aucune phrase reprise d'un paragraphe à l'autre",
+        [(lambda r: f"{'✓' if not r else '✗'} ({len(r)})")(
+            res[n].get("phrases_redites") or []) for n in noms]))
+
+    out.append(ligne(
+        "M1 · composition du glissement *(présence, unicité, conformité L4)*",
+        [_compo(n) for n in noms]))
 
     out += ["", "## Protocole ch. 2 — contrôles M1-M4 (MANUEL)", "", entete, sep]
     for lib in MANUELLES_PROTOCOLE:

@@ -25,6 +25,8 @@ Stdlib + le venv de l'orchestrateur (langgraph, chromadb).
 
 import argparse
 import json
+import re
+import random
 import sys
 import time
 from datetime import datetime
@@ -34,9 +36,10 @@ RACINE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RACINE / "outillage"))
 sys.path.insert(0, str(RACINE / "orchestrator"))
 
-from lint_style import analyse  # noqa: E402
+from lint_style import META_TERMES, analyse  # noqa: E402
 import retrieval  # noqa: E402
 from style import ends_mid_sentence  # noqa: E402
+from preflight import PreflightError, preflight  # noqa: E402
 
 # Le brief v2 du chapitre 2 — §3 du protocole de session, verbatim. Il vaut
 # pour les runs SCORÉS des deux étages.
@@ -112,6 +115,7 @@ OBJECTIF_CHAPITRE_V3 = OBJECTIF_CHAPITRE + (
 # premier run C, un texte à deux en-têtes et deux ancres — le modèle obéissait à
 # la consigne, et le code ajoutait la sienne par-dessus. Une consigne et une
 # concaténation qui font la même chose se cumulent.
+
 BRIEF_C = (BRIEF_V3
            .replace("En-tête imposé, "
                     "première ligne exacte : « Mardi 12. Ciel couvert. »", "")
@@ -121,6 +125,93 @@ BRIEF_C = (BRIEF_V3
            .replace("Squelette, dans l'ordre : en-tête → citation → constat",
                     "L'en-tête et la citation sont DÉJÀ ÉCRITS. Squelette de "
                     "ce qui reste, dans l'ordre : constat"))
+
+# BRIEF V4 — LE SQUELETTE EN LANGUE DU MONDE (session 6, §3.2).
+#
+# La chaîne de `.replace` s'arrête ici : la traduction touche presque chaque
+# ligne, et un empilement de dix remplacements aurait rendu le diff illisible
+# précisément là où il compte. Écrit d'un trait, donc, et gardé par une
+# assertion plutôt que par la relecture.
+#
+# Ce que la session 5 avait fait pour l'état narratif, on ne l'avait pas fait
+# pour le brief : « Couperet : » est sorti EN TEXTE sur C2 et « Couperet. » sur
+# C3, parce que notre propre squelette servi nommait le couperet. Le run C3 est
+# le run de voix de la série, et il porte un mot d'atelier au milieu — venu de
+# nous, pas du modèle.
+#
+# Trois traductions et une soustraction :
+#   · « notation physiologique → couperet » devient « le corps constate, une
+#     ligne ; une phrase brève referme » ;
+#   · « Matériau : » devient « Dans la maison, ce soir : » ;
+#   · le verdict rejoint la matière servie, dans les mots du personnage — il
+#     réparait déjà la régression B′ (verdict absent des trois runs) ;
+#   · LA SPIRALE DISPARAÎT du beat 4. Elle appartient à `accumulate` désormais.
+#     C'est ce doublon qui faisait raconter sa soirée deux fois à C3 : une
+#     consigne et un nœud qui font la même chose se cumulent, ils ne se
+#     remplacent pas.
+#
+# « rationalisation » reste « elle se donne une raison » — et non « elle
+# explique », qui aurait contredit l'interdit « aucune explication » deux lignes
+# plus bas. Un brief qui se contredit lui-même laisse le modèle choisir.
+BRIEF_V4 = (
+    "Chapitre 2, entrée unique du carnet, 450-600 mots.\n"
+    "L'en-tête et la citation sont DÉJÀ ÉCRITS.\n"
+    "Ce qui reste, dans l'ordre : elle relit, constate l'écart, va vérifier ; "
+    "elle rétablit sa soirée ; elle rend son verdict ; le corps constate, une "
+    "ligne ; une phrase brève referme.\n"
+    "Le soir : elle relit l'entrée de la veille de son cahier, comme chaque "
+    "soir. Sa mémoire dit une assiette, un dîner seule ; l'entrée en compte "
+    "deux. Elle va voir : la cuisine, l'égouttoir — regarder, compter. Ce "
+    "qu'elle voit confirme l'entrée, pas sa mémoire. Elle se donne une raison : "
+    "la fatigue, l'automatisme.\n"
+    "Verdict à rendre, dans ses mots : erreur de relevé — la faute est à elle, "
+    "pas au texte ; et la résolution de pointer plus précisément.\n"
+    "Dans la maison, ce soir : le cahier, l'assiette, l'égouttoir.\n"
+    "CE QU'ELLE VOIT, imposé : « L'égouttoir, ce soir : deux assiettes. » Elle "
+    "le CONSTATE, elle ne le découvre pas.\n"
+    "En-tête : jamais de mois, jamais d'année.\n"
+    "Interdits : aucun nom propre, aucun dialogue, aucune explication, "
+    "« journal » et « journal intime » bannis, aucun terme réservé "
+    "(la tierce, l'errata, le bon à tirer)."
+)
+
+# La garde d'entrée EST le lint de sortie. Le détecteur qui attrape « Couperet »
+# dans le texte est exactement celui qui aurait dû interdire de le servir : on
+# a linté la sortie contre un vocabulaire qu'on injectait à l'entrée. Cette
+# assertion supprime la classe entière, pour ce brief et pour les suivants.
+
+# L'objectif du chapitre complet, traduit lui aussi. Il en avait BESOIN :
+# `OBJECTIF_CHAPITRE_V3` servait « Fait imposé, au matériau », et « matériau »
+# est dans `META_TERMES` — donc CC recevait un terme d'atelier sans que personne
+# l'ait remarqué. L'assertion ci-dessous n'a pas été écrite pour ce cas, elle
+# l'a trouvé.
+OBJECTIF_CHAPITRE_V4 = (
+    "Chapitre 2 complet, trois entrées du carnet à dates consécutives, "
+    "450-600 mots chacune. Ce que le chapitre raconte : la première "
+    "divergence — l'entrée relue de son cahier mentionne une seconde assiette "
+    "(citation à recopier verbatim dans l'entrée concernée : « Deux assiettes "
+    "mises, sans y penser. Je l'ai laissée sur la table jusqu'au matin. »), "
+    "elle va voir à la cuisine, elle se donne une raison — la fatigue —, elle "
+    "rend son verdict : erreur de relevé, et la résolution de pointer plus "
+    "précisément.\n"
+    "CE QU'ELLE VOIT, imposé : « L'égouttoir, ce soir : deux assiettes. »\n"
+    "En-tête : jamais de mois, jamais d'année.\n"
+    "Interdits : aucun nom propre, aucun dialogue, aucune explication, "
+    "« journal » et « journal intime » bannis, aucun terme réservé "
+    "(la tierce, l'errata, le bon à tirer)."
+)
+
+# La garde d'entrée EST le lint de sortie. Le détecteur qui attrape « Couperet »
+# dans le texte est exactement celui qui aurait dû interdire de le servir : on
+# a linté la sortie contre un vocabulaire qu'on injectait à l'entrée. Cette
+# assertion supprime la classe entière, pour ces briefs et pour les suivants.
+for _nom, _brief in [("BRIEF_V4", BRIEF_V4),
+                     ("OBJECTIF_CHAPITRE_V4", OBJECTIF_CHAPITRE_V4)]:
+    _fuites = sorted({m.group(0).lower() for m in META_TERMES.finditer(_brief)})
+    assert not _fuites, (
+        f"{_nom} sert des termes d'atelier que le lint bannit en sortie : "
+        f"{_fuites}. C'est la cause mesurée du « Couperet : » de C2.")
+
 
 # Météo de la première entrée : le brief la fixait, et sur un run mono-entrée le
 # plan est court-circuité — donc aucun champ [météo] ne remonte, et le code
@@ -140,6 +231,199 @@ JOUR_DEPART, NUMERO_DEPART = "Mardi", 12
 VERDICT_CH2 = "erreur de relevé"
 OBJETS_CH2 = "le cahier, le carnet, l'assiette, l'égouttoir"
 
+# --- CHAPITRE 7 — la répétition en conditions réelles ------------------------
+#
+# Le brief machine est LU dans `briefs/brief-chapitre-7.md` (§3), jamais recopié
+# ici : un brief modifié ne doit pas avoir deux vérités. C'est la règle posée en
+# tête de ce fichier pour les briefs de session, et elle vaut d'autant plus pour
+# celui qui part sur scène.
+BRIEF_CH7_FICHIER = RACINE / "briefs" / "brief-chapitre-7.md"
+
+# La traduction en langue du monde du §5 du brief v2. Le contenu est le même,
+# le destinataire change : le modèle, pas l'implémenteur.
+VETOS_SERVIS = (
+    "Aucun nom propre, aucune marque. Aucun objet qui ne soit dans la maison. "
+    "Le mot du jour ne s'écrit qu'à la toute fin, une seule fois. Rien ne se "
+    "résout, rien ne se console : pas de promesse au lendemain, pas d'adresse "
+    "à personne. La voix ne cède pas — déclarative, tenue, pas de cri."
+)
+
+MOUVEMENTS = RACINE / "bible" / "profond" / "mouvements-chapitres.md"
+BRIEF_CH7_E2 = RACINE / "briefs" / "brief-ch7-entree2-v2.md"
+
+
+def mouvement(chapitre: int, entree: int | None = None) -> str:
+    """La ligne « mouvement » d'UN chapitre — jamais le fichier.
+
+    ⚠ `mouvements-chapitres.md` est PROFOND : ses lignes 9 à 11 énoncent la
+    vérité de fin du roman. Servir le fichier entier au modèle auteur ferait
+    exactement ce que tout le firewall existe pour empêcher.
+    #
+    On extrait donc la ligne du chapitre EN COURS, par son numéro — même
+    discipline que `build_etat_narratif.lire_table()`, qui saute délibérément la
+    colonne réelle. Le chapitre 7 a deux lignes, une par entrée.
+    """
+    if not MOUVEMENTS.is_file():
+        return ""
+    cible = f"{chapitre} — entrée {entree}" if entree else str(chapitre)
+    for ligne in MOUVEMENTS.read_text(encoding="utf-8").splitlines():
+        cells = [c.strip() for c in ligne.split("|")]
+        if len(cells) > 2 and cells[1] == cible:
+            return cells[2]
+    return ""
+
+
+def brief_entree2_v2() -> dict:
+    """Le brief v2 de l'entrée 2, découpé en ses quatre blocs de service.
+
+    Le fichier est la vérité : on le LIT, on ne le recopie pas. Un brief
+    modifié ne doit pas avoir deux versions — la règle vaut depuis la session 4,
+    et d'autant plus pour celui qui monte sur scène.
+    """
+    txt = BRIEF_CH7_E2.read_text(encoding="utf-8")
+
+    def section(titre: str, suivant: str) -> str:
+        corps = txt.split(titre, 1)[1].split(suivant, 1)[0]
+        return corps.strip()
+
+    def puces(bloc: str) -> list[str]:
+        return [l.lstrip("- ").strip() for l in bloc.splitlines()
+                if l.strip().startswith("-")]
+
+    glis = section("## 4. Glissement", "## 5.")
+    texte_glis = next((l.lstrip("> ").strip() for l in glis.splitlines()
+                       if l.strip().startswith(">")), "")
+    position = next((l.split(":", 1)[1].strip() for l in glis.splitlines()
+                     if l.startswith("Position")), "")
+    return {
+        "intention": section("## 1. Intention", "## 2."),
+        "trajectoire": puces(section("## 2. Trajectoire", "## 3.")),
+        "matiere": puces(section("## 3. Matière disponible", "## 4.")),
+        # LES VÉTOS NE SONT PAS SERVIS TELS QUELS. Le §5 est écrit pour
+        # l'implémenteur : il nomme L1, L2, L3, la table, le code, les lints.
+        # Servi verbatim, il apprend au modèle l'existence de nos contrôles —
+        # et la session 6 a mesuré ce que coûte un mot d'atelier dans un
+        # contexte servi (« Couperet : » sorti en texte).
+        #
+        # Ce qui est servi est ce que le TEXTE ne doit pas faire, en langue du
+        # monde. Le reste — quel lint, quel seuil, qui possède quoi — reste ici.
+        "vetos": VETOS_SERVIS,
+        "glissement": {"texte": texte_glis, "position": position},
+    }
+
+
+# [CIT-2] — l'ancre de l'entrée 2, verbatim du brief. Elle est POSÉE par le code
+# en tête de l'entrée 2 seulement : l'entrée 1 ne cite pas, c'est la première
+# entorse au rituel et le premier signal du chapitre.
+CIT_2 = ("« Neuf ans aujourd'hui que je t'ai dit oui. J'ai mis deux couverts, "
+         "exprès cette fois, et j'ai redit oui tout haut dans la cuisine. "
+         "Je t'aime toujours. »")
+
+# DEUX ENTRÉES DU MÊME JOUR. Le code dérive les dates par défaut (elles sont
+# consécutives par construction depuis la session 5) ; ici le brief les impose
+# identiques, et c'est le SECOND en-tête qui porte la bascule audio.
+_B2 = brief_entree2_v2()
+
+ENTREES_CH7 = [
+    # L'après-midi : deux phrases, sans citation, sans découpage. Servir trois
+    # segments à une entrée de deux phrases n'a aucun sens — et c'est l'entrée
+    # que le locuteur lit à voix nue.
+    {"jour": "Samedi", "numero": 14, "meteo": "Beau temps",
+     "mots": (25, 60), "segments": False, "citation": "",
+     # Ni accumulation ni glissement : deux phrases n'ont pas la place. Au
+     # tirage précédent l'accumulation y a été épissée quand même, et l'entrée
+     # est passée de deux phrases à 471 mots.
+     "gestes": False,
+     "mouvement": mouvement(7, 1),
+     # BORNE EN PHRASES. La borne en mots avait divisé l'entrée par cinq sans
+     # jamais compter les phrases : huit produites là où le brief en demande
+     # deux, et c'est l'entrée que le locuteur lit à voix nue. Une contrainte de
+     # scène se compte dans l'unité de la scène.
+     "phrases_max": 2,
+     "forme": {"accumulation": "absente", "verdict": "absent"}},
+    # La nuit : l'entrée pleine, découpée, ancrée sur [CIT-2].
+    {"jour": "Samedi", "numero": 14, "meteo": "Beau temps",
+     "mots": (450, 600), "segments": True, "citation": CIT_2,
+     "gestes": True,
+     # La capitulation lexicale, au mot près : le jour gagne en entrant dans
+     # son vocabulaire. Manquée 3/3 par le modèle — le code la pose.
+     "chute": "Constat : anniversaire.",
+     # LA MÉTHODE DU MOUVEMENT — tout vient du brief v2, lu, jamais recopié.
+     "mouvement": mouvement(7, 2),
+     "trajectoire": _B2["trajectoire"],
+     "matiere": _B2["matiere"],
+     "vetos": _B2["vetos"],
+     "forme": {"accumulation": "autorisée", "verdict": "absent"},
+     # Le glissement n'est PAS servi : il est écrit, le composeur l'insère.
+     "glissement": _B2["glissement"]},
+]
+
+VERDICT_CH7 = "anniversaire"
+OBJETS_CH7 = ("les photos, la playlist, le plat des anniversaires, "
+              "les deux couverts, le cahier")
+
+
+def beats_chapitre_7() -> list[str]:
+    """Un beat PAR ENTRÉE, découpé dans le brief — jamais demandé au modèle.
+
+    Le premier tirage a montré pourquoi : le nœud de plan n'a produit AUCUNE
+    ligne numérotée sur ce brief (il est en prose formatée, pas en liste), il
+    est retombé sur « le brief entier fait office de beat », et le code a
+    dupliqué ce beat pour les deux entrées. Les deux entrées ont donc reçu la
+    consigne décrivant LES DEUX — d'où une entrée 1 de 340 mots là où le brief
+    en demande deux phrases, et c'est l'entrée que le locuteur lit à voix nue.
+
+    Le brief porte lui-même son découpage (« **Entrée 1 — … **», « **Entrée
+    2 — …** »). Quand la structure est donnée, on la LIT au lieu de la
+    redemander : planifier ce qui est déjà écrit, c'est offrir au modèle
+    l'occasion de le défaire.
+    """
+    brief = brief_chapitre_7()
+    parts = re.split(r"(?=\*\*Entrée \d)", brief)
+    commun = parts[0].strip()
+    # La matière partagée (matériau, progression, chute, interdits) est collée à
+    # la fin du dernier bloc d'entrée : elle vaut pour les deux.
+    entrees, queue = [], ""
+    for bloc in parts[1:]:
+        m = re.search(r"\n\*\*(?:Matériau|Progression|Chute|Interdits)", bloc)
+        if m:
+            queue = bloc[m.start():].strip()
+            bloc = bloc[:m.start()]
+        entrees.append(bloc.strip())
+    return [f"{commun}\n\n{e}\n\n{queue}".strip() for e in entrees]
+
+
+def brief_chapitre_7() -> str:
+    """Le brief machine du chapitre 7, extrait du §3 du fichier de brief.
+
+    On prend la citation en bloc (les lignes préfixées « > ») : c'est ce qui est
+    projeté sur scène pendant la génération, et l'honnêteté du dispositif veut
+    que le prompt servi SOIT le brief affiché.
+    """
+    txt = BRIEF_CH7_FICHIER.read_text(encoding="utf-8")
+    corps = txt.split("## 3. Brief machine", 1)[1].split("## 4.", 1)[0]
+    lignes = [l.lstrip("> ").rstrip() for l in corps.splitlines()
+              if l.startswith(">")]
+    brief = "\n".join(l for l in lignes if l).strip()
+
+    # LE BRIEF NE NOMME AUCUNE SOURCE FIREWALLÉE. Trouvé au lint de l'archive :
+    # le §3 dit « pré-écrite selon `fiche-romane.md` §1 » — une note de
+    # fabrication, utile à l'humain qui a écrit l'ancre, et qui APPREND AU
+    # MODÈLE AUTEUR qu'un fichier de la couche cachée existe.
+    #
+    # Le texte généré est resté propre, et le lint des noms propres garde la
+    # sortie. Mais tout le firewall repose sur l'idée que l'auteur ignore
+    # jusqu'à l'existence du profond : le lui nommer, c'est lui donner le fil.
+    # Retiré au SERVICE, pas dans le brief — la note reste utile là où elle est.
+    brief = re.sub(r",?\s*pré-écrite selon\s*`[^`]+`\s*§?\d*\s*:", " :", brief)
+    brief = re.sub(r"\s*\(?\s*(?:cf\.|voir)\s*`?[\w-]+\.md`?[^)\n]*\)?", "",
+                   brief)
+    fuites = re.findall(r"`?\b[\w-]+\.md\b`?", brief)
+    assert not fuites, (f"le brief servi nomme des fichiers de bible : {fuites} "
+                        "— le modèle auteur ne doit pas savoir qu'ils existent")
+    return brief
+
+
 PLAN_RUNS = {
     "A": [("A1", BRIEF_V2, "score"), ("A2", BRIEF_V2, "score"),
           ("A3", BRIEF_V2, "score"),
@@ -156,6 +440,21 @@ PLAN_RUNS = {
     "C": [("C1", BRIEF_C, "score"), ("C2", BRIEF_C, "score"),
           ("C3", BRIEF_C, "score"),
           ("CC", OBJECTIF_CHAPITRE_V3, "chapitre complet, hors score")],
+    # S6 : `write` décomposé en trois segments, brief v4, glissement pris à la
+    # banque. La variable mesurée est le DÉCOUPAGE — le reste du lot corrige des
+    # défauts nés à l'étage C, il n'ajoute pas de dispositif.
+    "S6": [("S6-1", BRIEF_V4, "score"), ("S6-2", BRIEF_V4, "score"),
+           ("S6-3", BRIEF_V4, "score"),
+           ("S6-C", OBJECTIF_CHAPITRE_V4, "chapitre complet, hors score")],
+    # S7 : le lot correctif. Brief v4 inchangé — ce qui bouge est DANS le
+    # pipeline (stations, consignes en faits, garde-fou conscient de la cible,
+    # dédoublonnage, tampon d'ancre) et dans la bible. Le brief reste le même
+    # pour que la comparaison avec S6 porte sur le lot, et sur rien d'autre.
+    "S7": [("S7-1", BRIEF_V4, "score"), ("S7-2", BRIEF_V4, "score"),
+           ("S7-3", BRIEF_V4, "score"),
+           ("S7-C", OBJECTIF_CHAPITRE_V4, "chapitre complet, hors score")],
+    # CH7 : la répétition. Un seul run, le chapitre entier, deux entrées.
+    "CH7": [("CH7", None, "répétition — chapitre 7 en conditions réelles")],
 }
 
 
@@ -170,13 +469,47 @@ def temps_par_noeud(metrics: list[dict]) -> dict[str, float]:
 
 def main() -> int:
     p = argparse.ArgumentParser()
-    p.add_argument("--etage", choices=["A", "B", "Bp", "C"], required=True)
+    p.add_argument("--etage", choices=["A", "B", "Bp", "C", "S6", "S7", "CH7"],
+                   required=True)
+    # La graine du tirage de glissement, consignée au frontmatter : le tirage
+    # varie d'un run à l'autre (sinon la même phrase à la même place devient une
+    # liturgie de notre propre gabarit), mais un run reste rejouable à
+    # l'identique quand un geste sort mal.
+    p.add_argument("--graine", type=int, default=None)
+    p.add_argument("--skip-preflight", action="store_true",
+                   help="passe outre le préflight — les durées relevées ne "
+                        "sont alors PAS comparables au run de référence")
     p.add_argument("--seulement", nargs="*", default=None)
     p.add_argument("--out-dir", default=None)
     args = p.parse_args()
 
+    # PRÉFLIGHT, BLOQUANT POUR S6 SEULEMENT.
+    #
+    # L'arbitrage établi laissait l'outillage de calibration en simple
+    # avertissement : il juge de la prose, pas des durées. La session 6 inverse
+    # ce rapport — la variable mesurée est le COÛT du découpage en trois
+    # segments, et le budget des 28 minutes se recalcule avec ces chiffres. Un
+    # run joué pendant `mediaanalysisd` rendrait des temps ininterprétables
+    # (32 et 49 minutes mesurées aux runs 3 et 4, trous de 5 à 18 minutes entre
+    # deux appels), et on aurait dépensé deux heures pour rien.
+    #
+    # Les autres étages gardent le comportement d'avant : on ne change pas la
+    # règle d'un étage en passant.
+    chrono = args.etage in ("S6", "S7", "CH7")
+    try:
+        for avertissement in preflight(chrono=chrono):
+            print(f"  ⚠ {avertissement}", file=sys.stderr)
+    except PreflightError as exc:
+        print(f"\n{exc}\n", file=sys.stderr)
+        if not args.skip_preflight:
+            return 1
+        print("  (--skip-preflight : on passe outre, temps NON comparables)",
+              file=sys.stderr)
+
     rag = args.etage != "A"
-    out_dir = Path(args.out_dir or f"runs-s4-{args.etage.lower()}")
+    out_dir = Path(args.out_dir
+                   or (f"runs-{args.etage.lower()}" if args.etage in ("S6", "S7", "CH7")
+                       else f"runs-s4-{args.etage.lower()}"))
     out_dir.mkdir(exist_ok=True)
 
     # Import TARDIF : construire le graphe importe chromadb et, à l'étage A, on
@@ -193,28 +526,84 @@ def main() -> int:
         # §5 : le journal de routage se vide avant chaque run pour que
         # les collections vues soient imputables à CE run seul.
         retrieval.vider_routage()
-        depart = time.monotonic()
+        # Une graine PAR RUN : trois runs d'un même étage doivent tirer des
+        # glissements différents, sinon la variation qu'on cherche à obtenir est
+        # annulée à l'intérieur même de la série. Consignée au frontmatter.
+        graine = (args.graine if args.graine is not None
+                  else random.randrange(1, 10**6))
+        depart, depart_mur = time.monotonic(), time.time()
         # `entrees_attendues` commande le court-circuit du plan (item 10) et
         # `prefixe` le texte posé d'avance (item 5) — pour les runs mono-entrée
         # seulement : un chapitre complet garde son plan et ses propres en-têtes.
         mono = role == "score"
+        # LE CHAPITRE 7 diffère de tout le reste par sa STRUCTURE, pas par son
+        # câblage : deux entrées du même jour, la première en deux phrases sans
+        # citation. `entrees_spec` porte cette structure ; partout ailleurs elle
+        # est vide et le comportement est inchangé.
+        ch7 = args.etage == "CH7"
         etat = graph.invoke(
-            {"brief": brief, "characters": NARRATRICE, "rag": rag,
-             "entrees_attendues": 1 if mono else 3,
-             "prefixe": ANCRE_CH2 if args.etage in ("Bp", "C") else "",
-             "micro_noeuds": args.etage == "C",
-             "jour_depart": JOUR_DEPART, "numero_depart": NUMERO_DEPART,
-             "verdict": VERDICT_CH2, "objets_actifs": OBJETS_CH2,
-             "meteo_depart": METEO_DEPART,
+            {"brief": brief_chapitre_7() if ch7 else brief,
+             "characters": NARRATRICE, "rag": rag,
+             "entrees_attendues": len(ENTREES_CH7) if ch7 else (1 if mono else 3),
+             "entrees_spec": ENTREES_CH7 if ch7 else [],
+             "plan_impose": beats_chapitre_7() if ch7 else [],
+             # L'ancre du ch. 7 est PAR ENTRÉE (l'entrée 1 ne cite pas), donc
+             # elle vit dans `entrees_spec` et non dans le préfixe global.
+             "prefixe": "" if ch7 else (
+                 ANCRE_CH2 if args.etage in ("Bp", "C", "S6", "S7") else ""),
+             "micro_noeuds": args.etage in ("C", "S6", "S7", "CH7"),
+             # LA VARIABLE MESURÉE. Hors S6, `write` reste l'appel unique par
+             # lequel tout le pipeline a été chronométré : l'habillage d'un
+             # étage ne doit jamais rejouer la validation d'un autre.
+             "segments": args.etage in ("S6", "S7", "CH7"),
+             "graine": graine,
+             # Le numéro de chapitre commande le SCOPE des interdits matériels
+             # et la chute imposée de l'accumulation. Sans lui, un lint qui ne
+             # connaît pas sa portée est soit inutile, soit faux.
+             "chapitre": 7 if ch7 else 2,
+             "approches_tirees": [],
+             "jour_depart": "Samedi" if ch7 else JOUR_DEPART,
+             "numero_depart": 14 if ch7 else NUMERO_DEPART,
+             "verdict": VERDICT_CH7 if ch7 else VERDICT_CH2,
+             "objets_actifs": OBJETS_CH7 if ch7 else OBJETS_CH2,
+             "meteo_depart": "Beau temps" if ch7 else METEO_DEPART,
              "accumulation": ""},
             config={"recursion_limit": 50},
         )
         duree = time.monotonic() - depart
+        # DEUX HORLOGES, et elles ne mesurent pas la même chose.
+        #
+        # `time.monotonic()` s'ARRÊTE pendant la veille système sur macOS ;
+        # `time.time()` continue. Le budget de scène est du temps de MUR — le
+        # compteur du deck tourne pendant que le public attend, veille comprise.
+        # Notre chiffre de référence était donc le mauvais.
+        #
+        # Découvert sur S7-3 : `duree_s` annonçait 374 s pendant que la somme
+        # des appels au modèle donnait 2682 s. La machine avait fait deux
+        # « Maintenance Sleep » sur batterie au milieu du run (confirmé par
+        # `pmset -g log`). Sur scène, ce run aurait explosé les 28 minutes et la
+        # métrique aurait dit que tout allait bien.
+        duree_mur = time.time() - depart_mur
 
         entrees = etat.get("repaired") or etat.get("reviewed") or etat["scenes"]
         texte = "\n\n".join(entrees)
         lint = analyse(texte)
         par_noeud = temps_par_noeud(etat.get("metrics") or [])
+        # TEMPS PAR SEGMENT — le chiffre qui décide si le découpage tient dans
+        # les 28' du compteur. Les trois appels d'écriture portent un label
+        # « entrée N/segment », donc ils se somment par segment sans que le
+        # graphe ait à tenir un compteur de plus.
+        temps_segments: dict[str, float] = {}
+        for m in etat.get("metrics") or []:
+            seg = m.get("segment")
+            if seg:
+                # `wall_s`, pas `ms` : c'est la clé que produit `chat()`, et
+                # c'est celle que `temps_par_noeud` utilise depuis toujours. La
+                # première version sommait une clé inexistante et rendait
+                # 0,0 s par segment — un chiffre faux se lit comme une mesure,
+                # là où une absence se serait vue.
+                temps_segments[seg] = round(
+                    temps_segments.get(seg, 0.0) + m.get("wall_s", 0.0), 1)
         gardes = [w for w in etat.get("warnings", []) if "garde-fou 60 %" in w]
         collections = sorted(set(retrieval.routage()))
         # `ctx_need` est le seul signal fiable de saturation de fenêtre : Ollama
@@ -231,12 +620,17 @@ def main() -> int:
             f"role: {role}\n"
             f"rag: {rag}\n"
             f"ctx_need_max: {ctx_max}\n"
+            f"graine: {graine}\n"
+            f"segments: {args.etage in ('S6', 'S7', 'CH7')}\n"
+            f"temps_par_segment: {json.dumps(temps_segments, ensure_ascii=False)}\n"
             f"date: {datetime.now().isoformat(timespec='seconds')}\n"
             f"mots: {len(texte.split())}\n"
             f"entrees_generees: {len(entrees)}\n"
             f"entrees_detectees: {lint['entrees']}\n"
             f"temperature: 0.7\n"
             f"duree_s: {duree:.0f}\n"
+            f"duree_mur_s: {duree_mur:.0f}\n"
+            f"veille_s: {max(0, duree_mur - duree):.0f}\n"
             f"done_reason: {'length' if ends_mid_sentence(texte) else 'stop'}\n"
             f"temps_par_noeud: {json.dumps(par_noeud, ensure_ascii=False)}\n"
             f"garde_fou_60: {len(gardes)}\n"
@@ -251,6 +645,16 @@ def main() -> int:
         )
         print(f"[{ident}] {len(texte.split())} mots, {len(entrees)} entrée(s), "
               f"{duree:.0f}s → {chemin}")
+        # Un écart de plus de 30 s entre les deux horloges = la machine a dormi
+        # ou a été suspendue. Le dire FORT : un run dont les durées sont
+        # contaminées ne se compare à rien, et c'est le chiffre central de la
+        # session.
+        if duree_mur - duree > 30:
+            print(f"  ⚠ VEILLE DÉTECTÉE : {duree_mur - duree:.0f}s d'écart "
+                  f"entre l'horloge de mur ({duree_mur:.0f}s) et le temps de "
+                  f"calcul ({duree:.0f}s). Les durées de ce run ne sont PAS "
+                  f"comparables. Brancher la machine et relancer "
+                  f"(`caffeinate -is`).", file=sys.stderr)
         print(f"        temps par nœud : {par_noeud}")
         print(f"        collections interrogées : {collections or 'aucune'}")
         for g in gardes:
