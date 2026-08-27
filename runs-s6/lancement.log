@@ -1,0 +1,49 @@
+[15:14:21] lanceur à nice 0
+[15:14:21] modèles déchargés, attente d un preflight vert pour S6-2
+total = 4096.00M  used = 3262.00M  free = 834.00M  (encrypted)
+ 80.5 /System/Library/Frameworks/CoreSpotlight.framework/spotlightknowledged
+ 16.9 claude
+[15:17:52] préflight vert (attente 180s)
+[15:17:57] === S6-2 ===
+  ⚠ Swap : 1.07 GB libres sur 4.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts sur 4 s). Ce sont des pages mortes que personne ne relit : macOS dimensionne `total` au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les durées restent interprétables.
+
+==================================================================
+[S6-2] score — rag=True
+==================================================================
+[S6-2] 370 mots, 1 entrée(s), 268s → runs-s6/run-S6-2.md
+        temps par nœud : {'write': 124.2, 'accumulate': 23.4, 'review': 66.5, 'repair': 31.3, 'coherence': 22.1}
+        collections interrogées : ['auteur']
+
+Grille : python3 outillage/grille_session.py runs-s6 450-600
+[15:22:31] modèles déchargés, attente d un preflight vert pour S6-3
+[15:22:37] préflight vert (attente 0s)
+[15:22:42] === S6-3 ===
+  ⚠ Swap : 1.20 GB libres sur 4.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts sur 4 s). Ce sont des pages mortes que personne ne relit : macOS dimensionne `total` au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les durées restent interprétables.
+
+==================================================================
+[S6-3] score — rag=True
+==================================================================
+[S6-3] 796 mots, 1 entrée(s), 386s → runs-s6/run-S6-3.md
+        temps par nœud : {'write': 160.3, 'accumulate': 29.1, 'review': 115.3, 'repair': 56.5, 'coherence': 24.7}
+        collections interrogées : ['auteur']
+
+Grille : python3 outillage/grille_session.py runs-s6 450-600
+[15:29:15] modèles déchargés, attente d un preflight vert pour S6-C
+total = 4096.00M  used = 2960.81M  free = 1135.19M  (encrypted)
+214.8 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mds_stores
+168.0 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mds
+[15:30:11] préflight vert (attente 45s)
+[15:30:16] === S6-C ===
+  ⚠ Swap : 1.12 GB libres sur 4.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts sur 4 s). Ce sont des pages mortes que personne ne relit : macOS dimensionne `total` au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les durées restent interprétables.
+
+==================================================================
+[S6-C] chapitre complet, hors score — rag=True
+==================================================================
+[S6-C] 3525 mots, 3 entrée(s), 1401s → runs-s6/run-S6-C.md
+        temps par nœud : {'plan': 87.7, 'write': 590.1, 'accumulate': 125.2, 'review': 336.7, 'repair': 223.5, 'coherence': 36.9}
+        collections interrogées : ['auteur']
+  ⚠ relecture entrée 1: garde-fou 60 % déclenché (495 mots contre 1033, soit 48%) — relecture REJETÉE, original conservé
+  ⚠ relecture entrée 3: garde-fou 60 % déclenché (709 mots contre 1567, soit 45%) — relecture REJETÉE, original conservé
+
+Grille : python3 outillage/grille_session.py runs-s6 450-600
+[15:53:44] SÉRIE TERMINÉE

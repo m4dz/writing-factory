@@ -1,0 +1,57 @@
+[16:20:28] lanceur à nice 0
+[16:20:28] modèles déchargés, attente d un preflight vert pour S7-1
+[16:20:46] préflight vert (attente 0s)
+[16:20:56] === S7-1 ===
+  ⚠ Swap : 0.67 GB libres sur 9.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total` au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les durées restent interprétables.
+
+==================================================================
+[S7-1] score — rag=True
+==================================================================
+[S7-1] 490 mots, 1 entrée(s), 297s → runs-s7/run-S7-1.md
+        temps par nœud : {'write': 137.4, 'accumulate': 23.3, 'review': 76.3, 'repair': 36.3, 'coherence': 22.7}
+        collections interrogées : ['auteur']
+
+Grille : python3 outillage/grille_session.py runs-s7 450-600
+[16:26:00] modèles déchargés, attente d un preflight vert pour S7-2
+[16:26:06] préflight vert (attente 0s)
+[16:26:11] === S7-2 ===
+  ⚠ Swap : 1.60 GB libres sur 15.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total` au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les durées restent interprétables.
+
+==================================================================
+[S7-2] score — rag=True
+==================================================================
+[S7-2] 638 mots, 1 entrée(s), 358s → runs-s7/run-S7-2.md
+        temps par nœud : {'write': 160.3, 'accumulate': 26.3, 'review': 95.9, 'repair': 56.2, 'coherence': 25.5}
+        collections interrogées : ['auteur']
+
+Grille : python3 outillage/grille_session.py runs-s7 450-600
+[16:32:23] modèles déchargés, attente d un preflight vert pour S7-3
+[16:32:29] préflight vert (attente 0s)
+[16:32:35] === S7-3 ===
+  ⚠ Swap : 1.20 GB libres sur 11.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total` au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les durées restent interprétables.
+
+==================================================================
+[S7-3] score — rag=True
+==================================================================
+[S7-3] 514 mots, 1 entrée(s), 374s → runs-s7/run-S7-3.md
+        temps par nœud : {'write': 2681.7, 'accumulate': 43.6, 'review': 86.9, 'repair': 121.1, 'coherence': 347.3}
+        collections interrogées : ['auteur']
+
+Grille : python3 outillage/grille_session.py runs-s7 450-600
+[17:27:24] SÉRIE TERMINÉE
+[17:36:36] lanceur à nice 0
+[17:36:36] modèles déchargés, attente d un preflight vert pour S7-3
+[17:36:50] préflight vert (attente 0s)
+[17:36:56] === S7-3 ===
+  ⚠ Swap : 1.29 GB libres sur 11.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total` au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les durées restent interprétables.
+
+==================================================================
+[S7-3] score — rag=True
+==================================================================
+[S7-3] 552 mots, 1 entrée(s), 374s → runs-s7/run-S7-3.md
+  ⚠ VEILLE DÉTECTÉE : 737s d'écart entre l'horloge de mur (1111s) et le temps de calcul (374s). Les durées de ce run ne sont PAS comparables. Brancher la machine et relancer (`caffeinate -is`).
+        temps par nœud : {'write': 387.5, 'accumulate': 76.9, 'review': 100.6, 'repair': 521.0, 'coherence': 24.3}
+        collections interrogées : ['auteur']
+
+Grille : python3 outillage/grille_session.py runs-s7 450-600
+[17:57:55] SÉRIE TERMINÉE

@@ -1,0 +1,77 @@
+[15:01:18] priorité du lanceur : nice 0
+[15:01:19] Chroma répond (26 chunks)
+[15:01:19] attente de l'entretien macOS…
+[15:01:20] préflight vert
+[15:01:21] === S6-1 ===
+
+==================================================================
+[S6-1] score — rag=True
+==================================================================
+[S6-1] 698 mots, 1 entrée(s), 338s → runs-s6/run-S6-1.md
+        temps par nœud : {'write': 146.3, 'accumulate': 47.9, 'review': 80.4, 'repair': 38.0, 'coherence': 24.6}
+        collections interrogées : ['auteur']
+
+Grille : python3 outillage/grille_session.py runs-s6 450-600
+[15:07:01] === S6-2 ===
+
+Préflight refusé :
+  - Swap : 0.53 GB libres sur 4.0 GB alloués (< 2 GB). La machine porte encore la session précédente. Remède : DÉCHARGER le modèle (`ollama stop <modèle>`, ou attendre l'expiration de keep_alive) — macOS rend alors les pages ET rétrécit les swapfiles. Redémarrer n'est qu'un dernier recours. Mesure de temps refusée dans cet état : les durées seraient ininterprétables.
+  - Entretien macOS en cours : mds_stores 87 %. Le processus de génération tourne à nice 5 et perdra l'arbitrage : trous de plusieurs minutes entre deux appels au modèle, budget de scène explosé. ATTENDRE que ça retombe (`ps -Ao %cpu,comm -r | head`) — après un redémarrage, l'analyse média peut tourner longtemps.
+
+[15:07:08] === S6-3 ===
+
+Préflight refusé :
+  - Swap : 0.56 GB libres sur 4.0 GB alloués (< 2 GB). La machine porte encore la session précédente. Remède : DÉCHARGER le modèle (`ollama stop <modèle>`, ou attendre l'expiration de keep_alive) — macOS rend alors les pages ET rétrécit les swapfiles. Redémarrer n'est qu'un dernier recours. Mesure de temps refusée dans cet état : les durées seraient ininterprétables.
+
+[15:07:09] === S6-C ===
+
+Préflight refusé :
+  - Swap : 0.56 GB libres sur 4.0 GB alloués (< 2 GB). La machine porte encore la session précédente. Remède : DÉCHARGER le modèle (`ollama stop <modèle>`, ou attendre l'expiration de keep_alive) — macOS rend alors les pages ET rétrécit les swapfiles. Redémarrer n'est qu'un dernier recours. Mesure de temps refusée dans cet état : les durées seraient ininterprétables.
+  - Entretien macOS en cours : mds_stores 88 %. Le processus de génération tourne à nice 5 et perdra l'arbitrage : trous de plusieurs minutes entre deux appels au modèle, budget de scène explosé. ATTENDRE que ça retombe (`ps -Ao %cpu,comm -r | head`) — après un redémarrage, l'analyse média peut tourner longtemps.
+
+[15:07:11] SÉRIE TERMINÉE
+[15:09:16] lanceur à nice 0
+[15:09:17] modèles déchargés, attente d'un préflight vert pour ��
+[15:14:21] lanceur à nice 0
+[15:14:21] modèles déchargés, attente d un preflight vert pour S6-2
+[15:17:52] préflight vert (attente 180s)
+[15:17:57] === S6-2 ===
+  ⚠ Swap : 1.07 GB libres sur 4.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts sur 4 s). Ce sont des pages mortes que personne ne relit : macOS dimensionne `total` au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les durées restent interprétables.
+
+==================================================================
+[S6-2] score — rag=True
+==================================================================
+[S6-2] 370 mots, 1 entrée(s), 268s → runs-s6/run-S6-2.md
+        temps par nœud : {'write': 124.2, 'accumulate': 23.4, 'review': 66.5, 'repair': 31.3, 'coherence': 22.1}
+        collections interrogées : ['auteur']
+
+Grille : python3 outillage/grille_session.py runs-s6 450-600
+[15:22:31] modèles déchargés, attente d un preflight vert pour S6-3
+[15:22:37] préflight vert (attente 0s)
+[15:22:42] === S6-3 ===
+  ⚠ Swap : 1.20 GB libres sur 4.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts sur 4 s). Ce sont des pages mortes que personne ne relit : macOS dimensionne `total` au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les durées restent interprétables.
+
+==================================================================
+[S6-3] score — rag=True
+==================================================================
+[S6-3] 796 mots, 1 entrée(s), 386s → runs-s6/run-S6-3.md
+        temps par nœud : {'write': 160.3, 'accumulate': 29.1, 'review': 115.3, 'repair': 56.5, 'coherence': 24.7}
+        collections interrogées : ['auteur']
+
+Grille : python3 outillage/grille_session.py runs-s6 450-600
+[15:29:15] modèles déchargés, attente d un preflight vert pour S6-C
+[15:30:11] préflight vert (attente 45s)
+[15:30:16] === S6-C ===
+  ⚠ Swap : 1.12 GB libres sur 4.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts sur 4 s). Ce sont des pages mortes que personne ne relit : macOS dimensionne `total` au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les durées restent interprétables.
+
+==================================================================
+[S6-C] chapitre complet, hors score — rag=True
+==================================================================
+[S6-C] 3525 mots, 3 entrée(s), 1401s → runs-s6/run-S6-C.md
+        temps par nœud : {'plan': 87.7, 'write': 590.1, 'accumulate': 125.2, 'review': 336.7, 'repair': 223.5, 'coherence': 36.9}
+        collections interrogées : ['auteur']
+  ⚠ relecture entrée 1: garde-fou 60 % déclenché (495 mots contre 1033, soit 48%) — relecture REJETÉE, original conservé
+  ⚠ relecture entrée 3: garde-fou 60 % déclenché (709 mots contre 1567, soit 45%) — relecture REJETÉE, original conservé
+
+Grille : python3 outillage/grille_session.py runs-s6 450-600
+[15:53:44] SÉRIE TERMINÉE
