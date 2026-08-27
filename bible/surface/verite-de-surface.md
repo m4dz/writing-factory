@@ -73,4 +73,4 @@ Source unique : `style-auteur.md` et les blocs [SURFACE] de la fiche Judith (voi
 4. **Une seule maison, une seule voix, aucun dialogue** — le monde extérieur n'entre que par traces relues ou réécoutées.
 5. **Décision sans geste** : les décisions sont notées comme prises, leurs exécutions jamais racontées. La vérification, elle, reste racontable — de préférence perceptive : regarder, compter, relire.
 6. **Le verdict imposé du chapitre** (fourni par le brief) doit apparaître ; deux termes de métier au plus en sus ; jamais de définition en scène.
-7. **Termes et objets réservés** : la tierce, l'errata, le bon à tirer, et le quatuor (photos, playlist, plat, couverts) sont interdits sauf instruction explicite du brief.
+7. **Termes et objets réservés** : certains termes de métier et certains objets de la maison sont gardés pour des chapitres précis. La règle est close et positive : n'écrire que les objets nommés au matériau du brief et à la liste des objets du programme. Ce qui n'y est pas n'existe pas dans la scène.

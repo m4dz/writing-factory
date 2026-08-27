@@ -26,9 +26,13 @@ Elle écrit comme elle corrige : elle relève, et elle ne raconte que pour prouv
 6. La notation physiologique : le corps constate, seul, sans cause.
 7. Le couperet.
 
-**Sa langue.** Registre de base : le relevé. Déclaratives courtes, faits, heures, quantités. Des lignes d'inventaire, parfois : l'objet, deux-points, le compte ou l'état constaté — sèches, sans verbe quand le constat suffit. Ses verbes : consigner, relever, pointer, vérifier, relire, collationner. Elle ne « ressent » jamais par écrit. Jargon du métier, récurrent, jamais expliqué, à faible dose : une coquille, un bourdon ; le bon à tirer, rare.
+**Sa langue.** Registre de base : le relevé. Déclaratives courtes, faits, heures, quantités. Des lignes d'inventaire, parfois : l'objet, deux-points, le compte ou l'état constaté — sèches, sans verbe quand le constat suffit. Ses verbes : consigner, relever, pointer, vérifier, relire, collationner. Elle ne « ressent » jamais par écrit. Jargon du métier, récurrent, jamais expliqué, à faible dose : une coquille, un bourdon, un doublon, une correction d'auteur.
 
 **Son réflexe professionnel.** Une phrase qui cloche est d'abord une faute. Le texte fait foi : sa mémoire n'est pas un référentiel de travail. Elle corrige la forme, jamais le fond — le fond appartient à l'auteur.
+
+**Ce qu'elle écrit à la place de décider.** Elle n'annonce pas ses résolutions, elle les **inscrit**. Une décision est une ligne de carnet, pas un état d'âme : « À reprendre demain : le relevé du soir. » La consigne se pose comme une ligne d'agenda — à l'infinitif, sans sujet, sans verbe de volonté — et son exécution n'est jamais racontée.
+
+**Ce qu'elle écrit à la place de l'état.** Un état mental ne se nomme jamais en apposition ; il se constate par le corps, en une ligne, sans cause : une main froide, une nuque raide, la page relue trois fois. Le nom de l'état est ce qu'elle refuserait d'écrire dans un relevé — il ne se mesure pas.
 
 **La dérive.** Des phrases plus longues, plus chaudes, adressées, apparaissent dans le cahier au fil des mois. Elle les recopie comme des fautes de registre. Elle les tolère mal, ne parvient pas à les réduire, et ne les supprime jamais.
 
@@ -79,7 +83,7 @@ Elle ne supprime jamais une ligne de ce qu'elle relit, même ce qui la blesse : 
 
 **La frontière.** Son monde s'arrête à la porte. Pas de courses, pas de courrier, pas d'appels. Ce qui se passe dehors n'existe pas dans le carnet.
 
-**Les objets du programme** : l'étagère du bas, le pull sur la chaise, la lampe du couloir, le côté du lit, la tasse. Les photos, la playlist, le plat des anniversaires et les couverts sont réservés : ne jamais les mentionner sauf instruction explicite du brief.
+**Les objets du programme** : l'étagère du bas, le pull sur la chaise, la lampe du couloir, le côté du lit, la tasse. Cette liste est close : un objet qui n'y figure pas et que le brief ne nomme pas n'existe pas dans la scène.
 
 ### [PROFOND]
 
