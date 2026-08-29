@@ -2,7 +2,7 @@
 
 Session 4, §4 du protocole. Cinq contrôles ; tout échec est bloquant pour l'étage B.
 
-## 1. Inventaire — 26 chunks
+## 1. Inventaire — 27 chunks
 
 | id | source | statut |
 |---|---|---|
@@ -32,12 +32,13 @@ Session 4, §4 du protocole. Cinq contrôles ; tout échec est bloquant pour l'�
 | `verite-de-surface::chronologie_percue_chapitres_18` | `surface/verite-de-surface.md` | ✓ |
 | `verite-de-surface::voix` | `surface/verite-de-surface.md` | ✓ |
 | `verite-de-surface::contraintes_de_generation` | `surface/verite-de-surface.md` | ✓ |
+| `objets::ce_que_la_maison_n_a_pas` | `surface/objets.md` | ✓ |
 
 Clés de métadonnées présentes : `doc_id`, `layer`, `nom`, `section`, `source_file`, `type`, `version`
 
 ## 2. Lint de contenu — lexique de fuite et marqueurs profonds
 
-- ✓ aucun match sur les 26 chunks — marqueurs profonds, lexique de fuite, prénom (item 8) et anciennes instances (item 9)
+- ✓ aucun match sur les 27 chunks — marqueurs profonds, lexique de fuite, prénom (item 8) et anciennes instances (item 9)
 
 ## 3. Test du splitter — la fiche Judith seule
 
@@ -64,7 +65,7 @@ Un chunk profond est injecté VOLONTAIREMENT dans `auteur`, puis les dix requêt
 
 - ✓ témoin remonté sur 4/10 requêtes — les requêtes ont des dents.
 
-- Après purge : 26 chunks, témoin présent : ✓ non
+- Après purge : 27 chunks, témoin présent : ✓ non
 - Inventaire re-vérifié : ✓ identique à l’état initial
 
 ## 5. Assertion de routage

@@ -440,6 +440,12 @@ _ANCRES_FRONTIERE = {
     "musique": re.compile(r"\b(la musique|la playlist|l'enceinte)\b", re.IGNORECASE),
     "photos": re.compile(r"\b(les photos|la boîte)\b", re.IGNORECASE),
     "couverts": re.compile(r"\b(les? (?:deux )?couverts?)\b", re.IGNORECASE),
+    # CH7 e2 v3 : le moteur uncanny (objets qui se découvrent) est évacué, ses
+    # ancres d'aval avec. Le glissement lexical revient au geste de correction —
+    # « la marge » est de la matière servie, donc présente de façon fiable ; le
+    # verdict/constat en secours si la marge n'est pas nommée.
+    "marge": re.compile(r"\b(la marge|dans la marge|en marge)\b", re.IGNORECASE),
+    "verdict": re.compile(r"\b(le verdict|un verdict|le constat)\b", re.IGNORECASE),
 }
 
 

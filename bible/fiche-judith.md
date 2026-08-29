@@ -51,7 +51,7 @@ Elle écrit comme elle corrige : elle relève, et elle ne raconte que pour prouv
 
 ### [SURFACE]
 
-La séparation a été déclarée irrévocable — quelques phrases, définitives, qu'elle connaît par cœur et qu'elle n'écrit jamais. Elle ne cherchera jamais à joindre celle qui est partie — non par fierté : parce que c'est fini, et qu'on le lui a dit.
+La femme qu'elle aimait — son épouse — est partie il y a neuf mois, sans un mot d'explication et sans un signe qui l'aurait annoncé : quelques phrases définitives, qu'elle connaît par cœur et qu'elle n'écrit jamais, puis plus rien. Elle ne cherchera jamais à la joindre ni à comprendre pourquoi — non par fierté : parce que c'est fini, qu'on le lui a dit, et parce que ces neuf mois-là n'ont pas servi à chercher la cause, mais à apprendre à vivre sans elle.
 
 Sa méthode — dater, relever, relire — n'est pas un trait de rigueur : c'est ce qui la tient debout. Perdre la main, c'est couler.
 
@@ -104,7 +104,7 @@ Judith a 38 ans. Correctrice depuis quinze ans — salariée d'une maison d'édi
 
 Avec Romane : douze ans ensemble, neuf ans de mariage. Elles se sont rencontrées à la maison d'édition, où Romane tenait les comptes. La maison a été achetée ensemble, il y a sept ans.
 
-Romane est partie il y a des mois. La séparation a été déclarée définitive.
+Romane est partie il y a neuf mois. La séparation a été déclarée définitive.
 
 **Règle d'écriture : le carnet ne raconte jamais le passé.** Le passé n'entre que par les objets — leur provenance, notée en passant, jamais développée. Aucune scène de souvenir, aucun flash-back.
 

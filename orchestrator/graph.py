@@ -691,7 +691,38 @@ def write_node(state: ChapterState) -> dict:
     # mouvement (« dump du prompt servi »), et c'est aussi ce qui permet de
     # mesurer la recopie — le contrôle qui manquait au tirage 6.
     prompts_servis: list[tuple[str, str]] = []
-    if fiche.get("segments", state.get("segments")):
+    if fiche.get("beats"):
+        # CAP-CODE STRUCTUREL (entrée 2, v5). Chaque beat est un appel court,
+        # servi SEUL (pas le mouvement entier — cf. `_prompt_beat`), borné en
+        # phrases ET en tokens par le code. Le texte déjà écrit devient le
+        # préfixe du beat suivant (doctrine du préfixage), et `_recoller`
+        # absorbe une reprise. Le glissement et la chute restent posés en aval
+        # par `poser_gestes_node` : rien de neuf dans le pipeline des gestes.
+        text, ms, wg = "", [], []
+        for nom, num_predict, phrases_max, consigne in fiche["beats"]:
+            progress.phase("Écriture", f"entrée {idx + 1} — {nom}",
+                           i=idx + 1, n=len(state["plan"]))
+            deja = f"{prefixe}\n\n{text}".strip() if prefixe else text.strip()
+            bloc = (
+                "L'entrée est DÉJÀ COMMENCÉE par ce texte, que tu ne réécris "
+                f"PAS :\n---\n{deja}\n---\n"
+                "Écris uniquement CE QUI SUIT, en enchaînant directement. Ne "
+                "répète rien de ce qui précède.\n" if deja else "")
+            beat_user = _prompt_beat(consigne, bloc)
+            prompts_servis.append((nom, beat_user))
+            seg, m, w = _generate_whole(
+                system, beat_user, num_predict=num_predict, temperature=0.7,
+                label=f"entrée {idx + 1}/{nom}", continuer=False)
+            seg, wn = _nettoyer_segment(seg, f"entrée {idx + 1}/{nom}")
+            # BORNE EN PHRASES par beat — c'est le cap qui manquait : le budget
+            # de tokens seul n'arrête pas la litanie, la phrase si.
+            seg, wb = _borner_en_phrases(seg, phrases_max, idx, "")
+            wg += w + wn + wb
+            text = _recoller(text, seg) if text else seg
+            ms += [dict(m2, beat=nom) for m2 in m]
+        # L'accumulation prend l'entrée entière pour contexte : elle est courte.
+        reconstruction = text
+    elif fiche.get("segments", state.get("segments")):
         text, ms, wg = "", [], []
         for nom, num_predict, mots_cible, consigne in SEGMENTS:
             progress.phase("Écriture", f"entrée {idx + 1}/"
@@ -751,6 +782,16 @@ def write_node(state: ChapterState) -> dict:
         # 1400 tokens pour soixante mots, c'est demander soixante mots et en
         # autoriser six cents : la consigne dit une chose, le budget en dit une
         # autre, et c'est le budget qui gagne.
+        # LA MÉTHODE DU MOUVEMENT VAUT AUSSI SANS DÉCOUPAGE. Quand la fiche
+        # porte un mouvement, l'appel unique reçoit le même ordre de service —
+        # sinon on retomberait sur le prompt de cases que la méthode remplace,
+        # et la comparaison ne porterait plus sur le seul nombre d'appels.
+        if fiche.get("mouvement"):
+            user = _prompt_mouvement(
+                fiche, f"{lo} à {hi} mots",
+                "Tu écris cette trajectoire ENTIÈRE, d'un seul tenant.",
+                bloc_prefixe)
+            prompts_servis.append(("entrée entière", user))
         budget = (int(hi * 1.6) + 40 if fiche.get("mots") else 1400)
         # PAS DE CONTINUATION quand la brièveté est VOULUE. La continuation
         # existe contre l'amputation accidentelle — un texte coupé en plein mot
@@ -975,6 +1016,44 @@ def _sans_machinerie(directive: str) -> str:
     return (" : ".join(gardes) if gardes else "").rstrip(" :,;") + "."
 
 
+_BEAT_SUFFIXE = (
+    "Prose seule, en français uniquement, sans en-tête, sans titre, sans "
+    "méta-commentaire. AUCUNE étiquette de section : jamais un mot seul suivi "
+    "de deux-points en tête de phrase (pas de « Verdict : », pas de « Note : », "
+    "pas de « Constat : »). Aucun nom propre. Tu ne rends AUCUN verdict et tu "
+    "ne résous rien : le doute reste ouvert, la faute ne se stabilise pas — "
+    "surtout, elle ne se retourne pas en certitude rassurante. Rien ne se "
+    "produit sous tes yeux : aucune voix, aucun bruit, aucun pas, personne qui "
+    "agit — tu constates seulement des états trouvés, des choses déplacées ou "
+    "laissées, sans surprendre personne."
+)
+
+
+def _prompt_beat(consigne: str, bloc: str) -> str:
+    """Assemble le prompt d'UN beat — cap-code structurel de l'entrée 2 (v5).
+
+    Ne sert QUE ce beat et le véto commun, JAMAIS le mouvement entier. Le mode
+    segments re-servait `_prompt_mouvement` à chaque segment (intention +
+    quatre directives + matière + vétos) avec une simple ligne de position :
+    chaque segment tentait donc tout l'arc — c'est la cause mesurée des « trois
+    arcs ». Ici chaque appel ne reçoit que sa propre tâche, courte, et le code
+    borne la génération en phrases. Le spiral « je vais tout noter » de v5 n'a
+    plus d'appel où s'écrire : le beat du doute s'arrête sur sa question, et la
+    chute est posée en aval.
+
+    Même garde d'entrée que `_prompt_mouvement` : l'assemblage servi ne doit
+    porter aucun terme d'atelier ni de machinerie.
+    """
+    prompt = "\n\n".join(b for b in (consigne.strip(), bloc.strip(),
+                                     _BEAT_SUFFIXE) if b)
+    fuites = sorted({m.group(0).lower() for m in META_TERMES.finditer(prompt)}
+                    | {m.group(0).lower() for m in MACHINERIE.finditer(prompt)}
+                    | set(re.findall(r"\b[\w-]+\.md\b", prompt)))
+    assert not fuites, (f"le prompt de beat porte des termes d'atelier ou de "
+                        f"machinerie : {fuites}")
+    return prompt
+
+
 def _prompt_mouvement(fiche: dict, mots_cible: str, position: str,
                       bloc_prefixe: str) -> str:
     """Assemble le prompt d'une entrée sous méthode du mouvement.
@@ -1181,6 +1260,9 @@ jusqu'au coucher ;
 - puis la rupture (« sauf une, une seule ») et l'étape qui cloche ;
 - entre douze et vingt étapes : au-delà, c'est un emballement, pas une spirale ;
 - uniquement des faits DE CE TEXTE, aucun objet ni lieu nouveau ;
+- l'absente ne se qualifie JAMAIS au masculin — ni « mari », ni « lui », ni \
+« il » : la maison a été partagée avec une femme. Mais la phrase n'a besoin \
+que de SES gestes à elle ; l'absente n'a pas à y figurer ;
 - des ÉTAPES, pas des états d'âme : ce qu'elle fait et ce qu'elle touche, \
 jamais ce qu'elle ressent ni ce qu'elle conclut.
 

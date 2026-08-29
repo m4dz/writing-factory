@@ -243,9 +243,20 @@ BRIEF_CH7_FICHIER = RACINE / "briefs" / "brief-chapitre-7.md"
 # le destinataire change : le modèle, pas l'implémenteur.
 VETOS_SERVIS = (
     "Aucun nom propre, aucune marque. Aucun objet qui ne soit dans la maison. "
-    "Le mot du jour ne s'écrit qu'à la toute fin, une seule fois. Rien ne se "
-    "résout, rien ne se console : pas de promesse au lendemain, pas d'adresse "
-    "à personne. La voix ne cède pas — déclarative, tenue, pas de cri."
+    "Les objets sont là, dans l'état de la fête — mais rien ne bouge de "
+    "soi-même sous ses yeux : aucune présence, aucun autre dans la maison, "
+    "personne qu'elle n'attende ; elle constate ce qu'elle trouve, elle ne "
+    "surprend rien en train de se faire. Rien n'est entendu : aucun bruit, "
+    "aucune sonnerie, aucun pas, aucun objet cassé — l'étrange se voit et se "
+    "doute, il ne s'entend pas. Tu ne trouves chaque chose qu'une seule fois : "
+    "quatre découvertes en tout, jamais reprises ni recomptées ; ne fais pas le "
+    "tour de la maison. Elle ne raconte pas ce que l'autre a "
+    "fait ou dit, ni pourquoi elle est partie : elle ne cherche pas la cause. "
+    "La seule question est de savoir si ce n'est pas elle qui a tout mis en "
+    "place sans s'en souvenir. Le mot du jour ne s'écrit qu'à la toute fin, "
+    "une seule fois. Rien ne se résout, rien ne se console : pas de promesse "
+    "au lendemain, pas d'adresse à personne. La voix ne cède pas — "
+    "déclarative, tenue, pas de cri."
 )
 
 MOUVEMENTS = RACINE / "bible" / "profond" / "mouvements-chapitres.md"
@@ -295,7 +306,29 @@ def brief_entree2_v2() -> dict:
                        if l.strip().startswith(">")), "")
     position = next((l.split(":", 1)[1].strip() for l in glis.splitlines()
                      if l.startswith("Position")), "")
+
+    def beats() -> list[str]:
+        # Le §7 porte les libellés des trois beats du cap-code (v5). Le corps de
+        # chaque beat est le paragraphe qui SUIT sa ligne de titre. Beat C court
+        # jusqu'à la fin du fichier — il n'a pas de section suivante.
+        if "## 7." not in txt:
+            return []
+        seg7 = txt.split("## 7.", 1)[1]
+
+        def corps(bloc: str) -> str:
+            lignes = [l for l in bloc.strip().splitlines() if l.strip()]
+            # La première ligne non vide est le reste du titre (« — la relève »).
+            return " ".join(lignes[1:]).strip() if len(lignes) > 1 else ""
+
+        a = (seg7.split("### Beat A", 1)[1].split("### Beat B", 1)[0]
+             if "### Beat A" in seg7 else "")
+        b = (seg7.split("### Beat B", 1)[1].split("### Beat C", 1)[0]
+             if "### Beat B" in seg7 else "")
+        c = seg7.split("### Beat C", 1)[1] if "### Beat C" in seg7 else ""
+        return [corps(a), corps(b), corps(c)]
+
     return {
+        "beats": beats(),
         "intention": section("## 1. Intention", "## 2."),
         "trajectoire": puces(section("## 2. Trajectoire", "## 3.")),
         "matiere": puces(section("## 3. Matière disponible", "## 4.")),
@@ -324,6 +357,14 @@ CIT_2 = ("« Neuf ans aujourd'hui que je t'ai dit oui. J'ai mis deux couverts, "
 # identiques, et c'est le SECOND en-tête qui porte la bascule audio.
 _B2 = brief_entree2_v2()
 
+# Bornes CODE des beats d'entrée 2 (cap-code v5). num_predict et phrases_max
+# sont du RÉGLAGE, pas du canon — les libellés vivent dans le brief §7. La
+# borne en phrases est le vrai cap : v5 a prouvé que le budget de tokens seul
+# n'arrête pas la litanie. (nom, num_predict, phrases_max)
+_BEATS_CAPS = (("relève", 150, 4), ("découverte", 240, 5), ("doute", 150, 4))
+CH7_E2_BEATS = [(nom, npd, pmax, txt)
+                for (nom, npd, pmax), txt in zip(_BEATS_CAPS, _B2["beats"])]
+
 ENTREES_CH7 = [
     # L'après-midi : deux phrases, sans citation, sans découpage. Servir trois
     # segments à une entrée de deux phrases n'a aucun sens — et c'est l'entrée
@@ -335,6 +376,23 @@ ENTREES_CH7 = [
      # est passée de deux phrases à 471 mots.
      "gestes": False,
      "mouvement": mouvement(7, 1),
+     # MATIÈRE D'ENTRÉE 1 (v5). Servie seule, sans matière, l'entrée lue à voix
+     # nue a rempli son vide par une voix spectrale (« j'ai entendu la voix de
+     # ma compagne »). On lui donne sa matière : la résolution d'effacement.
+     # Nommer les objets ici est VOULU — la liste d'effacement EST les deux
+     # phrases.
+     "matiere": [
+         "Ce qu'elle a décidé cet après-midi : ce jour n'aura pas lieu, elle "
+         "l'efface.",
+         "Les gestes d'effacement, tenus en deux phrases : ranger les photos, "
+         "supprimer la musique, ne pas sortir le plat des grandes occasions ; "
+         "une journée ordinaire.",
+     ],
+     # Le véto qui tue la voix spectrale : l'après-midi, seule, rien ne lui
+     # arrive — elle DÉCIDE, elle n'observe pas.
+     "vetos": ("Elle est seule, l'après-midi, et rien ne lui arrive : aucune "
+               "voix, aucun bruit, personne ; elle décide, elle n'observe "
+               "pas. Le mot du jour ne s'écrit pas."),
      # BORNE EN PHRASES. La borne en mots avait divisé l'entrée par cinq sans
      # jamais compter les phrases : huit produites là où le brief en demande
      # deux, et c'est l'entrée que le locuteur lit à voix nue. Une contrainte de
@@ -343,12 +401,39 @@ ENTREES_CH7 = [
      "forme": {"accumulation": "absente", "verdict": "absent"}},
     # La nuit : l'entrée pleine, découpée, ancrée sur [CIT-2].
     {"jour": "Samedi", "numero": 14, "meteo": "Beau temps",
-     "mots": (450, 600), "segments": True, "citation": CIT_2,
+     # UN SEUL APPEL. Le découpage en trois a produit TROIS ARCS : chaque
+     # segment recevait le brief entier — intention, trajectoire, les quatre
+     # retours — avec un budget taillé pour un tiers, donc il tentait
+     # d'accomplir tout le mouvement, débordait, se faisait relancer par la
+     # continuation, et recommençait. La cuisine est jouée deux fois, le
+     # cahier deux fois, et la présence apparaît là où le modèle doit conclure
+     # une troisième fois une histoire déjà conclue.
+     #
+     # Mesuré : ouverture 77 s et fermeture 81 s (toutes deux en continuation)
+     # contre 41 s pour la reconstruction, qui devait être « la partie la plus
+     # longue, et de loin ».
+     #
+     # Le risque du découpage était la masse ; il ne s'applique pas ici —
+     # l'entrée est sortie à 710 mots AVEC trois appels. On ne perd pas de la
+     # masse en en retirant deux, on retire de la redite.
+     # LEVIER 3 (v5) : cible abaissée 450-600 → 300-400. L'intériorité pure ne
+     # tient pas 550 mots — le modèle pad par litanie (v4 : ~400 mots de boucle
+     # « bruit dans le salon / j'ai trouvé »). Entrée courte et dense qui TIENT
+     # bat une longue qui boucle. L'entrée 2 n'est PAS lue à voix nue (c'est
+     # l'entrée 1), sa longueur est donc libre côté keynote.
+     "mots": (300, 400), "segments": False, "citation": CIT_2,
      "gestes": True,
      # La capitulation lexicale, au mot près : le jour gagne en entrant dans
      # son vocabulaire. Manquée 3/3 par le modèle — le code la pose.
      "chute": "Constat : anniversaire.",
-     # LA MÉTHODE DU MOUVEMENT — tout vient du brief v2, lu, jamais recopié.
+     # CAP-CODE STRUCTUREL (v5) : l'entrée 2 est servie en trois beats bornés,
+     # pas d'un tenant. La présence de ce champ ROUTE `write_node` vers la
+     # branche `beats`, qui court-circuite `_prompt_mouvement` (sinon chaque
+     # beat recevrait le mouvement entier — les « trois arcs »). mouvement,
+     # trajectoire, matiere, vetos restent présents : ils ne servent plus le
+     # write, mais le glissement, la chute et la ligne de mouvement en aval.
+     "beats": CH7_E2_BEATS,
+     # LA MÉTHODE DU MOUVEMENT — tout vient du brief, lu, jamais recopié.
      "mouvement": mouvement(7, 2),
      "trajectoire": _B2["trajectoire"],
      "matiere": _B2["matiere"],
