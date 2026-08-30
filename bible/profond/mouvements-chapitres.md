@@ -20,7 +20,7 @@ Une phrase par chapitre : d'où part le personnage, où il arrive, ce qui bascul
 | 4 | Du contrôle méthodique à la première peur vraie : une phrase la décrit trop exactement ; elle relit trois fois, décide de cacher le cahier — le texte cesse d'être une erreur, il devient un vis-à-vis. |
 | 5 | De la parade à l'encerclement : elle déplace, ça continue ; la phrase-miroir lui apprend sa propre peur avant qu'elle se la soit avouée ; écrire devient dangereux, elle passe à la voix. |
 | 6 | De la preuve cherchée à la preuve qui accuse : ses enregistrements disent ce qu'elle n'a pas dit ; elle chronomètre pour se rassurer et mesure l'inverse — le périmètre du déni rétrécit. |
-| 7 — entrée 1 | Une résolution tenue à voix serrée : ce jour n'existera pas — deux phrases, la porte fermée. |
+| 7 — entrée 1 | Deux phrases, la porte fermée : elle efface l'anniversaire — range les photos, supprime la musique, écarte le plat — et rien d'autre. |
 | 7 — entrée 2 | Elle a décidé que le jour n'aurait pas lieu ; la maison est pourtant dressée pour la fête, et chaque preuve qu'elle relève est une faute qu'elle ne parvient pas à classer — jusqu'à ce qu'il ne reste que le mot, qu'elle cesse de corriger et consigne. |
 | 8 | Du silence défensif à la transgression : elle ne nomme plus rien pour ne rien désigner, puis nomme une fois, en pleine conscience, pour confondre — et ce qui répond la nomme, elle. |
 | 9 | De la relecture à la révélation : elle exécute sa dernière lecture, tous les verdicts convergent vers le même référent — ce qu'elle corrige depuis le début, c'est elle. |

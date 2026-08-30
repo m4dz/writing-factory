@@ -376,9 +376,18 @@ def valider_accumulation(phrase: str, dernier_essai: bool = False,
     # accumulation trop longue est un défaut de style, une accumulation absente
     # est un échec bloquant. On refuse la démesure quand on peut encore
     # relancer, on l'accepte en la signalant quand c'est le dernier tour.
-    if len(phrase.split()) > ACC_MOTS_MAX and not dernier_essai:
-        return False, (f"trop longue ({len(phrase.split())} mots ; plafond "
-                       f"{ACC_MOTS_MAX})")
+    n = len(phrase.split())
+    # PLAFOND DUR (1,4× le plafond souple). La tolérance du dernier essai n'avait
+    # PAS de limite : un tirage a rendu 190 mots (~30 étapes), accepté « malgré
+    # 190 mots — dernier essai », et coupé en plein mot au service. Au-delà de
+    # ~1,5× le plafond, ce n'est plus « un peu longue », c'est un emballement.
+    # L'accumulation est optionnelle : mieux vaut aucune qu'une litanie tronquée.
+    if n > int(ACC_MOTS_MAX * 1.4):
+        return False, (f"emballement ({n} mots ; plafond dur "
+                       f"{int(ACC_MOTS_MAX * 1.4)}) — rejetée même au dernier "
+                       "essai, l'accumulation est droppée")
+    if n > ACC_MOTS_MAX and not dernier_essai:
+        return False, (f"trop longue ({n} mots ; plafond {ACC_MOTS_MAX})")
     # LA LANGUE. Au premier run C, `accumulate` a rendu une phrase de 75 mots et
     # 7 virgules — en ANGLAIS (« Despite having dinner alone with one plate… »),
     # et la validation l'a acceptée : elle comptait des mots et des virgules,

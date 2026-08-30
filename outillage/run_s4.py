@@ -393,6 +393,13 @@ ENTREES_CH7 = [
      "vetos": ("Elle est seule, l'après-midi, et rien ne lui arrive : aucune "
                "voix, aucun bruit, personne ; elle décide, elle n'observe "
                "pas. Le mot du jour ne s'écrit pas."),
+     # BEST-OF-3 sur l'entrée lue à voix nue : le modèle dérive une fois sur
+     # deux vers « ranger le cahier / le grenier » et l'effacement de
+     # l'anniversaire (photos, musique, plat) tombe en phrase 3+, coupée. Le
+     # scorer garde le variant dont les DEUX phrases servies nomment
+     # l'effacement.
+     "best_of": 3,
+     "critere": "effacement-anniversaire",
      # BORNE EN PHRASES. La borne en mots avait divisé l'entrée par cinq sans
      # jamais compter les phrases : huit produites là où le brief en demande
      # deux, et c'est l'entrée que le locuteur lit à voix nue. Une contrainte de

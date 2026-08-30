@@ -104,6 +104,16 @@ def delint(text: str) -> tuple[str, list[str]]:
     for pattern, repl in _FRANGLAIS.items():
         text = re.sub(pattern, repl, text)
 
+    # Collage « j'aiallumé » : « j'ai » soudé à son participe, tout en
+    # minuscules — invisible pour `_GARBAGE` (qui cherche une majuscule ASCII).
+    # On sépare sur une liste de participes : sûr, aucune collision avec
+    # « j'aime » / « j'aie ». Récurrent dans l'accumulation (« j'ai X, j'ai Y »).
+    text = re.sub(
+        r"\bj'ai(allumé|éteint|mangé|sorti|mis|ouvert|regardé|préparé|rangé"
+        r"|débarrassé|fait|pris|accroché|enlevé|commencé|essuyé|vérifié|dansé"
+        r"|coupé|marché|monté|bu|nettoyé|lavé|posé|trouvé|écrit|cherché)",
+        r"j'ai \1", text)
+
     residual = sorted({m.group(0) for m in _SUSPECT_EN.finditer(text)})
     if residual:
         warnings.append(f"anglais résiduel : {residual}")

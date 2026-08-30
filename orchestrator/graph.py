@@ -699,9 +699,10 @@ def write_node(state: ChapterState) -> dict:
         # absorbe une reprise. Le glissement et la chute restent posés en aval
         # par `poser_gestes_node` : rien de neuf dans le pipeline des gestes.
         text, ms, wg = "", [], []
-        for nom, num_predict, phrases_max, consigne in fiche["beats"]:
-            progress.phase("Écriture", f"entrée {idx + 1} — {nom}",
-                           i=idx + 1, n=len(state["plan"]))
+        beats = fiche["beats"]
+        premier_nom = beats[0][0]
+        for nom, num_predict, phrases_max, consigne in beats:
+            est_premier = (nom == premier_nom)
             deja = f"{prefixe}\n\n{text}".strip() if prefixe else text.strip()
             bloc = (
                 "L'entrée est DÉJÀ COMMENCÉE par ce texte, que tu ne réécris "
@@ -710,16 +711,43 @@ def write_node(state: ChapterState) -> dict:
                 "répète rien de ce qui précède.\n" if deja else "")
             beat_user = _prompt_beat(consigne, bloc)
             prompts_servis.append((nom, beat_user))
-            seg, m, w = _generate_whole(
-                system, beat_user, num_predict=num_predict, temperature=0.7,
-                label=f"entrée {idx + 1}/{nom}", continuer=False)
-            seg, wn = _nettoyer_segment(seg, f"entrée {idx + 1}/{nom}")
-            # BORNE EN PHRASES par beat — c'est le cap qui manquait : le budget
-            # de tokens seul n'arrête pas la litanie, la phrase si.
-            seg, wb = _borner_en_phrases(seg, phrases_max, idx, "")
-            wg += w + wn + wb
+            # BEST-OF-N par beat. Les échecs de nemo sont CORRÉLÉS (il résout /
+            # redémarre dans tous les tirages, différemment) : on tire N
+            # variants et le code garde celui qui porte le MOINS de défauts
+            # nommés (`_scorer_beat`). La sélection est une lecture déterministe,
+            # pas un juge de goût — falsifiable, donc digne de confiance.
+            variantes = []
+            for k in range(BEATS_N):
+                progress.phase("Écriture",
+                               f"entrée {idx + 1} — {nom} ({k + 1}/{BEATS_N})",
+                               i=idx + 1, n=len(state["plan"]))
+                seg, m, w = _generate_whole(
+                    system, beat_user, num_predict=num_predict, temperature=0.7,
+                    label=f"entrée {idx + 1}/{nom}#{k + 1}", continuer=False)
+                seg, wn = _nettoyer_segment(seg, f"entrée {idx + 1}/{nom}#{k + 1}")
+                seg, wb = _borner_en_phrases(seg, phrases_max, idx, "")
+                sc, defauts = _scorer_beat(seg, est_premier,
+                                           state.get("chapitre") or 2)
+                variantes.append({"score": sc, "k": k, "seg": seg,
+                                  "defauts": defauts, "m": m, "w": w + wn + wb})
+            # Meilleur score ; à égalité, le premier tiré (stable, rejouable).
+            variantes.sort(key=lambda v: (-v["score"], v["k"]))
+            gagnant = variantes[0]
+            seg = gagnant["seg"]
+            wg += gagnant["w"]
+            wg.append(
+                f"entrée {idx + 1}/{nom} : best-of-{BEATS_N} — variant "
+                f"{gagnant['k'] + 1} retenu (score {gagnant['score']}, "
+                + (", ".join(gagnant["defauts"]) if gagnant["defauts"]
+                   else "propre")
+                + ") ; rejetés : "
+                + " ; ".join(f"#{v['k'] + 1} score {v['score']}"
+                             for v in variantes[1:]))
             text = _recoller(text, seg) if text else seg
-            ms += [dict(m2, beat=nom) for m2 in m]
+            # Métriques de TOUS les variants — les jetons rejetés sont dépensés
+            # (doctrine 5 : aucun chiffre sans son horloge).
+            ms += [dict(m2, beat=nom, variant=v["k"])
+                   for v in variantes for m2 in v["m"]]
         # L'accumulation prend l'entrée entière pour contexte : elle est courte.
         reconstruction = text
     elif fiche.get("segments", state.get("segments")):
@@ -800,9 +828,49 @@ def write_node(state: ChapterState) -> dict:
         # tirage précédent est reparti pour 300 tokens et a rendu 314 mots.
         # On coupe à la dernière phrase complète, ce que `_generate_whole` fait
         # déjà en filet.
-        text, ms, wg = _generate_whole(system, user, num_predict=budget,
-                                      temperature=0.7, label=f"entrée {idx + 1}",
-                                      continuer=not fiche.get("mots"))
+        best_of = fiche.get("best_of")
+        if best_of:
+            # BEST-OF-N sur l'entrée ENTIÈRE (entrée 1). On SCORE la version
+            # bornée à `phrases_max` — ce qui est réellement servi — via le
+            # scorer nommé par `critere`. Même principe que les beats : la
+            # sélection est une lecture déterministe, pas un juge de goût.
+            phr = fiche.get("phrases_max")
+            cont = not fiche.get("mots")
+            cands = []
+            for k in range(best_of):
+                progress.phase("Écriture",
+                               f"entrée {idx + 1} ({k + 1}/{best_of})",
+                               i=idx + 1, n=len(state["plan"]))
+                t, m, w = _generate_whole(
+                    system, user, num_predict=budget, temperature=0.7,
+                    label=f"entrée {idx + 1}#{k + 1}", continuer=cont)
+                # Nettoyer l'en-tête parasite AVANT de scorer : sinon la borne à
+                # deux phrases capture « Samedi 14. Beau temps. » (deux fins de
+                # phrase) au lieu du corps, et les trois variants scorent pareil
+                # — la sélection ne discrimine plus (mesuré au run précédent).
+                t_propre = ENTETE_PARASITE.sub("", t).strip()
+                a_scorer = (_borner_en_phrases(t_propre, phr, idx, "")[0]
+                            if phr else t_propre)
+                sc, defauts = (_scorer_entree1(a_scorer)
+                               if fiche.get("critere") == "effacement-anniversaire"
+                               else (0, []))
+                cands.append({"score": sc, "k": k, "t": t, "m": m, "w": w,
+                              "def": defauts})
+            cands.sort(key=lambda c: (-c["score"], c["k"]))
+            g = cands[0]
+            text, wg = g["t"], list(g["w"])
+            wg.append(
+                f"entrée {idx + 1} : best-of-{best_of} — variant {g['k'] + 1} "
+                f"retenu (score {g['score']}, "
+                + (", ".join(g["def"]) if g["def"] else "propre")
+                + ") ; rejetés : "
+                + " ; ".join(f"#{c['k'] + 1} score {c['score']}"
+                             for c in cands[1:]))
+            ms = [dict(m2, variant=c["k"]) for c in cands for m2 in c["m"]]
+        else:
+            text, ms, wg = _generate_whole(
+                system, user, num_predict=budget, temperature=0.7,
+                label=f"entrée {idx + 1}", continuer=not fiche.get("mots"))
     # La concaténation elle-même. `_recoller` retire le chevauchement au
     # caractère près si le modèle a redonné l'en-tête ou l'ancre malgré la
     # consigne — on ne veut ni doublon, ni ancre recomposée.
@@ -1014,6 +1082,111 @@ def _sans_machinerie(directive: str) -> str:
     if len(gardes) == len(morceaux):
         return directive
     return (" : ".join(gardes) if gardes else "").rstrip(" :,;") + "."
+
+
+BEATS_N = int(os.environ.get("BEATS_N", "3"))
+
+# CRITÈRES DE SÉLECTION d'un variant de beat (best-of-N). Contrôles de LECTURE,
+# déterministes et falsifiables — jamais un juge de goût (doctrine 3 : compter
+# n'est pas lire). On ne note pas la prose ; on REJETTE des défauts nommés que
+# dix tirages ont rendus récurrents. Le variant retenu porte le moins de défauts.
+_BEAT_RESOUT = re.compile(
+    r"je\s+me\s+(?:souviens|rappelle)\s+(?:soudain|maintenant|enfin|"
+    r"à\s+nouveau|de\s+tout|de\s+chaque|bien|parfaitement)"
+    r"|(?:cela|ça)\s+me\s+revient"
+    r"|\bverdict\s*:\s*\w"
+    r"|m'a\s+jou\w+\s+un\s+tour"
+    r"|je\s+n'ai\s+pas\s+rêvé"
+    r"|j'ai\s+bien\s+(?:mis|fait|noté)", re.IGNORECASE)
+_BEAT_DISMISS = re.compile(
+    r"je\s+(?:dois|ai\s+dû)\s+me\s+tromper|je\s+me\s+suis\s+trompée"
+    r"|machinalement|sans\s+(?:y\s+penser|réfléchir)"
+    r"|oubli[ée]\s+de\s+(?:le\s+)?noter|me\s+résous\s+à\s+croire"
+    r"|j'avais\s+(?:simplement|juste)\s+oublié"
+    r"|j'ai\s+dû\s+m'endormir|je\s+me\s+suis\s+endormie", re.IGNORECASE)
+# RÉCURSION MÉTAFICTION : le beat re-lit la ligne du beat précédent (« je relis
+# la phrase que j'ai écrite hier soir : "…" ») ou reprend le gabarit « je relève
+# un détail qui me trouble » — nouvelle forme de litanie (v14). On distingue de
+# la relève légitime (« la phrase que je viens de recopier »), qui n'est pas un
+# ré-emprunt au passé.
+_BEAT_RECURSION = re.compile(
+    r"je\s+relis\s+(?:la\s+phrase|l'entrée|ce\s+que)\b.{0,25}?j'ai\s+écrit"
+    r"|je\s+relève\s+un\s+détail\s+qui\s+me\s+trouble", re.IGNORECASE)
+_BEAT_REVEIL = re.compile(
+    r"je\s+me\s+suis\s+(?:réveillée|levée)|à\s+mon\s+réveil", re.IGNORECASE)
+_BEAT_PRESENCE = re.compile(
+    r"\b(?:un\s+bruit|une\s+sonnerie|des\s+pas|une\s+voix|quelqu'un"
+    r"|un\s+mouvement\s+qui\s+n'|surprendre)\b", re.IGNORECASE)
+_BEAT_DOUTE = re.compile(
+    r"je\s+ne\s+me\s+(?:souviens|rappelle)\s+pas|aucun\s+souvenir"
+    r"|sans\s+(?:m'en\s+souvenir|le\s+savoir)", re.IGNORECASE)
+
+
+def _scorer_beat(variant: str, est_premier: bool,
+                 chapitre: int = 2) -> tuple[int, list[str]]:
+    """Note un variant de beat par contrôles de lecture. Plus haut = mieux.
+
+    Falsifié dans les deux sens (doctrine 4) : il DOIT rejeter les paragraphes
+    de résolution / présence / redémarrage / récursion / décor interdit des
+    tirages v8–v14 et ACCEPTER le doute ouvert. Le redémarrage (réveil) n'est un
+    défaut que HORS premier beat.
+    """
+    defauts: list[str] = []
+    score = 0
+    if _BEAT_RESOUT.search(variant):
+        score -= 10
+        defauts.append("résout (souvenir retrouvé / verdict rendu)")
+    if _BEAT_DISMISS.search(variant):
+        score -= 4
+        defauts.append("congédie (je dois me tromper / je me suis endormie)")
+    if not est_premier and _BEAT_REVEIL.search(variant):
+        score -= 5
+        defauts.append("redémarre (réveil déjà servi)")
+    if _BEAT_PRESENCE.search(variant):
+        score -= 5
+        defauts.append("présence perçue")
+    if _BEAT_RECURSION.search(variant):
+        score -= 6
+        defauts.append("récursion (re-lit sa propre ligne / gabarit répété)")
+    # DÉCOR INTERDIT : le détecteur existe déjà (`interdits_materiels`), on le
+    # BRANCHE dans la sélection. Un beat qui nomme la télévision, le
+    # lave-vaisselle, le sac à main… ne doit jamais gagner (v14 : il a gagné).
+    interdits = interdits_materiels(variant, chapitre)
+    if interdits:
+        score -= 8
+        defauts.append(f"décor interdit ({len(interdits)})")
+    if _BEAT_DOUTE.search(variant):
+        score += 3
+    return score, defauts
+
+
+# CRITÈRE de l'entrée 1 (best-of-N sur le chemin entrée-entière). L'entrée lue
+# à voix nue doit nommer l'EFFACEMENT DE L'ANNIVERSAIRE (photos rangées, musique
+# supprimée, plat écarté), pas dériver vers un rangement générique (le cahier,
+# le grenier) — dérive mesurée aux tirages v7/v9/v11. On score la version
+# BORNÉE À DEUX PHRASES : c'est ce qui est réellement servi ; l'effacement en
+# phrase 3+ est coupé et ne compte pas.
+_E1_EFFACEMENT = re.compile(
+    r"\b(photos?|playlist|musique|le\s+plat|anniversaire|couverts?)\b",
+    re.IGNORECASE)
+_E1_DERIVE = re.compile(
+    r"ranger\s+le\s+(?:cahier|grenier)|le\s+grenier|dans\s+un\s+album"
+    r"|le\s+cahier\s+ailleurs", re.IGNORECASE)
+
+
+def _scorer_entree1(variant: str) -> tuple[int, list[str]]:
+    """Note l'entrée 1 (résolution d'effacement). Falsifié dans les deux sens."""
+    defauts: list[str] = []
+    score = 0
+    if _E1_EFFACEMENT.search(variant):
+        score += 3
+    else:
+        score -= 3
+        defauts.append("ne nomme pas l'effacement de l'anniversaire")
+    if _E1_DERIVE.search(variant):
+        score -= 5
+        defauts.append("dérive (cahier / grenier / album)")
+    return score, defauts
 
 
 _BEAT_SUFFIXE = (
@@ -1320,6 +1493,10 @@ def accumulate_node(state: ChapterState) -> dict:
                       temperature=TEMP_GESTES, num_predict=300)
         metrics.append(m)
         candidat = " ".join(txt.strip().split())
+        # L'accumulation est un AUTRE nœud, posé APRÈS le `delint` du write —
+        # les collages « j'aiallumé » y survivaient. On nettoie ici, avant la
+        # validation (pour que le compte de mots porte sur le texte corrigé).
+        candidat, _ = delint(candidat)
         # Compter des ÉTAPES est une opération que le modèle sait faire ;
         # compter des MOTS non — il rendait 48 mots pour un plancher de 60,
         # deux fois de suite. Le code, lui, continue de vérifier en mots : la
