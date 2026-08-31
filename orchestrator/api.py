@@ -383,6 +383,44 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._repondre(200, chemin.read_bytes(), type_mime)
 
+    def _flux_evenements(self) -> None:
+        """Flux SSE des instantanés de `/status` — le compteur du deck y lit les
+        étapes en direct (phase, label, detail, notes, progress).
+
+        On N'UTILISE PAS `_repondre` : il force `Content-Length` et un write
+        unique. On ouvre la réponse à la main, en `text/event-stream`, et on
+        pousse un snapshot `JOB.instantane()` toutes les ~1 s. Chaque événement
+        est ABSOLU (pas incrémental) : une reconnexion reprend l'état courant,
+        aucun `Last-Event-ID` nécessaire.
+
+        C'est un ENRICHISSEMENT, pas une dépendance : s'il tombe, le compteur du
+        deck reste autonome (invariant du contrat). On streame tant que la
+        génération tourne, on émet un dernier événement à l'état terminal
+        (`ready`/`error`/`idle`), puis on ferme.
+        """
+        self.send_response(200)
+        self._cors()
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        # `BaseHTTPRequestHandler` n'auto-chunk pas : on ferme la connexion à la
+        # fin plutôt que d'annoncer une longueur inconnue d'avance.
+        self.send_header("Connection", "close")
+        self.end_headers()
+        try:
+            while True:
+                snap = JOB.instantane()
+                self.wfile.write(b"data: "
+                                 + json.dumps(snap, ensure_ascii=False).encode()
+                                 + b"\n\n")
+                self.wfile.flush()
+                if snap.get("state") in ("ready", "error", "idle"):
+                    break
+                time.sleep(1)
+        except (BrokenPipeError, ConnectionResetError):
+            # Client parti (slide changée, deck fermé) : la génération continue
+            # sur son thread. Sans ce garde, une traceback par déconnexion.
+            pass
+
     # --- routes --------------------------------------------------------------
 
     def do_OPTIONS(self) -> None:          # noqa: N802
@@ -515,6 +553,8 @@ class Handler(BaseHTTPRequestHandler):
         route = self.path.split("?")[0].rstrip("/") or "/"
         if route == "/status":
             self._json(200, JOB.instantane())
+        elif route == "/events":
+            self._flux_evenements()
         elif route == "/chapter":
             self._fichier(CHAPITRE_MD, "text/markdown; charset=utf-8")
         elif route == "/audio":

@@ -1,5 +1,12 @@
 # Surface HTTP de la machine de génération — état réel au 2026-08-07 (rév. 2)
 
+> **Rév. 5** — un flux **SSE `GET /events`** est ajouté, pour afficher les
+> étapes de génération EN DIRECT sur le compteur (phase, sous-étape, et le récit
+> des `notes`). C'est un **enrichissement optionnel** : il ne change rien au
+> contrat gelé, le compteur reste autonome s'il tombe. Détail : section
+> `GET /events`. Spécification complète côté deck :
+> `docs/sse-live-steps-front.md`.
+>
 > **Rév. 4** — votre borne révisée (2'30-3'00, extrait joué en entier) est en
 > place, réglée en secondes. **Un écart à connaître** : vos 375-450 mots
 > supposent ~150 mots/min, le clone mesuré parle à 190 — vos 450 mots auraient
@@ -118,6 +125,36 @@ toucher au contrat.
   **Ne l'affichez pas à la salle** (le contrat interdit toute UI d'erreur).
 - `budget_s` : mon budget interne (1500 s). Informatif — **votre compte à
   rebours reste autonome**, il ne doit jamais dépendre de mes réponses.
+
+## `GET /events` — flux SSE des étapes (rév. 5, optionnel)
+
+Un flux **Server-Sent Events** pour animer le compteur pendant la génération.
+`Content-Type: text/event-stream; charset=utf-8`, CORS `*`, `Cache-Control:
+no-store`, `Connection: close`.
+
+- **Un événement par ~1 s**, format `data: {json}\n\n`. Le `{json}` est le
+  **snapshot `/status` COMPLET** (mêmes champs : `phase, ready, progress, label,
+  detail, notes, elapsed_s, budget_s, gen_toks, state`).
+- **Événement ABSOLU**, pas incrémental : chaque event porte l'état entier. Une
+  reconnexion reprend l'état courant — **pas de `Last-Event-ID`, pas d'IDs**.
+- **Cycle de vie** : streame tant que `state ∈ {generating, tts}`, émet un
+  dernier événement à l'état terminal (`ready`/`error`/`idle`), puis **ferme**.
+  Connexion sur machine au repos : un seul événement `idle`, puis fermeture.
+
+```
+$ curl -N http://MACHINE:8420/events
+data: {"phase":"generating","ready":false,"progress":0.12,"label":"Plan de scènes","detail":"","notes":["3 faits dérivés, ils contraignent le plan"],"state":"generating", ...}
+
+data: {"phase":"generating","ready":false,"progress":0.34,"label":"Écriture","detail":"scène 2/4 (nemo)","notes":["nemo déchargé, Qwen prend la main"],"state":"generating", ...}
+…
+data: {"phase":"ready","ready":true,"progress":1.0,"state":"ready", ...}
+# connexion fermée
+```
+
+**C'est un ENRICHISSEMENT, pas une dépendance.** Le contrat gelé (generate /
+status / chapter / audio) est inchangé ; le compteur reste **autonome** si le
+flux tombe. `notes` = les 5 dernières seulement — le deck accumule pour bâtir le
+récit complet. `GET /status` reste disponible en repli (poll ponctuel).
 
 ## Les deux marqueurs du chapitre
 
