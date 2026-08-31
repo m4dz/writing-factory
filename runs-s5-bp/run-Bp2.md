@@ -1,0 +1,36 @@
+---
+run: Bp2
+etage: Bp
+role: score
+rag: True
+ctx_need_max: 0.62
+date: 2026-08-19T11:17:13
+mots: 201
+entrees_generees: 1
+entrees_detectees: 1
+temperature: 0.7
+duree_s: 236
+done_reason: stop
+temps_par_noeud: {"write": 124.5, "review": 56.8, "repair": 32.2, "coherence": 19.6}
+garde_fou_60: 0
+collections_interrogees: ["auteur"]
+fin_pendante: False
+plan: ["Chapitre 2, entrée unique du carnet, 450-600 mots. En-tête imposé, première ligne exacte : « Mardi 12. Ciel couvert. »\nSquelette, dans l'ordre : en-tête → citation → constat → reconstruction → verdict → notation physiologique → couperet.\nCitation ancre, recopiée verbatim entre guillemets après l'en-tête : « Deux assiettes mises, sans y penser. Je l'ai laissée sur la table jusqu'au matin. »\nBeats : 1. le rituel posé en une ou deux phrases — elle relit l'entrée de la veille du cahier, comme chaque soir. 2. La citation, puis le constat d'écart : sa mémoire dit une assiette, un dîner seule. 3. La vérification, perceptive : la cuisine, l'égouttoir — regarder, compter ; la vérification confirme l'entrée, pas sa mémoire. 4. La rationalisation argumentée : la fatigue, l'automatisme — et la spirale de reprise des faits dans l'ordre. 5. Verdict : erreur de relevé — la faute est à elle, pas au texte ; résolution de pointer plus précisément ; physiologie ; couperet.\nMatériau : le cahier, le carnet, l'assiette, l'égouttoir.\nFAIT IMPOSÉ, au matériau : « L'égouttoir, ce soir : deux assiettes. » La vérification CONSTATE ce fait, elle ne le découvre pas.\nEn-tête : jamais de mois, jamais d'année.\nInterdits : aucun nom propre, aucun dialogue, aucune explication, « journal » et « journal intime » bannis, aucun terme réservé (la tierce, l'errata, le bon à tirer)."]
+plan_report: "plan court-circuité — brief mono-entrée (item 10)"
+coherence: "FAIT 1 : tenu — La séparation de la narratrice avec Romane est définitive.\nFAIT 2 : tenu — La narratrice ne cherchera jamais à joindre Romane.\nFAIT 3 : tenu — La narratrice utilise une méthode de dater, relever et relire pour se tenir debout.\nFAIT 4 : tenu — La narratrice peur de devenir une mauvaise correctrice.\nFAIT 5 : tenu — La narratrice ne supprime jamais une ligne de ce qu'elle relit, même si cela la blesse.\nFAIT 6 : tenu — La narratrice ne consulte jamais de thérapeute, préférant se reconstruire seule."
+warnings: ["entrée 1 : fin coupée à la dernière phrase complète, 111 caractères retirés — « Après tout, c'est ainsi que je corrige les manuscrits : en relevant chaque erreu »"]
+---
+
+Mardi 12. Ciel couvert.
+
+"Deux assiettes mises, sans y penser. Je l'ai laissée sur la table jusqu'au matin."
+
+Je relis l'entrée de la veille, comme chaque soir. Mon regard glisse sur les mots, et pourtant, quelque chose cloche. Je relis la phrase, plusieurs fois. Deux assiettes ? Je suis pourtant certaine d'avoir mangé seule hier soir.
+
+Je me lève, traverse la cuisine jusqu'à l'égouttoir. Deux assiettes y sont posées, bien alignées. Je les compte, encore et encore, comme si le nombre allait changer. Mais non, il y en a bien deux.
+
+Je retourne à mon carnet, perplexe. Ma mémoire me joue des tours, ou bien ? Je décide de vérifier, de noter les faits tels qu'ils sont. Après tout, c'est mon métier : relever, pointer, corriger.
+
+Hier soir, donc. J'ai mangé seule, cela, je m'en souviens. Mais deux assiettes ? Je suis fatiguée en ce moment, c'est vrai. Peut-être ai-je fait plus de vaisselle que d'habitude sans m'en rendre compte ? Ou bien ai-je simplement mal compté hier soir, dans la pénombre de la cuisine ?
+
+Je décide de noter cela, de manière à ne plus me tromper à l'avenir. Je vais me concentrer sur chaque détail, chaque objet, chaque geste.

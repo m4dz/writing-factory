@@ -21,6 +21,7 @@ Deux décisions du propriétaire (2026-08-07) :
 """
 
 import os
+import re
 
 from style import sentence_ends
 
@@ -60,20 +61,49 @@ MOTS_AUDIO = int(os.environ.get(
 ))
 
 
+# L'en-tête normalisé en DÉBUT DE LIGNE — le repère de bascule du chapitre 7.
+# Même format que `lint_style.ENTETE_ENTREE`, réécrit ici plutôt qu'importé :
+# `chapitre.py` est servi par l'API et ne doit pas dépendre de l'outillage de
+# calibration. Si le format bouge, il bouge aux deux endroits — c'est le prix,
+# et il est explicite.
+ENTETE_LIGNE = re.compile(
+    r"^(?:Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)\s+\d{1,2}\.\s+"
+    r"\S[^\n]{0,40}\.\s*$", re.MULTILINE | re.IGNORECASE)
+
+
 def _fin_de_phrase_n(texte: str, n: int) -> int | None:
     """Position de fin de la n-ième phrase, ou None s'il n'y en a pas tant."""
     fins = sentence_ends(texte)
     return fins[n - 1] if len(fins) >= n else None
 
 
-def inserer_bascule(texte: str, *, phrases: int = PHRASES_AVANT_BASCULE) -> str:
+def inserer_bascule(texte: str, *, phrases: int = PHRASES_AVANT_BASCULE,
+                    sur_second_entete: bool = False) -> str:
     """Insère le marqueur de bascule après les `phrases` premières phrases.
 
     Si le texte compte moins de phrases que demandé (scène très courte, ou
     découpage inattendu), le marqueur est posé en TÊTE plutôt qu'omis : mieux
     vaut que le clone lise tout que pas de marqueur du tout, car son absence
     ferait échouer le rendu et priverait la scène de son audio.
+
+    `sur_second_entete` — LE MODE DU CHAPITRE 7. Là, le repère n'est pas un
+    compte de phrases mais la structure : deux entrées du même jour, le speaker
+    lit celle où elle résiste, la voix clonée celle où la journée a gagné. La
+    bascule se pose donc juste AVANT le second en-tête, et la coïncidence
+    scénique est exacte au lieu d'être approchée. C'est ce que décrit le §7 du
+    brief 7 : « détection déterministe, plus d'heuristique ».
     """
+    if sur_second_entete:
+        tetes = list(ENTETE_LIGNE.finditer(texte))
+        if len(tetes) >= 2:
+            coupe = tetes[1].start()
+            return (f"{texte[:coupe].rstrip()}\n\n{BASCULE}\n\n"
+                    f"{texte[coupe:].lstrip()}")
+        # Un seul en-tête : le chapitre n'a pas la structure attendue. On
+        # retombe sur le compte de phrases plutôt que d'omettre le marqueur —
+        # un chapitre sans bascule est traité comme non prêt par le deck, donc
+        # une structure ratée ferait disparaître la démo au lieu de la dégrader.
+        pass
     coupe = _fin_de_phrase_n(texte, phrases)
     if coupe is None:
         return f"{BASCULE}\n\n{texte.lstrip()}"
@@ -81,7 +111,8 @@ def inserer_bascule(texte: str, *, phrases: int = PHRASES_AVANT_BASCULE) -> str:
     return f"{tete}\n\n{BASCULE}\n\n{reste}" if reste else f"{tete}\n\n{BASCULE}"
 
 
-def extrait_audio(texte: str, *, mots_max: int = MOTS_AUDIO) -> str:
+def extrait_audio(texte: str, *, mots_max: int = MOTS_AUDIO,
+                  jusqu_a: str = "") -> str:
     """Texte que la voix clonée doit lire : après la bascule, borné en mots.
 
     La coupe tombe toujours sur une FIN DE PHRASE : un WAV qui s'arrête au
@@ -96,6 +127,17 @@ def extrait_audio(texte: str, *, mots_max: int = MOTS_AUDIO) -> str:
     if not fins:
         return apres
 
+    # LA CHUTE EST TOUJOURS LUE. La borne en mots existe contre un audio trop
+    # long ; elle ne doit pas amputer la LIGNE QUI FAIT LA SCÈNE. Au premier
+    # rendu du chapitre 7, la coupe est tombée à 268 mots, six lignes avant
+    # « Constat : anniversaire. » — la voix clonée disait tout sauf la phrase
+    # pour laquelle elle parle. La coïncidence scénique veut que le locuteur
+    # lise l'entrée où elle résiste et le clone celle où la journée a gagné :
+    # sans la chute, le clone ne gagne rien.
+    if jusqu_a and jusqu_a in apres:
+        borne = apres.index(jusqu_a) + len(jusqu_a)
+        return apres[:borne].strip()
+
     for fin in fins:
         if len(apres[:fin].split()) >= mots_max:
             return apres[:fin].strip()
@@ -103,7 +145,8 @@ def extrait_audio(texte: str, *, mots_max: int = MOTS_AUDIO) -> str:
 
 
 def assembler(scenes: list[str], *, mots_max: int = MOTS_AUDIO,
-              phrases: int = PHRASES_AVANT_BASCULE) -> str:
+              phrases: int = PHRASES_AVANT_BASCULE,
+              sur_second_entete: bool = False, chute: str = "") -> str:
     """Chapitre complet en Markdown, avec bascule et fin de lecture marquées.
 
     LES DEUX MARQUEURS SONT GARANTIS PRÉSENTS. Exigence du deck (message de la
@@ -118,8 +161,9 @@ def assembler(scenes: list[str], *, mots_max: int = MOTS_AUDIO,
     ne la tronque pas parce que l'audio, lui, est borné.
     """
     corps = inserer_bascule("\n\n".join(s.strip() for s in scenes if s.strip()),
-                            phrases=phrases)
-    lu = extrait_audio(corps, mots_max=mots_max)
+                            phrases=phrases,
+                            sur_second_entete=sur_second_entete)
+    lu = extrait_audio(corps, mots_max=mots_max, jusqu_a=chute)
     if lu and lu in corps:
         pos = corps.index(lu) + len(lu)
         corps = f"{corps[:pos]}\n\n{FIN_AUDIO}\n\n{corps[pos:].lstrip()}".rstrip()

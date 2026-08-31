@@ -1,0 +1,16 @@
+ bible/fiche-judith.md              |   8 [32m+[m[31m-[m
+ bible/surface/objets.md            |  14 [32m+[m
+ bible/surface/verite-de-surface.md |   2 [32m+[m[31m-[m
+ orchestrator/chapitre.py           |  38 [32m++[m[31m-[m
+ orchestrator/gestes.py             | 246 [32m+++++++++++++[m[31m--[m
+ orchestrator/graph.py              | 589 [32m++++++++++++++++++++++++++++++[m[31m-----[m
+ orchestrator/preflight.py          |  71 [32m+++++[m
+ outillage/grille_session.py        |  87 [32m+++++[m[31m-[m
+ outillage/lint_style.py            | 620 [32m++++++++++++++++++++++++++++++++++++[m[31m-[m
+ outillage/run_s4.py                | 207 [32m++++++++++++[m[31m-[m
+ 10 files changed, 1753 insertions(+), 129 deletions(-)
+
+Le diff INTÉGRAL n'est volontairement pas joint : les commentaires du code
+citent la couche profonde pour justifier certains choix (c'est leur rôle, et
+c'est pourquoi ils vivent dans le dépôt et pas ici). Seul le décompte par
+fichier est transmis. Demander le détail d'un fichier précis si besoin.

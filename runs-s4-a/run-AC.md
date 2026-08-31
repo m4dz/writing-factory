@@ -1,0 +1,86 @@
+---
+run: AC
+etage: A
+role: chapitre complet, hors score
+rag: False
+date: 2026-08-18T01:20:29
+mots: 1321
+entrees_generees: 3
+entrees_detectees: 1
+duree_totale_s: 530
+temps_par_noeud: {"plan": 58.4, "write": 205.2, "review": 172.2, "repair": 93.3}
+garde_fou_60: 1
+fin_pendante: False
+plan: ["28 septembre", "29 septembre", "30 septembre"]
+plan_report: "Plan non vérifié (aucun fait dérivé de la bible)."
+coherence: "Aucun fait dérivé de la bible — cohérence inerte (étage A, rag=False)."
+warnings: ["étage A (rag=False) : aucun fait dérivé — plan non contraint et rapport de cohérence inerte, par construction", "relecture entrée 2: garde-fou 60 % déclenché (264 mots contre 455, soit 58%) — relecture REJETÉE, original conservé"]
+---
+
+Mardi 28 septembre. Ciel gris.
+
+Je me suis réveillée avec une impression bizarre ce matin. Comme si la maison avait retenu son souffle pendant la nuit. J'ai essayé de chasser cette sensation en préparant mon café, mais elle est revenue quand j'ai ouvert les volets. Le jardin semblait plus sauvage qu'à l'ordinaire, comme si la nature avait repris ses droits.
+
+J'ai passé la journée à ranger et nettoyer. La maison était propre, mais il y avait quelque chose d'étrange dans l'air. Chaque pièce semblait contenir un secret que je ne pouvais pas voir. J'ai tenté de me raisonner en me disant que c'était juste mon imagination qui me jouait des tours.
+
+En fin d'après-midi, j'ai décidé de prendre un bain pour me détendre. Je me suis installée dans la baignoire, les yeux fermés, laissant l'eau chaude apaiser mes muscles tendus. C'est alors que je l'ai entendue. Une voix murmurant mon nom. Elle était faible, à peine perceptible, mais elle était bien là.
+
+Je me suis redressée d'un coup, tous les sens en alerte. J'ai tendu l'oreille, mais la voix s'était tue. J'ai attendu un moment, le cœur battant, mais il n'y a eu que le silence. Je me suis raisonnée en me disant que c'était juste mon imagination qui me jouait des tours une fois de plus.
+
+Je suis sortie du bain et j'ai enfilé mon peignoir. En descendant les escaliers, j'ai de nouveau entendu la voix. Cette fois-ci, elle était plus claire. Elle murmurait "aide-moi". J'ai senti un frisson parcourir mon corps. J'ai voulu me convaincre que c'était juste le froid, mais je savais que ce n'en était pas un.
+
+Je suis entrée dans le salon et j'ai allumé toutes les lumières. La pièce était vide, bien sûr. Je me suis assise sur le canapé et j'ai pris une profonde inspiration. Je ne sais pas quoi penser de tout ça. Est-ce que je deviens folle ? Ou est-ce qu'il y a vraiment quelque chose dans cette maison ?
+
+Je pourrais noter ici pourquoi elle est partie, je pourrais au moins noter... Les assiettes étaient sèches. Je les ai rangées.
+
+Jeudi 29 septembre. Ciel nuageux.
+
+Je me suis réveillée avec la même sensation que la veille. Comme si quelque chose avait changé dans la maison, mais je ne savais pas quoi. J'ai regardé autour de moi, cherchant un indice qui expliquerait cette impression étrange, mais tout semblait normal.
+
+J'ai commencé ma journée comme d'habitude : j'ai préparé mon petit-déjeuner, j'ai lu le journal en ligne et j'ai fait quelques étirements pour détendre mes muscles. Mais même ces activités habituelles ne parvenaient pas à chasser ce sentiment de malaise qui s'était installé en moi.
+
+En milieu de matinée, j'ai décidé d'aller faire des courses. J'avais besoin de m'éloigner un peu de la maison et de me changer les idées. J'ai pris ma voiture et je suis allée au supermarché du coin. J'ai rempli mon chariot avec mes articles habituels, puis je suis passée à la caisse.
+
+Alors que je sortais du magasin, j'ai entendu une voix murmurer à nouveau. Cette fois-ci, elle était plus insistante. "Aide-moi", disait-elle encore et encore. J'ai regardé autour de moi, mais il n'y avait personne d'autre dans les environs. Les autres clients étaient trop loin pour avoir entendu quelque chose.
+
+Je suis remontée en voiture et j'ai démarré le moteur. La voix a continué à murmurer pendant tout le trajet du retour. J'ai essayé de me convaincre que c'était juste mon imagination qui me jouait des tours, mais je savais que ce n'en était pas un. Cette voix était réelle.
+
+En rentrant à la maison, j'ai décidé de prendre les choses en main. Je ne voulais pas devenir folle, et je refusais de croire que cette maison était hantée. Il devait y avoir une explication rationnelle à tout ça.
+
+J'ai commencé par vérifier toutes les pièces de la maison, cherchant un éventuel intrus ou un animal qui pourrait expliquer ces murmures. Mais je n'ai rien trouvé. Tout semblait normal.
+
+Je me suis alors installée dans mon bureau et j'ai sorti mes notes sur cette maison. J'avais acheté cet endroit il y a plusieurs années, et j'avais été fascinée par son histoire. Elle avait appartenu à une famille pendant des générations, puis elle avait été vendue à un couple qui l'avait rénovée complètement avant de la revendre. Je me demandais si ces précédents propriétaires avaient vécu quelque chose d'étrange ici.
+
+J'ai passé des heures à lire mes notes et à faire des recherches en ligne sur cette maison et ses anciens occupants. Mais je n'ai rien trouvé de suspect. Il n'y avait aucun indice qui pourrait expliquer les murmures que j'entendais.
+
+Je pourrais noter ici pourquoi elle est partie, je pourrais au moins noter… Les courses étaient dans le sac. Je les ai rangées.
+
+Les assiettes étaient sèches. Je les ai rangées.
+
+Vendredi 30 septembre. Ciel dégagé.
+
+Ce matin, je me suis réveillée avec un poids dans l'estomac, comme si une présence s'était invitée pendant la nuit et refusait maintenant de partir. J'ai essayé de me convaincre que c'était simplement mon imagination qui me jouait des tours, mais je savais que cette sensation était différente.
+
+J'ai descendu les marches jusqu'à la cuisine, mais je n'avais pas d'appétit. Je me suis préparé un café et j'ai pris place dans le salon. Les rayons du soleil filtraient à travers les fenêtres, baignant la pièce dans une lumière chaude et dorée. Cependant, cette belle journée ne parvenait pas à dissiper mon malaise.
+
+Je suis restée là, immobile, fixant le vide devant moi. Puis, sans vraiment savoir pourquoi, j'ai décidé de monter à l'étage. Je me suis dirigée vers la chambre d'amis, celle qui avait été ma chambre avant que je ne déménage ici. J'avais laissé quelques affaires dans cette pièce, des souvenirs de mon passé.
+
+En entrant dans la pièce, j'ai senti une présence. Comme si quelqu'un était là avec moi. J'ai parcouru la pièce du regard, mais il n'y avait personne. Je me suis raisonnée en me disant que c'était juste mon imagination qui me jouait des tours.
+
+Je me suis mise à fouiller dans les boîtes que j'avais empilées dans un coin de la pièce. Je ne savais pas vraiment ce que je cherchais, mais j'avais besoin de m'occuper l'esprit. J'ai sorti quelques vêtements que j'avais oubliés ici et je les ai posés sur le lit.
+
+C'est alors que j'ai entendu la voix à nouveau. Cette fois-ci, elle était plus forte que jamais. "Aide-moi", répétait-elle encore et encore. Je me suis figée sur place, le cœur battant à tout rompre. J'ai fermé les yeux et j'ai pris une profonde inspiration, essayant de calmer mes nerfs.
+
+Quand j'ai ouvert les yeux, j'ai vu quelque chose qui m'a glacée jusqu'à la moelle. Sur le mur face à moi, il y avait une inscription gravée dans le plâtre. "Aide-moi", disait-elle. Les mêmes mots que ceux que j'entendais depuis des jours.
+
+Je suis restée là, à fixer l'inscription, incapable de bouger ou de penser. Puis, lentement, je me suis approchée du mur et j'ai passé mes doigts sur les lettres. Elles étaient nettes et bien définies, comme si elles avaient été gravées hier.
+
+Je ne sais pas combien de temps je suis restée là, à fixer l'inscription. Mais quand j'ai finalement réussi à bouger, j'ai descendu les escaliers en courant et j'ai sorti mon téléphone de mon sac à main. J'ai appelé mon médecin et j'ai pris rendez-vous pour demain matin.
+
+Je pourrais noter ici pourquoi elle est partie, je pourrais au moins noter… Les vêtements étaient sales. Je les ai lavés.
+
+Les assiettes étaient sèches. Je les ai rangées.
+
+Je ne sais pas ce qui se passe dans cette maison, mais je sais que je dois trouver une explication. J'ai besoin de savoir si je deviens folle ou si quelque chose d'étrange se passe vraiment ici. Et j'espère que mon médecin pourra m'aider à y voir plus clair.
+
+Je n'ai pas rêvé.

@@ -96,217 +96,51 @@ podman-compose.yml        # openwebui + chromadb + indexer (profil tools)
   (« ne dirait jamais ») : les exemples négatifs ancrent mieux la voix.
 - Personnages du récit : 2 principaux, 3 secondaires (à créer).
 
-## État actuel
+## État actuel — au 2026-08-27, après sept sessions de mesure
 
-- [x] Structure du projet, template personnage 7 chunks
-- [x] podman-compose : ChromaDB (port 8000) + indexeur (profil tools)
-- [x] Indexeur idempotent testé (parsing/chunking validés hors connexion)
-- [x] query_test.py pour valider le retrieval
-- [x] Validation sur machine réelle (Ollama 127.0.0.1:11434 + ChromaDB) :
-      connectivité conteneur→Ollama OK sans `--add-host`, embeddings 768d,
-      index/query/purge/persistance validés. Bug purge sur bible vide corrigé.
-- [~] Peupler le premier personnage principal : fiches SCAFFOLD temporaires
-      (Élara, Kael, forge, scène) dans `bible/`, marquées à remplacer par le
-      canon issu de la conversation littéraire dédiée.
-- [x] Modèle auteur tranché : mistral-nemo Q8_0 (benchmark, cf. section Modèles).
-- [x] Orchestrateur LangGraph (mode auteur) : `orchestrator/`, pipeline
-      plan → écriture (boucle) → relecture → réparation → cohérence, RAG
-      dynamique assemblé à la requête. Bout-en-bout, chapitre 4-5 scènes en
-      ~12-19 min (marge large sur les 35 min). Répétition, écho RAG et
-      troncature réglés.
-- [x] Modèle QA/lint tranché : **Qwen 2.5 7B** (benchmark, cf. section Modèles),
-      phase POST-génération (swap nemo→Qwen unique, ~26 tok/s).
-      * `repair()` : réécrit les fuites d'anglais de nemo → VALIDÉ, lint propre.
-      * cohérence par faits : VALIDÉ sur fixture (protocole faits → questions
-        de violation → réponses par scène, cf. Notes d'architecture). ~21 s
-        pour 5 faits × 4 scènes.
-- [x] **Run bout-en-bout post-correctifs (2026-08-06, 12 h 15)** : machine
-      redémarrée, agent launchd en place, `NUM_CTX=8192`. Chapitre 3 scènes,
-      17 appels, 8855 tokens, **877 s (14,6 min)** — sous les 25 min. Aucun
-      `ctx_truncated`, aucun `done_reason: length`, `ctx_need` plafonne à 0,60 :
-      la fenêtre de 8192 est confortable, la troncature silencieuse est bien
-      éteinte. Zéro fuite d'anglais sur CE tirage — mais le run suivant en a
-      produit trois (`of`, `the`, `sentantProbablement`) : `num_ctx` n'était
-      donc PAS la cause des fuites, nemo leake bel et bien, et c'est la
-      réparation par Qwen qui tient la ligne (texte final propre dans les deux
-      cas). Ne pas conclure sur un tirage unique. Un seul défaut de génération
-      (token collé
-      `confessionUnexpected`), réparé par Qwen. Cohérence : 4 faits tenus,
-      3 signalements tous écartés par le contre-appel ou la vérification de
-      citation — aucun faux positif n'est passé. Mémoire : nemo 13,1 GB +
-      embed 0,4 GB chauds pendant l'écriture, `unload()` confirmé au passage
-      QA (Qwen 4,8 GB seul). Swap monté à 8 GB alloués / 600 MB libres sans
-      incident, disque à 217 GB : aucune panique.
-- [x] **Faits de la bible en CONTRAINTE du plan (2026-08-06, 13 h).** Le nœud
-      de plan dérive d'abord les invariants (Qwen), planifie sous contrainte
-      explicite (nemo), puis le plan est confronté aux faits AVANT d'écrire —
-      même protocole que la cohérence (faits → questions de violation →
-      lecture), appliqué à quatre lignes : ~13 s. Une replanification au plus
-      (`MAX_PLAN_ATTEMPTS = 2`), au-delà on écrit quand même en signalant.
-      Les faits dérivés une seule fois sont réutilisés par le rapport final :
-      mêmes invariants pour contraindre et pour juger.
-      * Validé en test ciblé : le plan fautif du run précédent (« Élara
-        découvre les détournements ») est attrapé, un plan propre passe.
-      * Validé en run complet : la première tentative a été REFUSÉE, la
-        seconde est passée, le chapitre final tient les 5 faits. Le dispositif
-        a donc travaillé pour de vrai, pas seulement en test.
-      * Coût : ~2 min (dérivation 16 s, vérification 13 s, et surtout un
-        rechargement de nemo à la replanification) contre 14 s avant.
-      * **Run 2 : 1212 s (20,2 min) pour 4 scènes, 31 appels.** La marge sur
-        les 25 min tombe à ~5 min, et c'est le PLAN À 4 SCÈNES qui coûte, pas
-        la vérification (~4 min de rédaction/relecture/QA supplémentaires).
-        Pour la scène, imposer 3 scènes plutôt que « 3 ou 4 » est le levier
-        évident.
-- [x] **Amputation par `num_predict` traitée (2026-08-06, 14 h).** Constat :
-      l'écriture de la scène 3 du run 2 a fini en `length` (1400/1400), coupée
-      en plein mot ; la relecture a travaillé sur un texte tronqué et la scène
-      suivante a hérité d'un état narratif inachevé. Ollama ne signale rien
-      d'autre que `done_reason: "length"`.
-      * **Monter `num_predict` a été écarté** : un modèle qui n'a pas fini à
-        1400 tokens ne finira pas davantage à 1800, il occupe l'espace offert.
-        Ça déplace le plafond sans supprimer le cas.
-      * **Retenu : continuation (une au plus) + coupe propre en filet**
-        (`_generate_whole` dans `graph.py`). On renvoie la queue du texte avec
-        consigne de terminer, on recolle ; si le modèle dépasse encore, on
-        tronque à la dernière phrase complète (`trim_to_sentence`) plutôt que
-        de laisser un mot coupé. Le filet n'est jamais le premier recours : il
-        rend une scène sans l'état final que le plan lui demandait.
-      * Coût : un appel seulement quand le cas se produit (~50-70 s mesurés).
-        Le chemin normal est inchangé.
-      * Deux pièges du recollement, trouvés au test et corrigés : le modèle
-        reprend souvent par une phrase NEUVE au lieu de finir la précédente
-        (« …dans un coin de la pièce Elle s'en approcha ») — on ferme le
-        fragment orphelin, par des points de suspension devant une réplique
-        (« Il hésita, puis… / — Tu mens ») et par un point devant une majuscule
-        ordinaire ; et il recopie parfois toute la queue, dont il faut retirer
-        le chevauchement AU CARACTÈRE près (un pas plus grossier laisse un
-        résidu au milieu du texte).
-      * Piège de typographie : la fin de phrase française admet une espace
-        avant le guillemet fermant (« Va-t'en. »). L'oublier faisait classer un
-        dialogue correctement terminé comme une phrase en cours.
-- [x] **Run de référence (2026-08-06, 22 h 56) : 1022 s — 17,0 min**, 4 scènes,
-      24 appels, 11050 tokens, 23,9 tok/s moyens. Machine fraîchement
-      redémarrée, aucun démon d'entretien, run lancé AU PREMIER PLAN (`nice 0`,
-      vérifié par `ps`). Cadence d'écriture régulière (1m55, 1m33, 1m45, 1m29)
-      **sans aucun trou** : le motif pathologique des runs 3 et 4 disparaît avec
-      le démon. C'est le seul chiffre comparable aux 14,6 min du run 1, et il
-      laisse 8 min de marge sur les 25.
-      * Plan validé du PREMIER coup contre 3 faits (pas de replanification).
-      * Cohérence : 3 faits tenus, 2 signalements écartés au contre-appel.
-      * Texte final sans aucune alerte de lint. Une fuite (`the`) et deux fins
-        pendantes rattrapées en amont.
-      * Le filet de coupe a tiré sur deux scènes **alors qu'aucun appel n'a fini
-        en `length`** : nemo émet parfois son EOS en pleine phrase. Le filet est
-        donc utile hors troncature, mais il retirait du texte sans dire lequel —
-        corrigé, l'avertissement cite désormais l'extrait supprimé.
-- [x] **Mode acteur (roleplay) — première version (2026-08-07).**
-      `orchestrator/roleplay.py` (module) + `chat_character.py` (REPL).
-      `llm.chat_turns()` ajouté pour le multi-tours ; `retrieval.acting_context`
-      charge SIX chunks (voix, psychologie, état courant, histoire, relations,
-      comportement) là où l'écriture n'en charge que trois — un acteur se fait
-      interroger sur son passé, et « je ne sais pas » sur sa propre biographie
-      EST une sortie de personnage. Prompt système ~3,5k caractères, `ctx_need`
-      plafonne à 0,19 : large marge.
-      * **Aucun swap de modèle en session** : le résumé glissant est produit par
-        nemo, pas par Qwen. L'arbitrage est l'INVERSE du pipeline auteur — là,
-        un swap unique se paie sur vingt minutes ; ici, l'utilisateur attend sa
-        réponse, recharger 13 GB au milieu d'un dialogue coûterait plus que tout
-        le reste.
-      * Mémoire à deux niveaux : N derniers échanges verbatim (`RP_KEEP_TURNS`,
-        6 par défaut), le surplus fondu dans un résumé glissant. À la fermeture,
-        le résumé est écrit en Markdown sous `sessions/<personnage>/` PUIS indexé
-        dans une collection Chroma **séparée** (`sessions`). Séparée parce que
-        l'indexeur de la bible purge les chunks orphelins : un souvenir logé
-        dans `bible` disparaîtrait au premier réindexage. Le sens du flux du
-        projet (Markdown d'abord, index dérivé) vaut aussi pour la mémoire.
-      * Coût mesuré : 10-18 s par réplique (~90-140 tokens), 36 s quand une
-        reprise se déclenche. Session de 7 tours + résumés : 160 s.
-      * `sessions/*/` est gitignoré : ces souvenirs sont canoniques pour la
-        machine qui les a produits, pas pour le récit partagé. Ce qui devient
-        vérité du monde a sa place dans `bible/`.
-- [ ] Peupler le canon : remplacer les fiches SCAFFOLD par les fiches réelles
-- [x] Intégration frontend TRANCHÉE (2026-08-08) : notre propre API + une page
-      servie par elle, pas OpenWebUI (cf. « Intégration deck / TTS »).
-- [x] **Habillage démo (2026-08-07)** : `orchestrator/progress.py`, actif PAR
-      DÉFAUT dans `run_chapter.py` (`--muet` pour mesurer sans).
-      * Le graphe ne connaît pas l'affichage : les nœuds appellent
-        `progress.phase()` / `note()` sur un puits global, inactif par défaut —
-        donc importer le graphe depuis un test n'affiche rien et ne coûte rien.
-      * **Streaming des tokens plutôt qu'un spinner.** Un compte à rebours qui
-        tourne pendant un appel de 1 min 45 prouve que le temps passe, pas que
-        la machine calcule. `llm.chat_turns(on_token=…)` active le mode streamé ;
-        SANS callback, la requête reste non-streamée, à l'octet près comme avant
-        — le pipeline a été mesuré dans ce mode, l'habillage ne doit pas rejouer
-        cette validation. Vérifié : mêmes clés de métriques, `prompt_toks`
-        identique à prompt égal, les fragments reçus reconstituent exactement le
-        texte final.
-      * Deux rendus : panneau d'une ligne réécrit en place sur un terminal
-        (throttle à 5 Hz — 9 redessins pour 40 tokens), lignes plates
-        horodatées dès que la sortie est redirigée. Une barre réécrite en place
-        remplirait un `> run.log` de milliers de `\r`, et c'est justement le cas
-        d'usage.
-- [~] **API de démo (`orchestrator/api.py`) — contrat gelé par le talk.**
-      Le dépôt du talk portait déjà un changement openspec
-      (`changes/remote-integration-contract/`) marqué « BLOQUÉ : la surface
-      d'intégration côté machine n'existe pas encore ». Il FIGE le contrat, et
-      c'est nous qui bloquions. On l'implémente, on ne le rediscute pas.
-      * `POST /generate` → `202`, fire-and-forget, **idempotent** (un second
-        POST ne relance pas ; après un échec, en revanche, il relance).
-      * `GET /chapter` → `200 text/markdown` (contiendra `<!-- BASCULE -->`),
-        sinon `204`. `GET /audio` → `200 audio/wav`, sinon `204`.
-      * `GET /status` → `200 {phase, ready, …}`. `phase` ∈ `generating | tts |
-        ready | error` (le type `GenStatus` du deck) ; tous les autres champs
-        (`progress`, `label`, `detail`, `notes`, `elapsed_s`) sont ADDITIFS et
-        le deck peut les ignorer — c'est la condition pour enrichir le compte à
-        rebours sans toucher au contrat. Le compte à rebours du deck reste
-        AUTONOME : il ne dépend jamais de nos réponses.
-      * `http.server` de la bibliothèque standard, pas de FastAPI : quatre
-        routes, du CORS et un job unique en vol. Les dépendances restent
-        `langgraph` + `chromadb-client`.
-      * **Le deck ne doit jamais voir d'erreur** : préflight refusé, modèle
-        tombé, exception dans le graphe — tout devient `204` sur les ressources
-        et `phase: error` sur `/status`, jamais un 500. C'est le deck qui
-        bascule en silence sur ses assets embarqués.
-      * **Les artefacts vont sur DISQUE avant d'être servis** (`output/`) : si
-        l'API meurt après la génération, le chapitre survit et un redémarrage
-        le ressert. Le garder en mémoire de processus perdrait vingt minutes de
-        calcul sur un Ctrl-C.
-      * Vérifié : `204` avant génération, CORS sur `OPTIONS`, `202` deux fois de
-        suite avec `started: true` puis `false`, et un préflight refusé qui
-        atterrit en `phase: error` avec la raison dans `error` et `notes`.
-      * `POST /chat` + page du mode acteur à la racine
-        (`orchestrator/static/acteur.html`, autonome : aucun CDN, aucune police
-        distante — la machine peut être hors réseau, et une démo « locale » qui
-        va chercher dehors trahirait la thèse). Même origine que l'API, donc
-        affichable en iframe depuis une slide. Sessions côté SERVEUR, purgées
-        après 2 h d'inactivité. Mesuré : 43 s au premier tour (chargement de
-        nemo compris), **13 s ensuite**.
-      * **`POST /chat` répond 409 pendant une génération.** Le roleplay et
-        l'écriture partagent le même nemo, et la machine n'en tient qu'un ;
-        les faire cohabiter demande 17,8 GB sur 19,3. Sans ce refus, chaque
-        réplique attendrait la fin de l'appel d'écriture en cours — jusqu'à
-        deux minutes de silence sur scène. **Conséquence de planning : la démo
-        d'acteur se joue AVANT le lancement du chapitre ou APRÈS sa récolte,
-        jamais entre les deux.** Signalé au talk.
-      * ✅ **RUN COMPLET PAR L'API VALIDÉ (2026-08-09) : 842 s = 14 min 02**,
-        `POST /generate` → plan (3 scènes) → écriture → relecture → bascule
-        Qwen → cohérence → assemblage → TTS → `/chapter` et `/audio` servis.
-        Contre 28' au compteur du deck : **14 min de marge**.
-        * Cadence d'écriture 1m43 / 1m38 / 1m25, conforme au run de référence
-          en CLI (1m55 / 1m33 / 1m45 / 1m29) : aucun trou, la voie API ne coûte
-          rien de plus que la CLI.
-        * TTS : 183 s d'audio en 118 s → **×1,55 temps réel**, ce qui confirme
-          le 1,57 mesuré isolément. Le deck estimait 1× (RUNBOOK).
-        * Chapitre de 1425 mots, les deux marqueurs présents et ordonnés. Les
-          **50 mots / 2 phrases** avant la bascule sont exactement ce que le
-          speaker lit à voix nue.
-        * ⚠ **Débit du clone : 177 mots/min, pas 190.** Mon hypothèse venait
-          d'un échantillon de 117 mots et surestimait de 7 % ; sur 540 mots
-          réels l'audio est sorti à 3'03 au lieu des 2'45 visées — au-dessus de
-          la fenêtre du deck. Un texte long porte proportionnellement plus de
-          pauses (fins de phrase + 0,6 s entre segments, soit 7,8 s ici).
-          Recalibré à 177, et la tolérance d'alerte passe de 20 à 15 s : l'écart
-          de 18 s était passé SOUS le seuil, donc en silence.
+**La synthèse complète est dans `docs/passation-generale.md`** (couche PROFONDE,
+hors `bible/`, donc hors de portée de l'indexeur par construction). Ce qui suit
+est l'état opérationnel ; l'historique run par run vit dans `journal-des-murs/`,
+les grilles `grille-lint-*.md` et les archives `retour-*/`.
+
+**La machine est à pied d'œuvre.** Chaîne complète validée : `POST /generate` →
+chapitre → voix clonée → `/chapter` + `/audio`. Répétition du chapitre 7
+chronométrée bout à bout : **7,6 min, 20,4 de marge sur les 28** du compteur du
+deck, deux horloges coïncidentes, veille nulle.
+
+### Acquis, chiffré
+
+- **Zéro fuite lexicale** sur tous les runs scorés depuis B′.
+- **Ancre, en-têtes et chute possédés par le CODE** — préfixage par
+  concaténation réelle, puis tampon APRÈS `repair`, qui les réécrivait. Sur un
+  run, `repair` avait supprimé l'en-tête entier, donc la bascule audio.
+- **Glissement composé** : zéro sur onze runs, puis 4/4. Il n'a jamais manqué au
+  modèle — il était refusé par nos propres validateurs.
+- **Accumulation composée** 6/6, 2-5 % de similarité à l'étalon.
+- **Méta-termes 0/4**, garde d'entrée alignée sur le lint de sortie.
+- **Étanchéité** : 27 chunks, cinq contrôles verts, plus aucun terme réservé
+  indexé. Elle se REPROUVE à chaque réindexation, jamais présumée.
+- **Méthode du mouvement** (2026-08-27) : ordre de service intention →
+  trajectoire → matière → vétos. Mesuré contre le tirage de référence — recopie
+  du prompt **0,94 → 0**, entrée d'ouverture 90 mots → **19**, masse en cible
+  pour la première fois (557 sur 450-600), présence et départ nommé disparus.
+
+### Non acquis
+
+- **La voix à l'oral.** Verdict constant depuis le 2026-08-19 : la restitution
+  chevrote — de la texture par endroits, jamais soutenue. C'est LE sujet.
+- **La trajectoire.** Le dernier tirage ne monte pas, il BOUCLE : les
+  découvertes se répètent au lieu de se rapprocher, et le récit se met à noter
+  ce qu'il vient de raconter. Sujet de brief, pas de câblage.
+- **Le texte de secours.** Structurellement complet, scéniquement fautif.
+
+### Point d'arrêt en cours
+
+**La lecture debout tranche, et rien ne se généralise sans elle.** La grille
+porte une ligne manuelle unique en tête — *le mouvement déclaré est-il
+accompli ?* — et son verdict ouvre trois routes exclusives : généralisation aux
+scene briefs (~30 mouvements à rédiger, écriture d'auteur), ouverture du dossier
+du rythme, ou itération sur la trajectoire.
 
 ## Intégration deck / TTS — décisions du 2026-08-07
 
@@ -396,30 +230,47 @@ lecture bornée : 17 + ~4 = ~21 min.
 
 ## Prochaine étape convenue
 
-**LE CODE EST À PIED D'ŒUVRE.** Chaîne validée d'un seul trait le 2026-08-09 :
-`POST /generate` → chapitre → voix clonée → `/chapter` + `/audio`, en 14 min 02
-(3 scènes ; compter 17-18 min à 4 scènes) contre 28' au compteur du deck. Ce qui
-reste tient au CONTENU et à la coordination, plus à l'implémentation.
+**La lecture debout du propriétaire sur le dernier tirage du chapitre 7.** Rien
+ne se généralise avant — c'est le point d'arrêt du protocole, et il vaut aussi
+contre la session.
 
-1. **Peupler le canon** — le seul vrai chantier restant. Les fiches de `bible/`
-   sont du SCAFFOLD : tout ce qui est validé jusqu'ici tourne sur du contenu
-   jetable. Passe par la conversation littéraire, pas par le code. Réindexer
-   après (`podman-compose --profile tools run --rm indexer`).
-2. **Assets de démo**, une fois le canon en place : sessions de roleplay
-   pré-générées puis CURÉES à la main (§ 4.1 du RUNBOOK), et chapitre + audio
-   de secours à déposer dans `public/fallback/` du dépôt du talk.
-3. **Répétition en conditions réelles**, machine redémarrée, veille coupée,
-   entretien macOS retombé. C'est là qu'on verra le panneau de progression sous
-   les yeux de quelqu'un pendant quinze minutes — il n'a jamais été regardé
-   autrement qu'en terminal simulé.
-4. **Question en attente côté talk** : garder leur reprise tardive (re-POST à
-   moins de 3 min du décompte) avec annulation manuelle par `POST /cancel`, ou
-   la supprimer. C'est leur décompte ; à trancher avant la répétition.
-5. **Mode acteur, deuxième passe** (si le temps le permet) : mémoire longue à
-   l'épreuve de plusieurs sessions, et anachronismes (cf. Points de vigilance).
+Ce qui suit, selon le verdict :
+
+1. **Si le mouvement est accompli** — généralisation aux scene briefs : une
+   trentaine de mouvements par entrée, format départ/bascule/arrivée. C'est de
+   l'écriture d'auteur, jamais générée ni reformulée par le pipeline.
+2. **Sinon** — le dossier du rythme de phrase s'ouvre, avec trois tirages
+   comparables pour le documenter (cases / mouvement à trois appels / mouvement
+   à un appel). Options connues : passe de révision dédiée (risquée, `review` a
+   toujours abîmé), réserves lourdes, ou passe humaine assumée — qui est
+   thématiquement le sujet même du roman.
+3. **Entre les deux** — itérer sur la trajectoire du brief, pas sur
+   l'architecture.
+
+**Chantiers indépendants du verdict :**
+
+- **Lot bible différé** : clôtures en fiche (comment une station se ferme, ce
+  que la dernière ligne ne doit pas faire), symétrisation du prénom de celle qui
+  est partie à l'indexation — il est servi dans dix chunks alors que le roman ne
+  le nomme jamais. Réindexation, puis étanchéité EN ENTIER.
+- **Trois items du lot chapitre-7** que la grille remplie nomme et dont la liste
+  ne m'est pas parvenue (cinq sur huit sont faits).
+- **Keynote** : WAV de secours rendu et archivé, répétition générale complète
+  (préchauffage TTS inclus — 0,60× à froid contre 1,55 chaud), sections figées
+  avec les chiffres.
+- **Question ouverte, à trancher par le propriétaire** : le cadrage public
+  local/cloud. Les travaux fondateurs (bible, calibration, arbitrages) ont été
+  menés en cloud, l'exécution est locale, et le talk affirme que la fabrique
+  locale rend l'œuvre inauditable. C'est la seule ligne qui peut abîmer la thèse
+  en public si elle est mal posée — elle mérite d'être dite tôt, pas masquée.
 
 ## Documents de référence
 
+- `docs/passation-generale.md` — **la synthèse générale du projet** : le roman,
+  la keynote, l'état des deux, les doctrines, les décisions ouvertes et le rôle
+  attendu de la session. Couche PROFONDE : il contient la vérité de fin, il ne
+  va jamais dans `bible/` et n'est jamais servi. Il vit dans `docs/`, que
+  l'indexeur ne lit pas — l'exclusion est structurelle, pas déclarative.
 - `docs/RUNBOOK.md` — toutes les opérations : backends, jetons Telegram,
   génération, préparation des assets, séquence du jour J, pannes courantes.
   C'est LUI qu'on suit sous pression, pas ce fichier.
@@ -476,6 +327,89 @@ reste tient au CONTENU et à la coordination, plus à l'implémentation.
   revenir à `brew services` (les deux agents se disputeraient le port 11434,
   celui de brew ayant `RunAtLoad`).
 
+## Règle de méthode — un instrument se falsifie avant de servir
+
+**Avant de faire confiance à un contrôle, exiger qu'il ÉCHOUE sur un cas
+connu** : injecter le défaut, ou le rejouer sur des sorties dont on sait déjà, à
+la main, qu'elles sont fautives. Un contrôle qui n'a jamais échoué n'a rien
+prouvé — il peut porter sur un ensemble vide, tester une condition impossible,
+ou être débranché de son rapport.
+
+**Le lint fantôme** — un détecteur juste dont le résultat n'atteint jamais la
+grille — est la forme la plus coûteuse, parce qu'elle se lit comme un succès.
+
+Le principe a sauvé le projet trois fois, et à chaque fois le contrôle était
+VERT avant qu'on le falsifie :
+- **Étanchéité (session 4)** : le test interrogeait la collection auteur pour
+  vérifier qu'aucun chunk profond n'en sortait — or le profond vivait dans une
+  autre collection. Il passait *par construction*. Le remède est le témoin
+  positif : on injecte volontairement un chunk profond, il DOIT remonter.
+- **Splitter (session 4)** : le contrôle filtrait les chunks par préfixe d'id,
+  et une divergence de `doc_id` le laissait porter sur **zéro chunk**. Vert sur
+  l'ensemble vide. Il échoue désormais explicitement si l'ensemble est vide.
+- **Grille (session 5)** : cinq détecteurs existaient dans `lint_style.py` et
+  aucun n'avait de ligne dans `grille_session.py`. Ils calculaient, on jetait le
+  résultat — d'où un attracteur passé sans croix sur un run entier.
+
+Corollaire pratique : **automatiser un contrôle et le rendre bloquant sont deux
+décisions distinctes.** Les confondre fait échouer un run sur un tic mineur
+pendant que les critères qui comptent passent.
+
+**Et il se falsifie DANS LES DEUX SENS.** Pas seulement « rate-t-il le
+défaut ? », mais « refuse-t-il la référence ? ». Les erreurs des sessions 6 et 7
+sont presque toutes du second type — des contrôles justes en apparence qui
+rejetaient l'étalon, la banque, l'accumulation, ou la structure imposée par le
+brief. Quatre occurrences : `CHAMP_DEPART` exigeait le mot du départ dans une
+phrase dont l'objet est de s'interrompre avant ; le critère « propositions
+verbales » rejetait l'accumulation de l'étalon, nominale à 88 % ; la similarité
+de mots aurait supprimé l'accumulation elle-même ; un filtre de longueur
+masquait le seul vrai doublon.
+
+## Les doctrines — l'acquis le plus précieux, les tenir
+
+Sept sessions les ont établies, chacune payée par un run raté. Elles sont
+développées dans `docs/passation-generale.md` §4.
+
+1. **Le modèle fournit la matière, le code tient le geste.** Chute, ancre,
+   en-têtes, glissement, assemblage : au code.
+2. **La chaleur ne se génère pas, elle se compose.** Le cloisonnement affame
+   le modèle en matière chaude par construction : sa chaleur spontanée est
+   donc inventée de toutes pièces, toujours dans les passages chauds.
+3. **Compter n'est pas lire.** La grille automatique est un VÉTO ; le juge est
+   la lecture debout.
+4. **Falsifier dans les deux sens** (ci-dessus).
+5. **Les instruments mentent** : lint fantôme, message qui rapporte autre chose
+   que ce que la porte mesure, chronomètre qui s'arrête en veille. Aucun
+   détecteur sans sa ligne de grille ; aucun chiffre sans son horloge.
+6. **Montré = récité.** Tout ce qui est servi peut ressortir verbatim — les
+   contre-exemples autant que les exemples, et jusqu'aux mots de nos propres
+   consignes (une consigne d'ouverture est sortie recopiée à 0,94). Les
+   instances vivent dans l'outillage ; le contexte servi ne porte que des
+   catégories.
+7. **Un vide dans la matière servie se remplit toujours** — par le monde
+   générique du modèle, ou par un emprunt à un autre chapitre. Le vide s'écrit.
+8. **Une consigne qui décrit ce que le personnage décide produit un personnage
+   qui décrit ses décisions.** Les consignes énoncent des faits et des
+   trajectoires, jamais des intentions.
+9. **L'exception se déclare en DONNÉES, jamais en assouplissement de règle**
+   (`entrees_spec`). Corollaire : tout validateur écrit avant une structure la
+   lit comme une anomalie.
+10. **L'interdit seul déplace le défaut** : la fiche dit ce que le personnage
+    fait *à la place*.
+11. **Toute fiction imbriquée est un tunnel sous le cloisonnement lexical.**
+12. **Chaque dispositif qui règle un défaut en crée un à l'endroit qu'il
+    touche** — l'y chercher, systématiquement. Le découpage a réglé la masse et
+    fabriqué trois arcs ; les stations ont réglé le plancher et fabriqué une
+    litanie.
+13. **Une seule variable entre deux mesures ; les runs ratés sont de la
+    matière** (`journal-des-murs/`, une pièce par cause).
+14. **Le lint d'archive porte sur l'ensemble FINAL, juste avant l'envoi.**
+    Deux archives sont parties avec un fichier non vérifié : le README avait été
+    écrit APRÈS la passe de lint. Linter puis ajouter puis expédier, c'est ne
+    pas avoir linté — la doctrine 5 appliquée à sa propre procédure. Rien ne
+    part sans une passe sur le répertoire complet, à la seconde qui précède
+    l'archivage.
+
 ## Points de vigilance connus
 
 - **LA MISE EN VEILLE CASSE OLLAMA, ET `/api/ps` NE LE DIT PAS (2026-08-07).**
@@ -519,13 +453,54 @@ reste tient au CONTENU et à la coordination, plus à l'implémentation.
   * **Lancer le run au PREMIER PLAN** (terminal, `nice 0`). Un lancement
     détaché (`nohup … & disown`) hérite d'une priorité basse : à ce niveau,
     n'importe quel démon le double.
-- **UN RUN PAR DÉMARRAGE.** Le swap ne se rend pas à chaud : après un run,
-  `vm.swapusage` reste saturé et le préflight bloque, à raison — la machine n'a
-  plus de marge pour un modèle de 13 GB sur 18 GB unifiés. Ce blocage a
-  d'ailleurs remplacé un raisonnement erroné du matin (« saturé n'est dangereux
-  qu'avec un disque plein ») : macOS agrandit bel et bien le swap, mais une
-  machine qui vit sur son swap n'est pas une machine sur laquelle on chronomètre
-  une démo.
+- **LE CHRONOMÈTRE S'ARRÊTAIT PENDANT LA VEILLE (2026-08-25).** `time.monotonic()`
+  ne compte pas le sommeil système sur macOS, `time.time()` si — et le budget de
+  scène est du temps de MUR : le compteur du deck tourne pendant que le public
+  attend. Un run annonçait 374 s de calcul pour 2682 s réelles, et la métrique
+  disait que tout allait bien. Les deux horloges sont désormais relevées, l'écart
+  est au frontmatter (`veille_s`), et au-delà de 30 s le run se signale comme
+  NON COMPARABLE.
+  * ⚠ **`caffeinate -is` NE SUFFIT PAS sur batterie** : le « Maintenance Sleep »
+    passe outre. 737 s de veille mesurées pendant un rejeu sous caffeinate.
+    **Machine branchée pour toute mesure qui compte.**
+- **`BG_NICE` DE ZSH MET LES JOBS D'ARRIÈRE-PLAN À NICE 5 (2026-08-25).** C'est
+  le mécanisme exact derrière « lancer le run au premier plan » : à ce niveau,
+  n'importe quel démon d'entretien double le processus de génération.
+  `unsetopt BG_NICE` avant tout lancement détaché, et vérifier avec
+  `ps -o ni= -p $$`.
+- **`python … | tee` REND LE CODE DE `tee`.** Sans `set -o pipefail`, un
+  abandon-sur-échec ne se déclenche jamais : une série a enchaîné trois runs
+  vides en deux secondes en croyant les avoir joués.
+- **EN SÉRIE, LE SUCCÈS DU RUN N BLOQUE LE RUN N+1.** Le préflight a été conçu
+  pour UN run sur machine fraîche ; le run précédent laisse nemo chaud (13 GB) et
+  le garde du swap refuse le suivant. Décharger les modèles ET attendre un
+  préflight vert AVANT CHAQUE RUN, pas une seule fois au début.
+- **LE GARDE DU SWAP NE POUVAIT PAS REDEVENIR VERT (2026-08-25).**
+  `free = total - used`, et macOS dimensionne `total` juste au-dessus de `used` :
+  `free < 2 GB` est l'état stationnaire normal, pas un symptôme. Le garde mesure
+  désormais ce que la règle NOMME — le débit de pageouts. Un swap consommé mais
+  froid est de la mémoire que personne ne relit.
+- **~~UN RUN PAR DÉMARRAGE~~ — RÉVISÉ LE 2026-08-09, LA RÈGLE ÉTAIT FAUSSE.**
+  On lisait ici que « le swap ne se rend pas à chaud ». Mesuré, sans autre
+  intervention que l'expiration de `keep_alive` d'Ollama : mémoire libre
+  **11 % → 87 %**, swap `used` **−1,35 GB**, et `total` **4096 → 3072 MB**.
+  macOS rend les pages ET rétrécit les swapfiles dès que le consommateur lâche
+  la mémoire. Décharger le modèle suffit ; redémarrer était un rituel.
+  * Pire, le blocage était un PROXY de deux causes déjà mesurées ailleurs, et
+    le dossier le disait déjà : les kernel panics venaient d'un **disque à 99 %**
+    (couvert par `MIN_DISK_GB`), les trous de 5 à 18 minutes de
+    **`mediaanalysisd`** (couvert par `NOISY_DAEMONS`, et explicitement
+    disculpés du swap par le run 4, reproduit swap à zéro). Il coûtait un
+    redémarrage par session de test sans apporter un signal propre.
+  * Ce qui restait vrai, et qui est conservé : une machine qui vit sur son swap
+    ne donne pas des DURÉES fiables. D'où `preflight(chrono=True)` — bloquant
+    pour `run_chapter.py` et l'API, où le chiffre est l'objet ; simple
+    avertissement pour l'outillage de calibration, qui juge de la prose.
+  * Remède, dans l'ordre : `ollama stop <modèle>`, puis `sudo purge` si besoin.
+    Redémarrer en dernier recours.
+  * Leçon de méthode, la même qu'au run 4 : un seuil qui corrèle n'est pas un
+    seuil qui cause. Avant d'imposer un rituel, vérifier que le signal bloquant
+    n'est pas déjà couvert par un signal direct.
 - **Sessions de roleplay REJOUABLES (2026-08-08)** — le fichier de session porte
   désormais DEUX sections : `## Ce qui s'est dit` (le résumé glissant, c'est lui
   qui est indexé et qui nourrit les sessions suivantes) et `## Transcription`

@@ -12,3 +12,13 @@ orchestrator/.venv/
 sessions/*/
 !sessions/.gitkeep
 output/
+
+# Archives de TRANSPORT (paquets reçus des conversations de style, retours
+# envoyés). Leur contenu est déplié dans le dépôt : garder le zip en plus
+# dupliquerait la source de vérité.
+*.zip
+
+# Rendus vocaux des runs : dérivés, lourds, et regénérables depuis le texte.
+# Le WAV qui compte — le chapitre de secours pré-rendu — est archivé
+# délibérément selon le RUNBOOK, pas ramassé au fil des tirages.
+runs-*/*.wav

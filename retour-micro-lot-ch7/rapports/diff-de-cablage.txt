@@ -1,0 +1,11 @@
+ orchestrator/chapitre.py    |  54 [32m+++[m[31m-[m
+ orchestrator/gestes.py      | 267 [32m+++++++++++++[m[31m--[m
+ orchestrator/graph.py       | 758 [32m++++++++++++++++++++++++++++++++++++++[m[31m-----[m
+ orchestrator/preflight.py   |  71 [32m++++[m
+ outillage/grille_session.py | 126 [32m+++++++[m[31m-[m
+ outillage/lint_style.py     | 773 [32m+++++++++++++++++++++++++++++++++++++++++++[m[31m-[m
+ outillage/run_s4.py         | 319 [32m+++++++++++++++++[m[31m-[m
+ 7 files changed, 2226 insertions(+), 142 deletions(-)
+
+Décompte par fichier seulement. Le diff intégral n'est pas joint : les
+commentaires du code citent la couche profonde pour justifier certains choix.

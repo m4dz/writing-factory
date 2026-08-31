@@ -15,9 +15,15 @@ import os
 import re
 
 from llm import chat
-from retrieval import character_context
+from retrieval import world_context
 
 QA_MODEL = os.environ.get("QA_MODEL", "qwen2.5:7b-instruct")
+
+# Vocabulaire de PRODUCTION, interdit dans les faits dérivés (item 3).
+VOCAB_PILOTAGE = re.compile(
+    r"\b(verdict impos[ée]|relecture blanche|grade|ratio|chapitre\s*\d|"
+    r"r[ée]gime\s*\d|marche des explications|objets actifs|chaleur|"
+    r"table de pilotage|s[ée]ances)\b", re.IGNORECASE)
 
 # --- Réparation linguistique -------------------------------------------------
 
@@ -117,9 +123,27 @@ _ANSWER_RE = re.compile(r"Q\s*(\d+)\s*[:.\-–—]?\s*(OUI|NON)\b[\s:.\-–—]*
 _QUOTE_RE = re.compile(r"[«\"“]\s*(.+?)\s*[»\"”]")
 
 
+
+# FAITS DE MONDE NÉGATIFS (bloc D, étage C). La 5e configuration M4 de B′3 — la
+# mémoire qui se RÉÉCRIT pour rejoindre le texte : un dîner fabriqué avec
+# « elle », des rires, une présence — a traversé toute la chaîne sans détection.
+# `coherence` a déclaré le fait « séparation définitive » TENU en face de « nous
+# avons ri hier soir ».
+#
+# La raison est structurelle : les faits dérivés sont POSITIFS (ce qui est), et
+# une question de violation bâtie sur un fait positif ne sait pas voir ce qui ne
+# devrait pas être. Un fait négatif explicite se convertit, lui, en question
+# d'événement dont le OUI vaut violation — exactement le protocole qui marche
+# depuis la session 1.
+FAITS_NEGATIFS = [
+    "Personne d'autre n'entre dans la maison.",
+    "Aucun repas n'est partagé, aucune conversation n'a lieu.",
+    "Elle ne sort pas de la maison.",
+]
+
 def derive_facts(characters: list[str]) -> tuple[list[str], dict]:
     """Dérive les faits structurants depuis les fiches (fetch par id, no embed)."""
-    ctx = "\n\n".join(character_context(c) for c in characters if character_context(c))
+    ctx = "\n\n".join(world_context(c) for c in characters if world_context(c))
     text, m = chat(_FACTS_SYS, ctx, model=QA_MODEL, temperature=0.1,
                    num_predict=400)
     facts = [
@@ -127,7 +151,13 @@ def derive_facts(characters: list[str]) -> tuple[list[str], dict]:
         for line in text.splitlines()
         if line.strip().startswith(("-", "*"))
     ]
-    return [f for f in facts if f], m
+    # Filtre de PILOTAGE : un fait qui parle de la fabrication du chapitre
+    # n'est pas un fait du monde. Servis au planificateur, ces pseudo-faits
+    # l'ont fait raisonner en formulaire (mode constaté sur tout l'étage B).
+    facts = [f for f in facts if f and not VOCAB_PILOTAGE.search(f)]
+    # Les faits négatifs sont AJOUTÉS, jamais dérivés : un modèle qui résume des
+    # fiches énonce ce qui est, pas ce qui est exclu.
+    return facts + FAITS_NEGATIFS, m
 
 
 def _parse_questions(text: str, questions: list[str], indices: list[int]) -> None:

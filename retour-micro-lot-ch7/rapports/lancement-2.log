@@ -1,0 +1,15 @@
+[01:37:00] lanceur à nice 0
+[01:37:00] modèles déchargés, attente d un preflight vert pour CH7
+[01:37:06] préflight vert (attente 0s)
+[01:37:11] === CH7 ===
+  ⚠ Swap : 1.61 GB libres sur 10.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total` au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les durées restent interprétables.
+
+==================================================================
+[CH7] répétition — chapitre 7 en conditions réelles — rag=True
+==================================================================
+[CH7] 1049 mots, 2 entrée(s), 638s → runs-ch7/run-CH7.md
+        temps par nœud : {'plan': 77.1, 'write': 240.0, 'accumulate': 75.4, 'review': 159.2, 'repair': 62.9, 'coherence': 22.3}
+        collections interrogées : ['auteur']
+
+Grille : python3 outillage/grille_session.py runs-ch7 450-600
+[01:47:56] SÉRIE TERMINÉE

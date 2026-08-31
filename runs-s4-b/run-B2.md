@@ -1,0 +1,33 @@
+---
+run: B2
+etage: B
+role: score
+rag: True
+date: 2026-08-18T10:48:00
+mots: 193
+entrees_generees: 1
+entrees_detectees: 1
+temperature: 0.7
+duree_s: 339
+done_reason: stop
+temps_par_noeud: {"plan": 139.1, "write": 71.2, "review": 82.6, "repair": 34.7, "coherence": 9.3}
+garde_fou_60: 0
+collections_interrogees: ["auteur"]
+fin_pendante: False
+plan: ["Chapitre 2, entrée unique du carnet, 450-600 mots. En-tête imposé, première ligne exacte : « Mardi 12. Ciel couvert. »\nSquelette, dans l'ordre : en-tête → citation → constat → reconstruction → verdict → notation physiologique → couperet.\nCitation ancre, recopiée verbatim entre guillemets après l'en-tête : « Deux assiettes mises, sans y penser. Je l'ai laissée sur la table jusqu'au matin. »\nBeats : 1. le rituel posé en une ou deux phrases — elle relit l'entrée de la veille du cahier, comme chaque soir. 2. La citation, puis le constat d'écart : sa mémoire dit une assiette, un dîner seule. 3. La vérification, perceptive : la cuisine, l'égouttoir — regarder, compter ; la vérification confirme l'entrée, pas sa mémoire. 4. La rationalisation argumentée : la fatigue, l'automatisme — et la spirale de reprise des faits dans l'ordre. 5. Verdict : erreur de relevé — la faute est à elle, pas au texte ; résolution de pointer plus précisément ; physiologie ; couperet.\nMatériau : le cahier, le carnet, l'assiette, l'égouttoir.\nInterdits : aucun nom propre, aucun dialogue, aucune explication, « journal » et « journal intime » bannis, aucun terme réservé (la tierce, l'errata, le bon à tirer)."]
+plan_report: "Plan non vérifié (aucun fait dérivé de la bible)."
+coherence: "FAIT 1 : tenu — Judith relit chaque soir l'entrée de la veille de son cahier et la commente dans un carnet.\nFAIT 2 : tenu — Elle cite exactement les passages entre guillemets dans son carnet.\nFAIT 3 : tenu — Le verdict imposé est une erreur de relevé lors de sa première relecture blanche.\nFAIT 4 : tenu — Sa peur principale est de perdre le métier en devenant une mauvaise correctrice."
+warnings: ["plan sans ligne numérotée — repli sur une entrée unique tirée du brief. Attendu sur un brief mono-entrée, où planifier est dégénéré : le modèle rédige au lieu de découper, et le brief fait lui-même office de beat"]
+---
+
+Mardi 12. Ciel couvert.
+
+"Deux assiettes mises, sans y penser. Je l'ai laissée sur la table jusqu'au matin." C'est ce que je lis dans mon cahier hier soir, en relisant l'entrée de la veille comme chaque soir. Mais ma mémoire me dit quelque chose de différent : une seule assiette, un dîner solitaire. Je fronce les sourcils et décide de vérifier.
+
+Dans la cuisine, l'égouttoir m'attend avec ses deux assiettes propres et sèches. Ma mémoire a visiblement défailli. Je tente de me rappeler hier soir : la fatigue après une journée de travail intense doit y être pour quelque chose. J'ai sans doute agi mécaniquement, sans prêter attention à mes gestes.
+
+Pour éviter ce genre de confusion à l'avenir, je décide de noter plus précisément mes actions du soir. Après tout, c'est mon métier de relever les détails et je ne devrais pas faillir dans ma propre vie.
+
+Mon corps commence à se raidir légèrement, mais je choisis de l'ignorer pour le moment. Je range les assiettes propres dans le placard et me fais la promesse de ne plus laisser de vaisselle sale sur la table jusqu'au matin.
+
+Couperet : erreur de relevé.

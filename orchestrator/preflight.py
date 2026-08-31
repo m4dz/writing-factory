@@ -46,6 +46,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 import urllib.error
 import urllib.request
 
@@ -54,7 +55,55 @@ OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 # Seuils. Le disque doit pouvoir absorber la croissance du swap (macOS va
 # jusqu'à ~2× la RAM physique) plus une marge de travail.
 MIN_DISK_GB = float(os.environ.get("PREFLIGHT_MIN_DISK_GB", "20"))
+
+# Swap : AVERTISSEMENT par défaut, bloquant seulement en mode chrono
+# (cf. `preflight(chrono=...)`). Révision du 2026-08-09, sur mesure.
+#
+# Ce seuil bloquait tout, et il le faisait sur un raisonnement que le dossier du
+# projet contredit lui-même :
+#   - Les kernel panics venaient d'un DISQUE À 99 % (macOS ne pouvait plus
+#     agrandir le swap), pas d'un swap consommé. `MIN_DISK_GB` couvre ce cas
+#     directement, et mieux.
+#   - Les trous de 5 à 18 minutes venaient de `mediaanalysisd`, pas de la
+#     pagination — le run 4 les a reproduits sur une machine fraîchement
+#     redémarrée, swap à zéro. `NOISY_DAEMONS` couvre ce cas directement.
+# Le swap libre n'était donc qu'un PROXY de deux signaux déjà mesurés, et il
+# coûtait un redémarrage à chaque session de test.
+#
+# Mesuré le 2026-08-09, sans autre intervention que l'expiration de `keep_alive`
+# d'Ollama : mémoire libre 11 % → 87 %, swap `used` −1,35 GB, et `total` passé de
+# 4096 à 3072 MB. macOS REND donc les swapfiles à chaud, contrairement à ce que
+# ce fichier affirmait. Décharger le modèle suffit ; redémarrer est un dernier
+# recours.
+#
+# Ce qui reste vrai : une machine qui vit sur son swap ne donne pas des DURÉES
+# fiables. D'où le mode chrono, pour les runs dont le chiffre est l'objet.
 MIN_SWAP_FREE_GB = float(os.environ.get("PREFLIGHT_MIN_SWAP_FREE_GB", "2"))
+
+# SWAP FROID — la correction du 2026-08-22, et elle porte sur une faille de
+# LOGIQUE, pas sur un arbitrage.
+#
+# `free = total - used`, et macOS DIMENSIONNE `total` juste au-dessus de `used` :
+# à mesure qu'il rend les swapfiles, `free` reste petit. Observé en une heure sur
+# cette machine, modèles déchargés : total 10240 → 8192 → 4096 MB, `free` toujours
+# entre 0,5 et 1,1 GB. Le seuil `free < 2 GB` est donc l'ÉTAT STATIONNAIRE NORMAL
+# d'une machine à swap modeste — il ne peut jamais redevenir vert par attente, et
+# il a bloqué les runs S6-2, S6-3 et S6-C alors que la mesure directe donnait
+# 85 % de mémoire libre et 88 pages sorties en vingt secondes (1,4 Mo).
+#
+# Ce que la règle NOMME, c'est « une machine qui vit sur son swap ». Ça se mesure :
+# le débit de pageouts. Un swap consommé mais froid est de la mémoire morte que
+# personne ne relit ; il ne coûte rien aux durées.
+#
+# C'est la leçon déjà gravée dans CLAUDE.md, appliquée une fois de plus : un
+# seuil qui corrèle n'est pas un seuil qui cause, et avant d'imposer un rituel,
+# vérifier que le signal bloquant n'est pas déjà couvert par un signal direct.
+SWAP_PAGEOUT_BLOCK_KB_S = float(
+    os.environ.get("PREFLIGHT_PAGEOUT_KB_S", "1024"))
+PAGEOUT_FENETRE_S = 4.0
+# Taille de page mémoire d'Apple Silicon. `vm_stat` la rappelle en en-tête ;
+# on la fixe plutôt que de la parser, elle ne varie pas sur cette plateforme.
+PAGE_SIZE_BYTES = 16384
 
 # Pression mémoire : on s'en remet au verdict de macOS (cf. _pressure_level),
 # pas à un comptage de pages maison. 1 = normal, 2 = warn, 4 = critique.
@@ -140,6 +189,41 @@ def _swap_gb() -> dict[str, float] | None:
         values[tok] = value * factor
 
     return values if {"total", "used", "free"} <= values.keys() else None
+
+
+def _pageouts() -> int | None:
+    """Compteur cumulé de pages sorties vers le swap, via `vm_stat`."""
+    try:
+        out = subprocess.run(["vm_stat"], capture_output=True, text=True,
+                             timeout=5, check=True).stdout
+    except (subprocess.SubprocessError, OSError):
+        return None
+    for ligne in out.splitlines():
+        if ligne.startswith("Pageouts"):
+            try:
+                return int(ligne.split(":")[1].strip().rstrip("."))
+            except (IndexError, ValueError):
+                return None
+    return None
+
+
+def _swap_froid(fenetre: float = PAGEOUT_FENETRE_S) -> bool:
+    """Le swap est-il consommé mais INERTE ?
+
+    Coûte `fenetre` secondes, et seulement dans la branche où le swap paraît
+    bas — le chemin normal est inchangé. En cas de lecture impossible on rend
+    False : on retombe alors sur l'ancien comportement, plus sévère. Un garde
+    qui échoue doit échouer du côté du refus.
+    """
+    a = _pageouts()
+    if a is None:
+        return False
+    time.sleep(fenetre)
+    b = _pageouts()
+    if b is None or b < a:
+        return False
+    ko_par_s = (b - a) * PAGE_SIZE_BYTES / 1024 / fenetre
+    return ko_par_s < SWAP_PAGEOUT_BLOCK_KB_S
 
 
 def _pressure_level() -> int | None:
@@ -276,11 +360,17 @@ def _loaded_llms() -> list[dict] | None:
     ]
 
 
-def preflight(*, strict: bool = True) -> list[str]:
+def preflight(*, strict: bool = True, chrono: bool = False) -> list[str]:
     """Vérifie la machine. Retourne les avertissements non bloquants.
 
     Lève PreflightError sur une condition qui a déjà fait planter la machine.
     `strict=False` dégrade tout en avertissement (itération de dev).
+
+    `chrono=True` ajoute les conditions qui ne menacent pas la machine mais
+    faussent les DURÉES : c'est le mode des runs dont le chiffre est l'objet
+    (run de référence, répétition, génération de scène). Un test de style, lui,
+    juge de la prose et se moque des secondes — il n'a pas à exiger un
+    redémarrage.
     """
     blocking: list[str] = []
     warnings: list[str] = []
@@ -298,15 +388,35 @@ def preflight(*, strict: bool = True) -> list[str]:
         warnings.append("Swap : état illisible (sysctl vm.swapusage).")
     elif swap["total"] == 0:
         pass  # Aucun swapfile alloué : machine fraîche, rien à signaler.
-    elif swap["free"] < MIN_SWAP_FREE_GB:
-        blocking.append(
+    elif swap["free"] < MIN_SWAP_FREE_GB and _swap_froid():
+        warnings.append(
             f"Swap : {swap['free']:.2f} GB libres sur {swap['total']:.1f} GB "
-            f"alloués (< {MIN_SWAP_FREE_GB:.0f} GB). La machine n'a pas digéré "
-            "la session précédente et macOS ne rend pas les swapfiles à chaud. "
-            "REDÉMARRER. Même avec du disque disponible, le système agrandit le "
-            "swap et se met à ramper : trous de plusieurs minutes en pleine "
-            "génération, modèle chargé et inactif, budget de scène explosé."
+            f"alloués, mais FROID (moins de "
+            f"{SWAP_PAGEOUT_BLOCK_KB_S:.0f} Ko/s de pageouts sur "
+            f"{PAGEOUT_FENETRE_S:.0f} s). Ce sont des pages froides que personne "
+            "ne relit : macOS dimensionne `total` au-dessus de `used`, donc "
+            "`free` reste petit même quand la machine va bien. Les durées "
+            "restent interprétables."
         )
+    elif swap["free"] < MIN_SWAP_FREE_GB:
+        msg = (
+            f"Swap : {swap['free']:.2f} GB libres sur {swap['total']:.1f} GB "
+            f"alloués (< {MIN_SWAP_FREE_GB:.0f} GB). La machine porte encore la "
+            "session précédente. Remède : DÉCHARGER le modèle "
+            "(`ollama stop <modèle>`, ou attendre l'expiration de keep_alive) — "
+            "macOS rend alors les pages ET rétrécit les swapfiles. Redémarrer "
+            "n'est qu'un dernier recours."
+        )
+        # Bloquant seulement quand on chronomètre : un swap consommé ne casse
+        # pas la machine (le disque, lui, si — cf. MIN_DISK_GB), il rend les
+        # durées ininterprétables.
+        if chrono:
+            blocking.append(
+                msg + " Mesure de temps refusée dans cet état : les durées "
+                "seraient ininterprétables."
+            )
+        else:
+            warnings.append(msg)
 
     niveau = _pressure_level()
     if niveau is None:
@@ -316,7 +426,10 @@ def preflight(*, strict: bool = True) -> list[str]:
             "Pression mémoire CRITIQUE selon macOS "
             f"(kern.memorystatus_vm_pressure_level = {niveau}). Le système est "
             "déjà en train de récupérer de la mémoire de force ; une génération "
-            "de vingt minutes va paginer au lieu de générer. REDÉMARRER."
+            "de vingt minutes va paginer au lieu de générer. Remède : décharger "
+            "le modèle (`ollama stop <modèle>`) et fermer les gros consommateurs "
+            "— c'est ce qui rend la mémoire, pas le redémarrage. Redémarrer "
+            "seulement si la pression ne retombe pas."
         )
     elif niveau >= 2:
         warnings.append(

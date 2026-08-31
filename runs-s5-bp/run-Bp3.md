@@ -1,0 +1,42 @@
+---
+run: Bp3
+etage: Bp
+role: score
+rag: True
+ctx_need_max: 0.62
+date: 2026-08-19T11:22:33
+mots: 366
+entrees_generees: 1
+entrees_detectees: 1
+temperature: 0.7
+duree_s: 319
+done_reason: stop
+temps_par_noeud: {"write": 160.7, "review": 91.6, "repair": 45.3, "coherence": 20.7}
+garde_fou_60: 0
+collections_interrogees: ["auteur"]
+fin_pendante: False
+plan: ["Chapitre 2, entrée unique du carnet, 450-600 mots. En-tête imposé, première ligne exacte : « Mardi 12. Ciel couvert. »\nSquelette, dans l'ordre : en-tête → citation → constat → reconstruction → verdict → notation physiologique → couperet.\nCitation ancre, recopiée verbatim entre guillemets après l'en-tête : « Deux assiettes mises, sans y penser. Je l'ai laissée sur la table jusqu'au matin. »\nBeats : 1. le rituel posé en une ou deux phrases — elle relit l'entrée de la veille du cahier, comme chaque soir. 2. La citation, puis le constat d'écart : sa mémoire dit une assiette, un dîner seule. 3. La vérification, perceptive : la cuisine, l'égouttoir — regarder, compter ; la vérification confirme l'entrée, pas sa mémoire. 4. La rationalisation argumentée : la fatigue, l'automatisme — et la spirale de reprise des faits dans l'ordre. 5. Verdict : erreur de relevé — la faute est à elle, pas au texte ; résolution de pointer plus précisément ; physiologie ; couperet.\nMatériau : le cahier, le carnet, l'assiette, l'égouttoir.\nFAIT IMPOSÉ, au matériau : « L'égouttoir, ce soir : deux assiettes. » La vérification CONSTATE ce fait, elle ne le découvre pas.\nEn-tête : jamais de mois, jamais d'année.\nInterdits : aucun nom propre, aucun dialogue, aucune explication, « journal » et « journal intime » bannis, aucun terme réservé (la tierce, l'errata, le bon à tirer)."]
+plan_report: "plan court-circuité — brief mono-entrée (item 10)"
+coherence: "FAIT 1 : tenu — La séparation de la narratrice avec Romane est définitive.\nFAIT 2 : tenu — La narratrice ne cherchera jamais à joindre Romane.\nFAIT 3 : tenu — La narratrice utilise la méthode dater, relever, relire pour se tenir debout.\nFAIT 4 : tenu — La narratrice peur de devenir une mauvaise correctrice.\nFAIT 5 : tenu — La narratrice ne supprime jamais une ligne de ce qu'elle relit, même si cela la blesse.\nFAIT 6 : tenu — La narratrice ne consulte jamais de thérapeute, préférant se reconstruire seule."
+warnings: []
+---
+
+Mardi 12. Ciel couvert.
+
+"Deux assiettes mises, sans y penser. Je l'ai laissée sur la table jusqu'au matin."
+
+Je relis l'entrée de la veille de mon cahier, comme chaque soir. Mes yeux parcourent les lignes, vérifiant chaque mot, chaque virgule. Je relève les fautes, les incohérences, les erreurs de frappe. C'est ma méthode, ma routine. Cela me permet de garder la main, de ne pas perdre pied.
+
+Mais ce soir, quelque chose cloche. Je relis le passage que je viens de recopier dans mon carnet de relecture, et je m'aperçois que ma mémoire me joue des tours. Elle me dit une assiette, un dîner seul. Je me souviens de la cuisine vide, de la table débarrassée. Je me souviens de m'être couchée seule, après avoir rangé la vaisselle.
+
+Je me lève, je me rends dans la cuisine. L'égouttoir est là, devant moi. Deux assiettes y sont posées, sagement alignées. Je les compte, je les compte encore. Deux. Il y en a bien deux.
+
+Je retourne à mon carnet, je relis la citation. "Deux assiettes mises, sans y penser. Je l'ai laissée sur la table jusqu'au matin." Je me souviens maintenant. J'ai mangé avec elle, hier soir. Nous avons discuté, nous avons ri. Nous avons laissé les assiettes sur la table, trop fatiguées pour ranger. J'ai dû les mettre à égoutter ce matin, sans y penser.
+
+Je comprends maintenant. Ce n'est pas une erreur de frappe, ni une incohérence. C'est un oubli, un lapsus. Ma mémoire me joue des tours, elle me fait voir ce que je veux voir, entendre ce que je veux entendre. Je suis fatiguée, je suis distraite. Je me suis trompée.
+
+Je décide de pointer plus précisément, demain. Je noterai chaque assiette, chaque couvert, chaque parole échangée. Je ne laisserai pas ma mémoire m'abuser ainsi.
+
+Mes mains sont froides. Je les frotte l'une contre l'autre, mais le froid ne disparaît pas. C'est comme si mon corps avait compris avant moi. Comme si mon corps savait quelque chose que je refuse de voir.
+
+Je referme mon carnet, je range mon cahier. Je me couche, seule. Demain est un autre jour. Demain, je relirai à nouveau, je pointerai plus précisément. Demain, je retrouverai la main.

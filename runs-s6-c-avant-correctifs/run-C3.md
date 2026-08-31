@@ -1,0 +1,44 @@
+---
+run: C3
+etage: C
+role: score
+rag: True
+ctx_need_max: 0.6
+date: 2026-08-21T14:37:19
+mots: 714
+entrees_generees: 1
+entrees_detectees: 1
+temperature: 0.7
+duree_s: 357
+done_reason: stop
+temps_par_noeud: {"write": 132.6, "accumulate": 32.3, "glisse": 19.2, "review": 98.1, "repair": 49.2, "coherence": 24.5}
+garde_fou_60: 0
+collections_interrogees: ["auteur"]
+fin_pendante: False
+plan: ["Chapitre 2, entrée unique du carnet, 450-600 mots. \nL'en-tête et la citation sont DÉJÀ ÉCRITS. Squelette de ce qui reste, dans l'ordre : constat → reconstruction → verdict → notation physiologique → couperet.\nBeats : 1. le rituel posé en une ou deux phrases — elle relit l'entrée de la veille du cahier, comme chaque soir. 2. La citation, puis le constat d'écart : sa mémoire dit une assiette, un dîner seule. 3. La vérification, perceptive : la cuisine, l'égouttoir — regarder, compter ; la vérification confirme l'entrée, pas sa mémoire. 4. La rationalisation argumentée : la fatigue, l'automatisme — et la spirale de reprise des faits dans l'ordre. 5. Verdict : erreur de relevé — la faute est à elle, pas au texte ; résolution de pointer plus précisément ; physiologie ; couperet.\nMatériau : le cahier, le carnet, l'assiette, l'égouttoir.\nFAIT IMPOSÉ, au matériau : « L'égouttoir, ce soir : deux assiettes. » La vérification CONSTATE ce fait, elle ne le découvre pas.\nEn-tête : jamais de mois, jamais d'année.\nInterdits : aucun nom propre, aucun dialogue, aucune explication, « journal » et « journal intime » bannis, aucun terme réservé (la tierce, l'errata, le bon à tirer)."]
+plan_report: "plan court-circuité — brief mono-entrée (item 10)"
+coherence: "FAIT 1 : tenu — La séparation de la narratrice avec Romane est définitive.\nFAIT 2 : tenu — La narratrice ne cherchera jamais à joindre Romane.\nFAIT 3 : tenu — La narratrice utilise une méthode de dater, relever et relire pour se tenir debout.\nFAIT 4 : tenu — La narratrice peur de devenir une mauvaise correctrice.\nFAIT 5 : tenu — La narratrice ne supprime jamais une ligne de ce qu'elle relit, même si cela la blesse.\nFAIT 6 : tenu — La narratrice ne consulte jamais de thérapeute, préférant se reconstruire seule.\nFAIT 7 : tenu — Personne d'autre n'entre dans la maison.\nFAIT 8 : tenu — Aucun repas n'est partagé, aucune conversation n'a lieu.\nFAIT 9 : tenu — Elle ne sort pas de la maison."
+warnings: ["entrée 1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) — le code compose les en-têtes"]
+---
+
+Mardi 12. Ciel couvert.
+
+"Deux assiettes mises, sans y penser. Je l'ai laissée sur la table jusqu'au matin."
+
+Je me suis installée à la table de la cuisine, comme chaque soir, et j'ai ouvert le cahier à la page de la veille. Le rituel est immuable : je relis l'entrée précédente, puis je passe au carnet pour noter mes observations. Hier, la citation m'a sauté aux yeux : "Deux assiettes mises, sans y penser. Je l'ai laissée sur la table jusqu'au matin."
+
+Ma mémoire, pourtant, me dit une assiette, un dîner seul. J'ai froncé les sourcils, perplexe. Avais-je mal relevé hier soir ? Je me suis levée pour vérifier, poussée par un besoin impératif de confirmation.
+
+La cuisine était telle que je l'avais laissée le matin : propre, rangée, avec la lumière du jour qui filtrait par la fenêtre. L'égouttoir, ce soir, affichait deux assiettes. Deux. J'ai compté, comme pour m'assurer que mes yeux ne me trompaient pas. Elles étaient bien là, côte à côte, propres et sèches. Mon cœur a accéléré, mon souffle s'est raccourci. J'ai tâché de me calmer, de me raisonner. La fatigue, peut-être. Ou un automatisme, une habitude qui m'aurait fait agir sans y penser.
+
+"Pourquoi a-t-elle quitté la maison ?" Je me suis surprise à me poser cette question pour la première fois depuis son départ. Je me suis interrompue, incapable de poursuivre… Le carnet est ouvert sur la table, la page blanche m'attend. Je regarde autour de moi, à la recherche d'un détail à noter. Mes yeux se posent sur l'assiette sale dans l'évier. Elle est là depuis hier soir, oubliée, avec des restes de nourriture séchée. Je n'ai pas encore pris le temps de la laver
+
+Je me suis forcée à revisiter la soirée de la veille, pas à pas. J'étais rentrée du travail, lasse. J'avais préparé à dîner, mécaniquement, sans vraiment y prêter attention. J'avais mangé, seule à table, face à la fenêtre. Ensuite, j'avais débarrassé, rincé les assiettes, les avais posées sur l'égouttoir. Deux assiettes. Le souvenir était là, précis, mais il ne correspondait pas à ce que j'avais écrit.
+
+Je suis revenue à la table, à ma chaise, à mon carnet. J'ai relu la citation, encore et encore, comme si la répétition allait me faire comprendre ce que j'avais manqué. Mais les mots restaient les mêmes : "Deux assiettes mises, sans y penser. Je l'ai laissée sur la table jusqu'au matin." J'ai refermé le cahier, le cœur lourd. Le doute s'immisçait en moi, insidieux. Avais-je perdu la main ? Étais-je en train de devenir une mauvaise correctrice ?
+
+Je suis rentrée du travail, lasse, j'ai préparé à dîner mécaniquement, mangé seule à table face à la fenêtre, débarrassé, rincé deux assiettes que j'ai posées sur l'égouttoir, noté dans mon carnet "une assiette, un dîner seule", relu le lendemain matin et découvert avec perplexité "deux assiettes mises, sans y penser. Je l'ai laissée sur la table jusqu'au matin", vérifié dans la cuisine et confirmé la présence de deux assiettes propres et sèches côte à côte, tâché de me calmer et de me raisonner, revisité la soirée de la veille pas à pas sans trouver d'explication, relu la citation plusieurs fois sans comprendre, refermé le cahier le cœur lourd, douté de ma capacité à être une bonne correctrice, rangé le cahier dans le tiroir, éteint la lumière de la cuisine, me suis couchée le corps tendu, l'esprit en ébullition, m'endormant tard avec la résolution de pointer tout, noter tout et ne plus laisser la fatigue ou l'automatisme prendre le dessus.
+
+Je me suis levée, j'ai rangé le cahier dans le tiroir, j'ai éteint la lumière de la cuisine et je me suis couchée, le corps tendu, l'esprit en ébullition. Le sommeil m'a fuie longtemps, laissant place à des pensées qui s'entremêlaient et se bousculaient dans ma tête. Le constat était là, devant moi : j'avais fait une erreur. Une faute de relevé. La faute était à moi, pas au texte. Demain, je serais plus précise. Je pointerais tout, je noterai tout. Je ne laisserais plus la fatigue ou l'automatisme prendre le dessus.
+
+Je me suis endormie tard, le corps lourd, les mains froides, le cœur serré. Demain serait un autre jour. Demain, je reprendrais le contrôle. Demain, je serais de nouveau la correctrice que j'avais été.
