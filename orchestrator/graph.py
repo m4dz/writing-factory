@@ -1106,7 +1106,7 @@ _BEAT_RESOUT = re.compile(
     r"à\s+nouveau|de\s+tout|de\s+chaque|bien|parfaitement)"
     r"|(?:cela|ça)\s+me\s+revient"
     r"|\bverdict\s*:\s*\w"
-    r"|m'a\s+jou\w+\s+un\s+tour"
+    r"|(?:m'a\s+jou\w+\s+un|me\s+joue\s+(?:des?|un))\s+tours?"
     r"|je\s+n'ai\s+pas\s+rêvé"
     r"|j'ai\s+bien\s+(?:mis|fait|noté)", re.IGNORECASE)
 _BEAT_DISMISS = re.compile(
@@ -1999,7 +1999,7 @@ _PRUNE_MOTIFS = {
     # Même détection que le scorer : une seule regex, alignée par construction.
     "récursion": _BEAT_RECURSION,
     "résolution": re.compile(
-        r"je\s+n'ai\s+pas\s+r[êe]v[ée]|ma\s+m[ée]moire\s+m'a\s+jou"
+        r"je\s+n'ai\s+pas\s+r[êe]v[ée]|ma\s+m[ée]moire\s+(?:m'a\s+jou|me\s+joue)"
         r"|je\s+me\s+souviens\s+(?:maintenant|soudain|enfin)"
         r"|tout\s+est\s+normal", re.IGNORECASE),
 }
