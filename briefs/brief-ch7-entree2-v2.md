@@ -61,7 +61,7 @@ Les §1–5 restent la référence CONCEPTUELLE ; ci-dessous est ce qui est SERV
 
 ### Beat A — la relève
 
-Elle relit la ligne qu'elle vient de recopier. Elle y relève un écart : ce que la ligne décrit — les deux couverts mis — elle l'a sous les yeux, mais elle ne se souvient pas de l'avoir fait. Elle amorce un verdict, comme sur n'importe quelle faute.
+Elle relit la ligne qu'elle vient de recopier. Elle y relève un écart : ce que la ligne décrit — les deux couverts mis — elle l'a sous les yeux, mais elle ne se souvient pas de l'avoir fait.
 
 ### Beat B — la découverte
 

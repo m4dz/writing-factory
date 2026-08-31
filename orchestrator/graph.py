@@ -706,6 +706,10 @@ def write_node(state: ChapterState) -> dict:
         # absorbe une reprise. Le glissement et la chute restent posés en aval
         # par `poser_gestes_node` : rien de neuf dans le pipeline des gestes.
         text, ms, wg = "", [], []
+        # FIX RACINE : voix servie SANS les étapes verdict/couperet (cf.
+        # `_VOIX_VERDICT`). Réassignation locale — les autres branches sont en
+        # `elif`, et le tail commun n'utilise pas `system` pour générer.
+        system = _VOIX_VERDICT.sub("", system)
         beats = fiche["beats"]
         premier_nom = beats[0][0]
         for nom, num_predict, phrases_max, consigne in beats:
@@ -1117,8 +1121,9 @@ _BEAT_DISMISS = re.compile(
 # la relève légitime (« la phrase que je viens de recopier »), qui n'est pas un
 # ré-emprunt au passé.
 _BEAT_RECURSION = re.compile(
-    r"je\s+relis\s+(?:la\s+phrase|l'entrée|ce\s+que)\b.{0,25}?j'ai\s+écrit"
-    r"|je\s+relève\s+un\s+détail\s+qui\s+me\s+trouble", re.IGNORECASE)
+    r"je\s+relis\s+(?:la|cette|ma|une|l')\s*(?:phrase|entrée)\s+"
+    r"(?:d'hier|que\s+j'ai\s+[ée]crite?)"
+    r"|je\s+rel[èe]ve\s+un\s+d[ée]tail\s+qui\s+me\s+trouble", re.IGNORECASE)
 _BEAT_REVEIL = re.compile(
     r"je\s+me\s+suis\s+(?:réveillée|levée)|à\s+mon\s+réveil", re.IGNORECASE)
 _BEAT_PRESENCE = re.compile(
@@ -1194,6 +1199,18 @@ def _scorer_entree1(variant: str) -> tuple[int, list[str]]:
         score -= 5
         defauts.append("dérive (cahier / grenier / album)")
     return score, defauts
+
+
+# FIX RACINE (xp C5, 2026-08-31) : le squelette de voix servi finit par
+# « 5. verdict de correction … 7. couperet ». L'xp a mesuré que c'est CE
+# squelette (pas le modèle) qui force la résolution du doute — 12/12 tirages
+# tiennent le doute quand on ne le sert pas. On l'ampute des étapes 5 et 7 DANS
+# LE PROMPT SERVI AUX BEATS du corps, jamais dans la fiche (le squelette reste
+# la voix canonique ailleurs). La chute « Constat » reste posée par le code en
+# dernier ; l'étape 6 (notation physiologique) est gardée — c'est le beat-corps.
+_VOIX_VERDICT = re.compile(
+    r"^\s*(?:5\. Le verdict de correction|7\. Le couperet)[^\n]*\n?",
+    re.MULTILINE)
 
 
 _BEAT_SUFFIXE = (
@@ -1979,9 +1996,8 @@ _PRUNE_MOTIFS = {
         r"\b(un\s+bruit|des\s+bruits|des\s+pas\b|une\s+sonnerie|quelqu'un|"
         r"une\s+voix|qui\s+rentrait|porter\s+mes\s+cl[ée]s|une?\s+invit[ée]e?)\b",
         re.IGNORECASE),
-    "récursion": re.compile(
-        r"je\s+relis\s+la\s+phrase\s+(?:d'hier|que\s+j'ai\s+[ée]crite)"
-        r"|je\s+rel[èe]ve\s+un\s+d[ée]tail\s+qui\s+me\s+trouble", re.IGNORECASE),
+    # Même détection que le scorer : une seule regex, alignée par construction.
+    "récursion": _BEAT_RECURSION,
     "résolution": re.compile(
         r"je\s+n'ai\s+pas\s+r[êe]v[ée]|ma\s+m[ée]moire\s+m'a\s+jou"
         r"|je\s+me\s+souviens\s+(?:maintenant|soudain|enfin)"

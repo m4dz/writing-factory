@@ -1,0 +1,11 @@
+[20:41:59] run CH7 fix-racine (voix sans verdict/couperet + beat A) — nice 0
+  ⚠ Swap : 1.48 GB libres sur 10.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total` au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les durées restent interprétables.
+
+==================================================================
+[CH7] répétition — chapitre 7 en conditions réelles — rag=True
+==================================================================
+[CH7] 341 mots, 2 entrée(s), 592s → runs-ch7/run-CH7.md
+        temps par nœud : {'write': 407.4, 'accumulate': 66.5, 'review': 57.8, 'repair': 30.2, 'coherence': 25.7}
+        collections interrogées : ['auteur']
+
+Grille : python3 outillage/grille_session.py runs-ch7 450-600
