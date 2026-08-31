@@ -48,6 +48,13 @@ from lint_style import paragraphes_redits  # noqa: E402
 # dans le chapitre : c'est de la voix, pas de la QA. Paramétrable pour que
 # l'alternative reste mesurable en un run.
 MODELE_GESTES = os.environ.get("MODELE_GESTES", AUTHOR_MODEL)
+# Passe d'assemblage : pruning DÉTERMINISTE du résidu diffus (journée dehors,
+# présence, récursion, tell de résolution) que le best-of-N ne rattrape pas
+# quand TOUS les variants le portent. La piste cross-modèle Qwen a été falsifiée
+# et écartée : Qwen coupe le bon (éditeur) et ne détecte pas la sortie oblique
+# (détecteur, « NON » sur « le départ, la réunion, la départementale, le garage »
+# — le nœud cohérence a le même angle mort). Le code, lui, matche sans ambiguïté.
+ASSEMBLAGE_ACTIF = os.environ.get("ASSEMBLAGE", "1") != "0"
 TEMP_GESTES = float(os.environ.get("TEMP_GESTES", "0.3"))
 
 # L'unité de composition est l'ENTRÉE DATÉE de carnet, plus la scène. Le roman
@@ -1948,6 +1955,96 @@ def repair_node(state: ChapterState) -> dict:
     return {"repaired": repaired, "metrics": metrics, "warnings": warns}
 
 
+def _phrase_protegee(phrase: str) -> bool:
+    """Phrases que la suppression ne touche JAMAIS, même si Qwen les signale :
+    en-tête, citation du cahier, fragments de glissement (« … »), chute."""
+    n = phrase.strip()
+    return bool(re.match(r"[A-ZÉÈ][a-zé]+ \d+\.", n)   # en-tête « Samedi 14. »
+                or "…" in n
+                or n.startswith("Constat")
+                or ("«" in n and "»" in n))            # citation entre guillemets
+
+
+# PRUNING DÉTERMINISTE du résidu diffus. Qwen a été falsifié dans les deux
+# rôles — éditeur (coupe le bon) ET détecteur (« NON » sur « le départ, la
+# réunion, la départementale, le garage » : il ne relie pas une reconstruction
+# oblique à une sortie). Le code, lui, matche les marqueurs sans ambiguïté. Une
+# phrase qui touche UN motif est retirée en entier. Whack-a-mole, mais FIABLE.
+_PRUNE_MOTIFS = {
+    "sortie": re.compile(
+        r"\b(r[ée]union|d[ée]partementale|au\s+travail|au\s+bureau|"
+        r"le\s+garage|la\s+buanderie|le\s+d[ée]jeuner|le\s+trajet|"
+        r"sept\s+heures\s+quarante|le\s+retour\s+par)\b", re.IGNORECASE),
+    "présence": re.compile(
+        r"\b(un\s+bruit|des\s+bruits|des\s+pas\b|une\s+sonnerie|quelqu'un|"
+        r"une\s+voix|qui\s+rentrait|porter\s+mes\s+cl[ée]s|une?\s+invit[ée]e?)\b",
+        re.IGNORECASE),
+    "récursion": re.compile(
+        r"je\s+relis\s+la\s+phrase\s+(?:d'hier|que\s+j'ai\s+[ée]crite)"
+        r"|je\s+rel[èe]ve\s+un\s+d[ée]tail\s+qui\s+me\s+trouble", re.IGNORECASE),
+    "résolution": re.compile(
+        r"je\s+n'ai\s+pas\s+r[êe]v[ée]|ma\s+m[ée]moire\s+m'a\s+jou"
+        r"|je\s+me\s+souviens\s+(?:maintenant|soudain|enfin)"
+        r"|tout\s+est\s+normal", re.IGNORECASE),
+}
+
+
+def _assembler_qwen(entree: str) -> tuple[str, list[str]]:
+    """Pruning code du résidu diffus. Nom conservé pour l'appelant.
+
+    Retire les phrases qui touchent un motif nommé (sortie / présence /
+    récursion / résolution), protège en-tête/citation/glissement/chute, et
+    refuse de retirer plus de la moitié (garde de sécurité — au pire, no-op).
+    """
+    paras_out, retirees = [], []
+    for para in entree.split("\n\n"):
+        gardees = []
+        for ph in re.split(r"(?<=[.!?…»])\s+", para.strip()):
+            if not ph.strip():
+                continue
+            motif = next((k for k, rx in _PRUNE_MOTIFS.items() if rx.search(ph)),
+                        None)
+            if motif and not _phrase_protegee(ph):
+                retirees.append(f"[{motif}] " + " ".join(ph.split())[:45])
+            else:
+                gardees.append(ph.strip())
+        if gardees:
+            paras_out.append(" ".join(gardees))
+    sortie = "\n\n".join(paras_out).strip()
+
+    if not retirees:
+        return entree, ["pruning : rien à retirer"]
+    if len(sortie) < 0.5 * len(entree):
+        return entree, [f"pruning : suppression > 50 % ({len(retirees)} "
+                        "phrases) — REJETÉ, original conservé"]
+    return sortie, [f"pruning : {len(retirees)} phrase(s) retirée(s) — "
+                    + " | ".join(retirees)]
+
+
+def assemble_node(state: ChapterState) -> dict:
+    """Pruning déterministe du résidu diffus, sur les entrées en beats.
+
+    Placé AVANT `poser_gestes`, sur le CORPS seul (`repaired`) : les gestes
+    (glissement, chute, accumulation) ne sont pas encore posés, donc le pruning
+    ne peut pas les toucher, et le code les pose propres sur le corps nettoyé.
+    """
+    if not ASSEMBLAGE_ACTIF or not state.get("micro_noeuds"):
+        return {}
+    entrees = state.get("repaired") or []
+    spec = state.get("entrees_spec") or []
+    if not entrees:
+        return {}
+    sorties, warns = list(entrees), []
+    for i, entree in enumerate(entrees):
+        fiche = spec[i] if i < len(spec) else {}
+        if not fiche.get("beats"):        # seule l'entrée en beats est nettoyée
+            continue
+        progress.phase("Assemblage", f"entrée {i + 1} (Qwen)")
+        sorties[i], w = _assembler_qwen(entree)
+        warns += w
+    return {"repaired": sorties, "warnings": state["warnings"] + warns}
+
+
 def coherence_node(state: ChapterState) -> dict:
     """Cohérence par FAITS (Qwen) : dérive les faits structurants des fiches,
     puis les vérifie SCÈNE PAR SCÈNE avant d'agréger.
@@ -2010,7 +2107,13 @@ def build_graph():
     # Les gestes se posent APRÈS la réparation, sur le texte final — et donc
     # AVANT la cohérence, qui doit juger le chapitre tel qu'il sera lu.
     g.add_node("poser_gestes", poser_gestes_node)
-    g.add_edge("repair", "poser_gestes")
+    g.add_node("assemble", assemble_node)
+    # AVANT poser_gestes : `repaired` est le CORPS seul, les gestes (glissement,
+    # chute, accumulation) ne sont pas encore posés — Qwen ne peut donc pas les
+    # abîmer, et le code les pose PROPRES sur le corps nettoyé. repair est déjà
+    # Qwen : pas de swap nemo supplémentaire.
+    g.add_edge("repair", "assemble")
+    g.add_edge("assemble", "poser_gestes")
     g.add_edge("poser_gestes", "coherence")
     g.add_edge("coherence", END)
     return g.compile()
