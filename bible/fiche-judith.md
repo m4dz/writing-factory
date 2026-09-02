@@ -1,6 +1,6 @@
 ---
-doc_id: fiche-judith
-type: personnage
+doc_id: judith
+type: character
 nom: "Judith — narratrice"
 version: 1.1
 statut: complète — sept chunks rédigés, passe d'hygiène du 2026-08-16 faite

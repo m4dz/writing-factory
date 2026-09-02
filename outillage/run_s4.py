@@ -218,7 +218,11 @@ for _nom, _brief in [("BRIEF_V4", BRIEF_V4),
 # tombait sur son défaut (« Temps calme ») en contredisant le brief.
 METEO_DEPART = "Ciel couvert"
 
-NARRATRICE = ["fiche-judith"]
+# doc_id de la fiche narratrice. Renommé `fiche-judith` → `judith` le 2026-09-02
+# pour que le mode acteur en dérive le bon nom d'affichage (« Judith », pas
+# « Fiche ») ; le firewall du prénom tient toujours, l'indexeur traduit
+# `judith` → « la narratrice » dans le texte servi (cf. TRADUCTION_NOMS).
+NARRATRICE = ["judith"]
 
 # Ancre de la séquence d'en-têtes : le code DÉRIVE les dates suivantes, donc
 # elles sont consécutives par construction (B′C avait produit [8,7,7,7,7,9,10,7]).

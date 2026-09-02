@@ -52,6 +52,48 @@ from tts import rendre_chapitre
 
 STATIC = Path(__file__).resolve().parent / "static"
 
+# Build Slidev du talk. Servi À LA RACINE parce que le build référence ses
+# assets en chemins ABSOLUS (`/assets/...`, `/favicon.svg`) : impossible de le
+# monter sous un préfixe sans le rebuilder avec une `base`. Conséquence
+# heureuse — le deck se retrouve sur la MÊME origine que l'API, donc ses fetch
+# `/status`, `/chapter`, `/audio` sont same-origin, sans CORS. C'est la raison
+# d'être de cet endpoint : la machine de présentation charge le deck ICI, et
+# l'API répond à côté, sur le même hôte.
+#   ../../talk/slides/dist depuis orchestrator/  →  ia-devant-soi/talk/slides/dist
+SLIDES = Path(os.environ.get(
+    "API_SLIDES_DIR",
+    Path(__file__).resolve().parent.parent.parent / "talk" / "slides" / "dist",
+)).resolve()
+
+# Types MIME servis pour le build statique. `mimetypes` suffirait pour la
+# plupart, mais on FIGE les critiques (`.js`, `.mjs`, `.css`, `.woff2`) : un
+# module ES servi en `text/plain` est refusé par le navigateur, et le défaut
+# système varie d'une machine à l'autre.
+_TYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".mjs": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".map": "application/json; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+    ".ico": "image/x-icon",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".ttf": "font/ttf",
+    ".otf": "font/otf",
+    ".wav": "audio/wav",
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+    ".md": "text/markdown; charset=utf-8",
+    ".txt": "text/plain; charset=utf-8",
+}
+
 HOST = os.environ.get("API_HOST", "0.0.0.0")
 PORT = int(os.environ.get("API_PORT", "8420"))
 
@@ -387,6 +429,62 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._repondre(200, chemin.read_bytes(), type_mime)
 
+    def _servir_statique(self, chemin: Path, mime: str) -> None:
+        """Sert un fichier du build, avec cache adapté.
+
+        On N'UTILISE PAS `_repondre` : il force `no-store`, ce qui est juste pour
+        les artefacts changeants (`/chapter`, `/status`) mais gâche le cache des
+        assets hashés du deck. Ici les fichiers `/assets/<hash>.<ext>` sont
+        immuables par construction (le hash change avec le contenu) → cache long ;
+        l'index et le reste → revalidation simple.
+        """
+        corps = chemin.read_bytes()
+        self.send_response(200)
+        self._cors()
+        self.send_header("Content-Type", mime)
+        self.send_header("Content-Length", str(len(corps)))
+        if "/assets/" in chemin.as_posix() and chemin.suffix.lower() != ".html":
+            self.send_header("Cache-Control",
+                             "public, max-age=31536000, immutable")
+        else:
+            self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(corps)
+
+    def _servir_slides(self, route: str) -> None:
+        """Sert le build Slidev du talk (SPA à base `/`), repli sur index.html.
+
+        Ordre imposé par le contrat : les routes de l'API passent AVANT (elles
+        sont testées plus haut dans `do_GET`). Tout le reste tombe ici — assets
+        du build, mais aussi les routes CLIENT de Slidev (`/2`, `/overview`,
+        `/presenter/...`) qui n'ont pas de fichier : elles rendent l'app, qui
+        route côté navigateur. C'est exactement le `_redirects: /* -> /index.html`
+        du build.
+        """
+        if not SLIDES.is_dir():
+            # Build absent : ce n'est pas une route d'API, donc 404 franc, pas un
+            # 204 « pas prêt » (qui a un sens précis pour les artefacts du deck).
+            self._json(404, {"error": "slides non buildées",
+                             "detail": f"attendu dans {SLIDES}"})
+            return
+        rel = route.lstrip("/") or "index.html"
+        cible = (SLIDES / rel).resolve()
+        # Anti-traversée : la cible DOIT rester sous dist. Ce serveur écoute sur
+        # le réseau d'une conférence — même garde que les identifiants de session.
+        try:
+            cible.relative_to(SLIDES)
+        except ValueError:
+            self._repondre(403)
+            return
+        if not cible.is_file():
+            cible = SLIDES / "index.html"
+            if not cible.is_file():
+                self._json(404, {"error": "index des slides absent"})
+                return
+        mime = _TYPES.get(cible.suffix.lower(), "application/octet-stream")
+        self._servir_statique(cible, mime)
+
     def _flux_evenements(self) -> None:
         """Flux SSE des instantanés de `/status` — le compteur du deck y lit les
         étapes en direct (phase, label, detail, notes, progress).
@@ -572,16 +670,19 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {"sessions": lister_sessions(perso or None)})
         elif route.startswith("/session/"):
             self._session_enregistree(route[len("/session/"):])
-        elif route in ("/", "/acteur"):
+        elif route == "/acteur":
             # La page du mode acteur. Servie par nous : elle peut donc être
             # ouverte en iframe depuis une slide, sur le même hôte que le reste.
+            # La racine `/` est désormais le DECK — l'iframe pointe ici, `/acteur`.
             page = STATIC / "acteur.html"
             if page.exists():
                 self._repondre(200, page.read_bytes(), "text/html; charset=utf-8")
             else:
                 self._json(404, {"error": "page absente"})
         else:
-            self._json(404, {"error": "route inconnue"})
+            # Tout le reste — `/`, `/favicon.svg`, `/assets/...`, routes client
+            # de Slidev — est servi par le build du deck, repli sur index.html.
+            self._servir_slides(route)
 
     def log_message(self, fmt: str, *args) -> None:
         # Le journal par défaut écrit sur stderr en écrasant le panneau de
