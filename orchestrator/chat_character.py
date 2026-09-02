@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Mode ACTEUR en ligne de commande : parler à un personnage de la bible.
 
-    python chat_character.py --character elara-vance
-    python chat_character.py --character kael-doran --nom Kael --no-memoire
+    python chat_character.py --character judith
+    python chat_character.py --character judith --nom Judith --no-memoire
 
 Commandes en session : `/quit` termine et écrit le souvenir, `/oubli` termine
 sans rien écrire, `/etat` affiche le résumé glissant et le coût des tours.
@@ -22,7 +22,7 @@ from roleplay import Session
 def main() -> None:
     p = argparse.ArgumentParser(description="Dialoguer avec un personnage.")
     p.add_argument("--character", required=True,
-                   help="doc_id de la fiche (ex: elara-vance)")
+                   help="doc_id de la fiche (ex: judith)")
     p.add_argument("--nom", default=None,
                    help="Nom d'usage du personnage (défaut : déduit du doc_id)")
     p.add_argument("--no-memoire", action="store_true",

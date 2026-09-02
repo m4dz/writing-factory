@@ -63,9 +63,15 @@ pas » : plus facile à distinguer d'une faute d'URL en répétition.
 
 ## `POST /generate`
 
-Corps ignoré (lu puis jeté, pour ne pas casser le keep-alive). Répond
-**immédiatement** — le pipeline tourne dans un thread, y compris le préflight
-machine qui prend ~10 s.
+**Corps VIDE.** Le front POSTe sans payload : le récit — le **chapitre 7 de
+« L'Involontaire »** — est construit côté serveur (`orchestrator/ch7.py`), le
+deck n'a rien à décrire. Le corps est lu puis jeté (pour ne pas casser le
+keep-alive). Répond **immédiatement** — le pipeline tourne dans un thread, y
+compris le préflight machine qui prend ~10 s.
+
+> Graine **aléatoire** à chaque run : la structure du chapitre est fixe (deux
+> entrées, ancre, chute), mais le best-of-3 de l'entrée 1 et le tirage du
+> glissement varient — c'est de la vraie génération live, pas un rejeu.
 
 ```
 $ curl -sX POST http://MACHINE:8420/generate
@@ -162,21 +168,30 @@ récit complet. `GET /status` reste disponible en repli (poll ponctuel).
 du code (jamais par le modèle — un LLM les mettrait ailleurs à chaque tirage) :
 
 ```markdown
-Elara poussa la porte de la forge. L'air sentait la suie froide.
+Samedi 14. Beau temps.
+
+J'ai inscrit dans mon carnet : ranger les photos d'elle dans le tiroir du bas…
 
 <!-- BASCULE -->
 
-Elle compta trois pas avant de toucher l'enclume fendue…
+Samedi 14. Beau temps.
+
+« Neuf ans aujourd'hui que je t'ai dit oui… »
 …
+Constat : anniversaire.
+
 <!-- FIN AUDIO -->
 
-(suite du chapitre, non lue par le clone)
+(rien après : la chute est la dernière ligne)
 ```
 
-- **`<!-- BASCULE -->` tombe après la DEUXIÈME PHRASE du chapitre.** Décision du
-  speaker, pour un repère de scène reproductible : il lit deux phrases à voix
-  nue, puis lance l'audio. `GET /audio` commence exactement là.
-- **`<!-- FIN AUDIO -->`** marque où la voix clonée s'arrête.
+- **`<!-- BASCULE -->` tombe avant le SECOND en-tête daté du chapitre.** Le
+  chapitre 7 a deux entrées le même jour ; le speaker lit la première (l'entrée
+  courte de l'après-midi) à voix nue, puis lance l'audio sur la seconde. `GET
+  /audio` commence exactement là. (Règle CH7 = `sur_second_entete` ; pour un
+  chapitre sans double en-tête, repli sur « après la 2ᵉ phrase ».)
+- **`<!-- FIN AUDIO -->`** marque où la voix clonée s'arrête — pour le CH7,
+  juste après la chute « Constat : anniversaire. ».
 
 **Les deux marqueurs sont GARANTIS présents**, y compris dans les cas
 dégénérés — chapitre de deux phrases, texte sans ponctuation finale, scènes

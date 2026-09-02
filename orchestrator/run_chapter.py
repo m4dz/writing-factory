@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Lance la génération d'un chapitre (mode auteur) et profile le temps.
 
-    python run_chapter.py --brief "..." --characters elara-vance kael-doran
+    python run_chapter.py --brief "..." --characters judith
+
+    (Le chapitre 7 de scène se génère par l'API — `POST /generate`, cf.
+    orchestrator/ch7.py — ou par `outillage/run_s4.py --etage CH7`. Ce CLI-ci
+    reste un pilote générique pour un chapitre ad hoc.)
 
 Le profilage total est LA mesure qui compte : le chapitre doit tenir dans les
 ~35 minutes de scène de la keynote. Chaque appel LLM est chronométré.
@@ -20,7 +24,7 @@ def main() -> None:
     p.add_argument("--brief", required=True, help="Objectif du chapitre")
     p.add_argument(
         "--characters", nargs="+", required=True,
-        help="doc_ids des personnages présents (ex: elara-vance kael-doran)",
+        help="doc_ids des personnages présents (ex: judith)",
     )
     p.add_argument(
         "--skip-preflight", action="store_true",

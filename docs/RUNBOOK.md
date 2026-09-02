@@ -113,7 +113,7 @@ du Markdown, jamais l'inverse.
 
 ```bash
 podman-compose --profile tools run --rm indexer
-podman-compose --profile tools run --rm indexer python query_test.py "la forge en ruine"
+podman-compose --profile tools run --rm indexer python query_test.py "les deux couverts"
 ```
 
 L'indexation est idempotente et purge les chunks orphelins. Elle ne touche
@@ -165,9 +165,14 @@ sur la montre avec un run de test avant le jour J.
 ```bash
 cd orchestrator
 .venv/bin/python -u run_chapter.py \
-  --brief "Élara arrive à la forge de Valmir…" \
-  --characters elara-vance kael-doran
+  --brief "Une entrée du carnet de relecture…" \
+  --characters judith
 ```
+
+> Le **chapitre 7 de scène** ne se génère PAS par ce CLI générique : sa
+> structure (deux entrées, ancre, beats, chute) vit dans `orchestrator/ch7.py`
+> et se déclenche par l'API (`POST /generate`, voir §ci-dessous) ou par
+> `outillage/run_s4.py --etage CH7`.
 
 **Lancer au PREMIER PLAN.** Un lancement détaché (`&`, `nohup`) hérite d'une
 priorité basse (`nice 5`) : sans concurrence ça ne se voit pas, mais face à un

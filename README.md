@@ -35,15 +35,15 @@ podman-compose up -d
 curl -s http://localhost:8000/api/v2/heartbeat
 
 # 3. Créer une fiche : copier le template, le remplir, retirer le _ du nom
-cp bible/characters/principals/_template.md bible/characters/principals/elara-vance.md
+cp bible/characters/principals/_template.md bible/characters/principals/mon-personnage.md
 
 # 4. Indexer la bible
 podman-compose --profile tools run --rm indexer
 
 # 5. Valider le retrieval
-podman-compose --profile tools run --rm indexer python query_test.py "quelle est la fracture d'Élara ?"
-podman-compose --profile tools run --rm indexer python query_test.py "sa voix" --doc elara-vance
-podman-compose --profile tools run --rm indexer python query_test.py "la forge" --type lieu
+podman-compose --profile tools run --rm indexer python query_test.py "que relit la narratrice le soir ?"
+podman-compose --profile tools run --rm indexer python query_test.py "sa voix" --doc judith
+podman-compose --profile tools run --rm indexer python query_test.py "les deux couverts" --type prop
 ```
 
 ## Cycle de travail

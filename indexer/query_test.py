@@ -2,9 +2,9 @@
 """Validation du retrieval.
 
 Usage :
-  python query_test.py "quelle est la fracture d'Élara ?"
-  python query_test.py "la forge" --type lieu
-  python query_test.py "sa voix" --doc elara-vance --n 3
+  python query_test.py "que relit la narratrice le soir ?"
+  python query_test.py "les deux couverts" --type prop
+  python query_test.py "sa voix" --doc judith --n 3
 """
 
 import argparse
