@@ -41,6 +41,7 @@ from urllib.parse import parse_qs
 
 import notify
 import progress
+import ch7
 from chapitre import assembler
 from graph import build_graph
 from llm import unload
@@ -108,14 +109,13 @@ SORTIE = Path(os.environ.get("API_OUTPUT_DIR",
 CHAPITRE_MD = SORTIE / "chapitre.md"
 CHAPITRE_WAV = SORTIE / "chapitre.wav"
 
-# Consigne par défaut. Le contrat dit « corps minimal ou vide » : le deck ne
-# connaît pas le récit, c'est la machine qui sait quoi écrire.
-BRIEF = os.environ.get(
-    "DEMO_BRIEF",
-    "Élara arrive à la forge de Valmir et doit convaincre Kael de lui forger "
-    "une lame ; Kael refuse d'abord, puis cède pour une raison qu'il ne dit pas.",
-)
-CHARACTERS = os.environ.get("DEMO_CHARACTERS", "elara-vance kael-doran").split()
+# Le récit généré est le CHAPITRE 7 de « L'Involontaire ». Le contrat dit
+# « corps minimal ou vide » : le deck ne connaît pas le récit, c'est la machine
+# qui sait quoi écrire. Toute la structure du chapitre (deux entrées, ancre,
+# beats, chute) vient de `ch7.etat_ch7()` — source unique partagée avec le
+# driver de calibration (`outillage/run_s4.py`), pour qu'API et outillage
+# convergent sur un seul chapitre. Graine aléatoire par run : vraie variance
+# live du best-of-3 de l'entrée 1 et du tirage du glissement.
 
 
 class Job:
@@ -181,7 +181,7 @@ class Job:
 
             graph = build_graph()
             final = graph.invoke(
-                {"brief": BRIEF, "characters": CHARACTERS},
+                ch7.etat_ch7(),
                 config={"recursion_limit": 50},
             )
             self._ecrire_chapitre(final)
@@ -235,11 +235,15 @@ class Job:
         """Écrit le Markdown du chapitre sur disque (source de `GET /chapter`).
 
         C'est ici que le marqueur de bascule est posé — par le code, jamais par
-        le modèle (cf. `chapitre.py`).
+        le modèle (cf. `chapitre.py`). Les paramètres CH7 (`MARQUEURS_CH7`)
+        placent la bascule sur le SECOND en-tête daté — les deux entrées portent
+        le même jour — et bornent l'audio sur la chute « Constat : anniversaire. »
+        plutôt que sur un plafond de mots.
         """
         SORTIE.mkdir(parents=True, exist_ok=True)
         scenes = final.get("repaired") or final.get("scenes") or []
-        CHAPITRE_MD.write_text(assembler(scenes), encoding="utf-8")
+        CHAPITRE_MD.write_text(assembler(scenes, **ch7.MARQUEURS_CH7),
+                               encoding="utf-8")
 
     def _rendre_audio(self) -> dict | None:
         """Synthétise l'extrait post-bascule. Retourne les métriques, ou None.
