@@ -22,3 +22,6 @@ output/
 # Le WAV qui compte — le chapitre de secours pré-rendu — est archivé
 # délibérément selon le RUNBOOK, pas ramassé au fil des tirages.
 runs-*/*.wav
+
+# Worktrees git créés par le harness (Claude Code) — locaux, jamais versionnés.
+.claude/
