@@ -125,14 +125,14 @@ def rendre(texte: str, sortie: Path, *, model_id: str = MODEL_ID,
             "pip install mlx-audio soundfile numpy"
         ) from exc
 
-    progress.phase("Lecture en voix clonée", f"chargement de {model_id}")
+    progress.phase("Restitution", "préparation")
     modele = load_model(model_id)
 
     sr = SAMPLE_RATE_DEFAUT
     pistes = []
     t0 = time.time()
     for i, segment in enumerate(segments, 1):
-        progress.phase("Lecture en voix clonée",
+        progress.phase("Restitution",
                        f"segment {i}/{len(segments)}", i=i, n=len(segments))
         for resultat in modele.generate(
             text=segment, ref_audio=ref_audio, ref_text=ref_text,
@@ -164,7 +164,7 @@ def rendre(texte: str, sortie: Path, *, model_id: str = MODEL_ID,
     ecart = duree - SECONDES_AUDIO
     if abs(ecart) > TOLERANCE_AUDIO_S:
         progress.note(
-            f"durée d'audio hors cible : {duree:.0f} s au lieu de "
+            f"durée de lecture hors cible : {duree:.0f} s au lieu de "
             f"{SECONDES_AUDIO:.0f} s ({ecart:+.0f} s). Recalibrer "
             f"AUDIO_DEBIT_MOTS_MIN (actuel {DEBIT_MOTS_MIN:.0f} mots/min, "
             f"réel {len(texte.split()) / (duree / 60):.0f})."

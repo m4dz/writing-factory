@@ -264,13 +264,12 @@ class Job:
                 CHAPITRE_MD.read_text(encoding="utf-8"), CHAPITRE_WAV
             )
             progress.note(
-                f"audio prêt : {metriques['audio_s']:.0f} s de lecture en "
-                f"{metriques['calcul_s']:.0f} s (×{metriques['facteur_temps_reel']} "
-                "temps réel)"
+                f"lecture prête : {metriques['audio_s']:.0f} s restituées en "
+                f"{metriques['calcul_s']:.0f} s (×{metriques['facteur_temps_reel']})"
             )
             return metriques
         except Exception as exc:                        # noqa: BLE001
-            progress.note(f"TTS indisponible : {exc} — chapitre servi sans audio")
+            progress.note(f"lecture indisponible : {exc} — chapitre servi sans lecture")
             return None
 
     def annuler(self) -> bool:

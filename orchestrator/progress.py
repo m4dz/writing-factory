@@ -39,21 +39,31 @@ _ANSI_DEBUT_LIGNE = "\r"
 # pipeline. Mesures du run de référence (17,0 min, 4 scènes) : le plan pèse
 # ~2 min, l'écriture ~7, la relecture ~5, la QA ~3.
 BANDES = {
-    "Invariants de la bible": (0.00, 0.04),
-    "Plan de scènes": (0.04, 0.10),
-    "Contrôle du plan contre la bible": (0.10, 0.12),
-    "Écriture": (0.12, 0.55),
-    "Relecture": (0.55, 0.80),
-    "Bascule des modèles": (0.80, 0.81),
-    "Réparation linguistique": (0.81, 0.90),
-    "Cohérence par faits": (0.90, 0.97),
-    "Lecture en voix clonée": (0.97, 1.00),
+    "Invariants de la bible": (0.00, 0.03),
+    # Plan et « Plan d'entrées » sont deux CHEMINS du même nœud (brief imposé vs
+    # généré) : même bande, un seul est émis par run.
+    "Plan": (0.03, 0.08),
+    "Plan d'entrées": (0.03, 0.08),
+    "Contrôle du plan contre la bible": (0.08, 0.12),
+    "Écriture": (0.12, 0.50),
+    # Accumulation / Glissement : SOUS-ÉTAPES d'une entrée d'écriture, dans la
+    # boucle write→accumulate→glisse. VOLONTAIREMENT sans bande : elles tiennent
+    # la valeur atteinte par « Écriture » (dont i/n mène la barre). Une bande
+    # propre sauterait à contretemps de la boucle, puis le garde monotone
+    # figerait l'écriture des entrées suivantes.
+    "Relecture": (0.50, 0.72),
+    "Bascule des modèles": (0.72, 0.73),
+    "Réparation linguistique": (0.73, 0.85),
+    "Assemblage": (0.85, 0.90),
+    "Pose des gestes": (0.90, 0.94),
+    "Cohérence par faits": (0.94, 0.97),
+    "Restitution": (0.97, 1.00),
 }
 
 # Phases telles que le deck les connaît (contrat gelé côté talk :
 # `GenStatus`). Notre granularité interne est plus fine ; on la projette.
 PHASES_DECK = {
-    "Lecture en voix clonée": "tts",
+    "Restitution": "tts",
 }
 
 
