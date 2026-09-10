@@ -23,5 +23,8 @@ output/
 # délibérément selon le RUNBOOK, pas ramassé au fil des tirages.
 runs-*/*.wav
 
-# Worktrees git créés par le harness (Claude Code) — locaux, jamais versionnés.
-.claude/
+# Claude Code: harness worktrees and local settings are never versioned; the
+# openspec skills and commands are.
+.claude/*
+!.claude/skills/
+!.claude/commands/
