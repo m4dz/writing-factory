@@ -1,0 +1,85 @@
+id: 20260809-ch2-calibration
+kind: series
+description: Chapter 2 calibration protocol, direct Ollama calls (run_ch2.py)
+date: '2026-08-09'
+source_dir: runs-ch2
+reconstructed: true
+note: Manifest rebuilt from the runs' frontmatter on 2026-09-11. The commit is the one that
+  ADDED the artifacts, not necessarily the code that produced them; seeds and clocks exist
+  only where the frontmatter of the time recorded them.
+added_in_commit: 0ee8163
+runs:
+- file: run-1.md
+  id: '1'
+  role: score
+  model: auteur-test
+  sheet: style-auteur v3
+  rag: aucun (frappe directe)
+  temperature: '0.7'
+  date: '2026-08-09T23:35:03'
+  words: '492'
+  duration_s: '111'
+  done_reason: stop
+  entries: '1'
+- file: run-2.md
+  id: '2'
+  role: score
+  model: auteur-test
+  sheet: style-auteur v3
+  rag: aucun (frappe directe)
+  temperature: '0.7'
+  date: '2026-08-09T23:36:11'
+  words: '492'
+  duration_s: '67'
+  done_reason: stop
+  entries: '1'
+- file: run-3.md
+  id: '3'
+  role: score
+  model: auteur-test
+  sheet: style-auteur v3
+  rag: aucun (frappe directe)
+  temperature: '0.7'
+  date: '2026-08-09T23:37:12'
+  words: '439'
+  duration_s: '61'
+  done_reason: stop
+  entries: '1'
+- file: run-C.md
+  id: C
+  role: contrôle — brief sans les lignes de beats
+  model: auteur-test
+  sheet: style-auteur v3
+  rag: aucun (frappe directe)
+  temperature: '0.7'
+  date: '2026-08-09T23:38:12'
+  words: '446'
+  duration_s: '60'
+  done_reason: stop
+  entries: '1'
+- file: run-X1.md
+  id: X1
+  role: exploration, hors score
+  model: auteur-test
+  sheet: style-auteur v3
+  rag: aucun (frappe directe)
+  temperature: '0.5'
+  date: '2026-08-09T23:39:01'
+  words: '338'
+  duration_s: '49'
+  done_reason: stop
+  entries: '1'
+- file: run-X2.md
+  id: X2
+  role: exploration, hors score
+  model: auteur-test
+  sheet: style-auteur v3
+  rag: aucun (frappe directe)
+  temperature: '0.9'
+  date: '2026-08-09T23:40:24'
+  words: '583'
+  duration_s: '83'
+  done_reason: stop
+  entries: '1'
+other_files: []
+dropped: []

@@ -325,10 +325,11 @@ def main() -> int:
               file=sys.stderr)
 
     rag = args.etage != "A"
-    out_dir = Path(args.out_dir
-                   or (f"runs-{args.etage.lower()}" if args.etage in ("S6", "S7", "CH7")
-                       else f"runs-s4-{args.etage.lower()}"))
-    out_dir.mkdir(exist_ok=True)
+    # Runs land under experiments/runs/<date>-<stage> (ADR-0003).
+    out_dir = Path(args.out_dir or (
+        RACINE / "experiments" / "runs"
+        / f"{datetime.now():%Y%m%d}-{args.etage.lower()}"))
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     # Import TARDIF : construire le graphe importe chromadb et, à l'étage A, on
     # veut pouvoir tourner conteneur éteint. L'import lui-même ne se connecte

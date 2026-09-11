@@ -1,0 +1,49 @@
+id: 20260821-s6-stage-c-before-fixes
+kind: series
+description: Session 6 stage C before the corrective batch (snapshot kept for comparison)
+date: '2026-08-21'
+source_dir: runs-s6-c-avant-correctifs
+reconstructed: true
+note: Manifest rebuilt from the runs' frontmatter on 2026-09-11. The commit is the one that
+  ADDED the artifacts, not necessarily the code that produced them; seeds and clocks exist
+  only where the frontmatter of the time recorded them.
+added_in_commit: 0ee8163
+runs:
+- file: run-C1.md
+  id: C1
+  stage: C
+  role: score
+  rag: 'True'
+  ctx_need_max: '0.62'
+  date: '2026-08-21T14:23:51'
+  words: '741'
+  entries_generated: '1'
+  temperature: '0.7'
+  duration_s: '386'
+  done_reason: stop
+- file: run-C2.md
+  id: C2
+  stage: C
+  role: score
+  rag: 'True'
+  ctx_need_max: '0.6'
+  date: '2026-08-21T14:31:22'
+  words: '596'
+  entries_generated: '1'
+  temperature: '0.7'
+  duration_s: '374'
+  done_reason: stop
+- file: run-C3.md
+  id: C3
+  stage: C
+  role: score
+  rag: 'True'
+  ctx_need_max: '0.6'
+  date: '2026-08-21T14:37:19'
+  words: '714'
+  entries_generated: '1'
+  temperature: '0.7'
+  duration_s: '357'
+  done_reason: stop
+other_files: []
+dropped: []

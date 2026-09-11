@@ -1,0 +1,61 @@
+id: 20260821-s6-stage-c
+kind: series
+description: 'Session 6 stage C: assembly micro-nodes (accumulate, drift)'
+date: '2026-08-21'
+source_dir: runs-s6-c
+reconstructed: true
+note: Manifest rebuilt from the runs' frontmatter on 2026-09-11. The commit is the one that
+  ADDED the artifacts, not necessarily the code that produced them; seeds and clocks exist
+  only where the frontmatter of the time recorded them.
+added_in_commit: 0ee8163
+runs:
+- file: run-C1.md
+  id: C1
+  stage: C
+  role: score
+  rag: 'True'
+  ctx_need_max: '0.6'
+  date: '2026-08-21T15:39:16'
+  words: '375'
+  entries_generated: '1'
+  temperature: '0.7'
+  duration_s: '273'
+  done_reason: stop
+- file: run-C2.md
+  id: C2
+  stage: C
+  role: score
+  rag: 'True'
+  ctx_need_max: '0.6'
+  date: '2026-08-21T15:45:21'
+  words: '566'
+  entries_generated: '1'
+  temperature: '0.7'
+  duration_s: '365'
+  done_reason: stop
+- file: run-C3.md
+  id: C3
+  stage: C
+  role: score
+  rag: 'True'
+  ctx_need_max: '0.6'
+  date: '2026-08-21T15:48:43'
+  words: '230'
+  entries_generated: '1'
+  temperature: '0.7'
+  duration_s: '202'
+  done_reason: stop
+- file: run-CC.md
+  id: CC
+  stage: C
+  role: chapitre complet, hors score
+  rag: 'True'
+  ctx_need_max: '0.57'
+  date: '2026-08-21T16:03:18'
+  words: '1691'
+  entries_generated: '3'
+  temperature: '0.7'
+  duration_s: '874'
+  done_reason: stop
+other_files: []
+dropped: []

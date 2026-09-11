@@ -1,0 +1,61 @@
+id: 20260825-s7-corrective-batch
+kind: series
+description: Session 7 corrective batch, three scored runs on chapter 2
+date: '2026-08-25'
+source_dir: runs-s7
+reconstructed: true
+note: Manifest rebuilt from the runs' frontmatter on 2026-09-11. The commit is the one that
+  ADDED the artifacts, not necessarily the code that produced them; seeds and clocks exist
+  only where the frontmatter of the time recorded them.
+added_in_commit: d32d8df
+runs:
+- file: run-S7-1.md
+  id: S7-1
+  stage: S7
+  role: score
+  rag: 'True'
+  ctx_need_max: '0.59'
+  seed: '725872'
+  segments: 'True'
+  date: '2026-08-25T16:25:59'
+  words: '490'
+  entries_generated: '1'
+  temperature: '0.7'
+  duration_s: '297'
+  done_reason: stop
+- file: run-S7-2.md
+  id: S7-2
+  stage: S7
+  role: score
+  rag: 'True'
+  ctx_need_max: '0.61'
+  seed: '30329'
+  segments: 'True'
+  date: '2026-08-25T16:32:22'
+  words: '638'
+  entries_generated: '1'
+  temperature: '0.7'
+  duration_s: '358'
+  done_reason: stop
+- file: run-S7-3.md
+  id: S7-3
+  stage: S7
+  role: score
+  rag: 'True'
+  ctx_need_max: '0.61'
+  seed: '965773'
+  segments: 'True'
+  date: '2026-08-25T17:57:55'
+  words: '552'
+  entries_generated: '1'
+  temperature: '0.7'
+  duration_s: '374'
+  wall_s: '1111'
+  sleep_s: '737'
+  done_reason: stop
+other_files: []
+dropped:
+- file: lancement.log
+  reason: launch log (ADR-0003)
+- file: nohup.log
+  reason: launch log (ADR-0003)

@@ -1,0 +1,74 @@
+id: 20260826-ch7-rehearsal
+kind: run
+description: 'Chapter 7 rehearsal series: six draws, the retained one (run-CH7.md) and the
+  assembled chapter'
+date: '2026-08-26'
+source_dir: runs-ch7
+reconstructed: true
+note: Manifest rebuilt from the runs' frontmatter on 2026-09-11. The commit is the one that
+  ADDED the artifacts, not necessarily the code that produced them; seeds and clocks exist
+  only where the frontmatter of the time recorded them.
+added_in_commit: d32d8df
+runs:
+- file: run-CH7.md
+  id: CH7
+  stage: CH7
+  role: répétition — chapitre 7 en conditions réelles
+  rag: 'True'
+  ctx_need_max: '0.52'
+  seed: '206494'
+  segments: 'True'
+  date: '2026-08-31T23:12:24'
+  words: '392'
+  entries_generated: '2'
+  temperature: '0.7'
+  duration_s: '614'
+  wall_s: '614'
+  sleep_s: '0'
+  done_reason: stop
+other_files:
+- chapitre-7.md
+- chronometrage.json
+dropped:
+- file: lancement-1.log
+  reason: launch log (ADR-0003)
+- file: lancement-2.log
+  reason: launch log (ADR-0003)
+- file: lancement-3.log
+  reason: launch log (ADR-0003)
+- file: lancement-4.log
+  reason: launch log (ADR-0003)
+- file: lancement-beats1.log
+  reason: launch log (ADR-0003)
+- file: lancement-e2v10.log
+  reason: launch log (ADR-0003)
+- file: lancement-e2v11.log
+  reason: launch log (ADR-0003)
+- file: lancement-e2v13.log
+  reason: launch log (ADR-0003)
+- file: lancement-e2v14.log
+  reason: launch log (ADR-0003)
+- file: lancement-e2v15.log
+  reason: launch log (ADR-0003)
+- file: lancement-e2v16.log
+  reason: launch log (ADR-0003)
+- file: lancement-e2v3.log
+  reason: launch log (ADR-0003)
+- file: lancement-e2v4.log
+  reason: launch log (ADR-0003)
+- file: lancement-e2v5.log
+  reason: launch log (ADR-0003)
+- file: lancement-e2v6.log
+  reason: launch log (ADR-0003)
+- file: lancement-e2v7.log
+  reason: launch log (ADR-0003)
+- file: lancement-e2v9.log
+  reason: launch log (ADR-0003)
+- file: lancement-mouv3.log
+  reason: launch log (ADR-0003)
+- file: lancement-racine.log
+  reason: launch log (ADR-0003)
+- file: lancement.log
+  reason: launch log (ADR-0003)
+- file: nohup.log
+  reason: launch log (ADR-0003)

@@ -2,14 +2,13 @@
 """Archive les runs ratés — « rien ne se jette ».
 
 Chaque run portant au moins un échec AUTO est copié tel quel dans
-`journal-des-murs/`, horodaté, avec sa ligne de grille en en-tête. C'est le
+`experiments/journal/`, horodaté, avec sa ligne de grille en en-tête. C'est le
 matériau des sections 5-6 de la keynote : les échecs authentiques sont plus
 démonstratifs que la réussite, et les retoucher leur ôterait leur valeur de
 pièce à conviction. La sortie du modèle n'est JAMAIS modifiée.
 
 Usage :
-  python3 outillage/journal_des_murs.py runs-s4-a 2
-  python3 outillage/journal_des_murs.py runs-s4-b 2
+  python3 outillage/journal_des_murs.py experiments/runs/20260818-s4-stage-a 2
 """
 
 import sys
@@ -22,7 +21,7 @@ from grille_session import decouvrir, frontmatter  # noqa: E402
 from lint_style import (analyse, contraintes_chapitre,  # noqa: E402
                         controles_chapitre, strip_frontmatter)
 
-MUR = RACINE / "journal-des-murs"
+MUR = RACINE / "experiments" / "journal"
 
 
 def echecs_auto(texte: str, contraintes: dict | None) -> list[str]:

@@ -199,7 +199,7 @@ def main() -> int:
     parser.add_argument("--runs", type=int, default=3)
     parser.add_argument("--control", action="store_true",
                         help="Run de contrôle : brief sans les lignes régime")
-    parser.add_argument("--out-dir", default="runs")
+    parser.add_argument("--out-dir", default="experiments/runs/style-test")
     parser.add_argument("--timeout", type=int, default=600,
                         help="Timeout par run en secondes")
     parser.add_argument("--temperatures", type=float, nargs="+",

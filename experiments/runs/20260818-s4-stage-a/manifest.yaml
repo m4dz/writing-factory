@@ -1,0 +1,49 @@
+id: 20260818-s4-stage-a
+kind: series
+description: 'Session 4 stage A: LangGraph pipeline, rag=False'
+date: '2026-08-18'
+source_dir: runs-s4-a
+reconstructed: true
+note: Manifest rebuilt from the runs' frontmatter on 2026-09-11. The commit is the one that
+  ADDED the artifacts, not necessarily the code that produced them; seeds and clocks exist
+  only where the frontmatter of the time recorded them.
+added_in_commit: 0ee8163
+runs:
+- file: run-A1.md
+  id: A1
+  stage: A
+  role: score
+  rag: 'False'
+  date: '2026-08-18T01:03:31'
+  words: '405'
+  entries_generated: '1'
+  duration_s: '227'
+- file: run-A2.md
+  id: A2
+  stage: A
+  role: score
+  rag: 'False'
+  date: '2026-08-18T01:07:20'
+  words: '372'
+  entries_generated: '1'
+  duration_s: '218'
+- file: run-A3.md
+  id: A3
+  stage: A
+  role: score
+  rag: 'False'
+  date: '2026-08-18T01:11:25'
+  words: '429'
+  entries_generated: '1'
+  duration_s: '245'
+- file: run-AC.md
+  id: AC
+  stage: A
+  role: chapitre complet, hors score
+  rag: 'False'
+  date: '2026-08-18T01:20:29'
+  words: '1321'
+  entries_generated: '3'
+  duration_s: '530'
+other_files: []
+dropped: []

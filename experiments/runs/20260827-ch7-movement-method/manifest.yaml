@@ -1,0 +1,31 @@
+id: 20260827-ch7-movement-method
+kind: run
+description: Chapter 7 entry 2 under the movement method (intention, trajectory, material,
+  vetos)
+date: '2026-08-27'
+source_dir: runs-mouvement
+reconstructed: true
+note: Manifest rebuilt from the runs' frontmatter on 2026-09-11. The commit is the one that
+  ADDED the artifacts, not necessarily the code that produced them; seeds and clocks exist
+  only where the frontmatter of the time recorded them.
+added_in_commit: d32d8df
+runs:
+- file: run-MOUV.md
+  id: CH7
+  stage: CH7
+  role: répétition — chapitre 7 en conditions réelles
+  rag: 'True'
+  ctx_need_max: '0.79'
+  seed: '365464'
+  segments: 'True'
+  date: '2026-08-27T02:27:30'
+  words: '746'
+  entries_generated: '2'
+  temperature: '0.7'
+  duration_s: '596'
+  wall_s: '596'
+  sleep_s: '0'
+  done_reason: stop
+other_files:
+- prompt-servi.txt
+dropped: []

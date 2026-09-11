@@ -1,7 +1,7 @@
 """The deterministic lint, frozen on the runs it was calibrated against.
 
 ``lint_style.analyse`` has no model behind it: its report on a given text is a
-pure function. Every failed run in the journal and the chapter 7 rehearsal
+pure function. Every failed run in `experiments/journal/` and the chapter 7 rehearsal
 files are run through it and the reports are compared to golden files. This is
 the falsification baseline in both directions: a detector that starts firing
 on a run it accepted, or stops firing on one it flagged, shows up here.
@@ -15,7 +15,8 @@ from lint_style import analyse, rapport
 REPO = Path(__file__).resolve().parents[2]
 GOLDEN = REPO / "tests" / "snapshots" / "lint"
 
-SOURCES = sorted(REPO.glob("journal-des-murs/*.md")) + sorted(REPO.glob("runs-ch7/*.md"))
+SOURCES = (sorted(p for p in REPO.glob("experiments/journal/*.md") if p.name != "README.md")
+           + sorted(REPO.glob("experiments/runs/20260826-ch7-rehearsal/*.md")))
 
 
 @pytest.mark.snapshot

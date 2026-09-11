@@ -21,7 +21,7 @@ output/
 # Rendus vocaux des runs : dérivés, lourds, et regénérables depuis le texte.
 # Le WAV qui compte — le chapitre de secours pré-rendu — est archivé
 # délibérément selon le RUNBOOK, pas ramassé au fil des tirages.
-runs-*/*.wav
+experiments/runs/**/*.wav
 
 # Claude Code: harness worktrees and local settings are never versioned; the
 # openspec skills and commands are.
@@ -33,4 +33,5 @@ runs-*/*.wav
 .venv/
 .pytest_cache/
 .ruff_cache/
+*.egg-info/
 *.egg-info/

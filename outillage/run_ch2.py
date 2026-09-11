@@ -100,9 +100,9 @@ def chat(model: str, prompt: str, temperature: float, timeout: int) -> dict:
 
 def main() -> int:
     p = argparse.ArgumentParser()
-    p.add_argument("--protocole", default="protocole-calibration-ch2.md")
+    p.add_argument("--protocole", default="experiments/reports/protocole-calibration-ch2.md")
     p.add_argument("--model", default="auteur-test")
-    p.add_argument("--out-dir", default="runs-ch2")
+    p.add_argument("--out-dir", default="experiments/runs/ch2-calibration")
     p.add_argument("--timeout", type=int, default=900)
     p.add_argument("--seulement", nargs="*", default=None,
                    help="Identifiants de runs à exécuter (défaut : tous)")
