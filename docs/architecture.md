@@ -1,0 +1,125 @@
+# Architecture
+
+One map of what runs today, kept current at every step of the revamp
+(`docs/plans/2026-09-revamp.md`). Decisions are in `docs/adr/`, working rules
+in `docs/doctrines.md`, operations in `docs/runbook.md`.
+
+## What it does
+
+The factory writes chapters of *L'Involontaire*, a French novel in the form
+of a proofreader's reading notebook: dated entries, one voice, no dialogue.
+Inputs are an author-owned bible (`bible/`), a per-chapter brief
+(`chapters/`), and a style contract. Outputs are a Markdown chapter with two
+markers for the stage (audio switch, end of the read excerpt) and a WAV of the
+excerpt in a cloned voice. A second surface, the actor mode, answers in
+character with a stateful memory.
+
+Everything runs on one Apple Silicon laptop: Ollama on the host (author model
+`mistral-nemo` 12B, QA model `qwen2.5` 7B, embeddings `nomic-embed-text`),
+ChromaDB in a Podman container, the orchestrator in a host venv.
+
+## Layout today (after step 3)
+
+```
+orchestrator/        the pipeline (host venv)
+  api.py             HTTP surface for the deck and the actor page
+  graph.py           LangGraph: state, nodes, strategies, wiring
+  ch7.py             chapter 7 specification (Python, reads chapters/07-*/)
+  chapitre.py        assembly: audio switch and excerpt bound
+  gestes.py          gesture validators, drift bank, placement
+  qa.py              Qwen roles: repair, facts, violation questions
+  retrieval.py       Chroma access, style sections, system prompt
+  roleplay.py        actor mode: session, memory, out-of-role guard
+  preflight.py       machine gate (disk, swap, pressure, daemons, Ollama)
+  tts.py             cloned-voice rendering (mlx-audio, lazy import)
+  notify.py          Telegram beeper (structured fields only)
+  progress.py        progress sink: countdown, /status payload
+  llm.py             Ollama chat client, metrics, context estimates
+  style.py           French guard, delint, sentence detection
+  run_chapter.py     generic CLI (one chapter, ad hoc brief)
+  static/acteur.html the actor page
+outillage/           calibration tooling: lint_style, grille_session,
+                     etancheite, run_s4 (stage driver), journal_des_murs,
+                     build_etat_narratif, and the lint data files
+indexer/             bible → chunks → embeddings → ChromaDB (container)
+bible/               canon, French, author-owned; surface/ and profond/ layers
+chapters/07-*/       chapter 7 briefs (author-owned, never indexed)
+experiments/         runs (with manifests), journal, grids, reports
+openspec/            project context, current specs, changes
+docs/                architecture, runbook, doctrines, adr/, plans/
+tests/               fakes, unit, stages, snapshots
+```
+
+`graph.py` and `gestes.py` import the calibration lint from `outillage/`
+through `sys.path`; the package step (revamp step 4) removes that.
+
+## The graph
+
+```
+plan ──▶ write ──▶ accumulate ──▶ glisse ──┐
+  ▲                                        │ more entries?
+  └────────────────────────────────────────┘
+                                           ▼ no
+                   review ──▶ repair ──▶ assemble ──▶ poser_gestes ──▶ coherence
+```
+
+- **plan** (nemo, checked by Qwen): derives bible facts, plans dated entries
+  under those facts, verifies the plan by violation questions, replans once.
+  Short-circuited for a single-entry brief or when the brief imposes its own
+  entries (chapter 7).
+- **write** (nemo): one entry per pass, header and anchor prefixed by code.
+  Three strategies selected per entry: a single call, three segments
+  (opening, reconstruction with stations, closing), or code-capped beats with
+  best-of-N selection by reading criteria. Continuation on a cut generation,
+  trim to the last sentence as a net, sentence bound when the brief sets one.
+- **accumulate** (nemo): one long enumerative sentence, validated by code
+  (thresholds, language, person, abstraction, decor), set aside.
+- **glisse** (no model): the drift passage, from the chapter bank or the
+  brief, validated and set aside.
+- **review** (nemo) and **repair** (Qwen, after nemo is unloaded): rewrite
+  each entry; a guard rejects a rewrite that moves away from the entry's word
+  target.
+- **assemble**: deterministic pruning of named residue motifs on beat entries.
+- **poser_gestes**: re-stamps header and anchor, poses the fall line, inserts
+  accumulation and drift on the FINAL text, deduplicates repeated paragraphs
+  while protecting composed ones.
+- **coherence** (Qwen): facts → violation questions → answers per scene, with
+  code-verified citations and a severe counter-call.
+
+Around the graph, called by the API and the CLI: **preflight** before,
+**assembly** of the chapter Markdown (`chapitre.assembler`) and **render**
+(TTS) after. Both become graph nodes at step 4.
+
+## Data flows
+
+- **Bible → index.** `indexer/index.py` chunks each Markdown file by `## `
+  section under three firewall barriers (ADR-0017), embeds, upserts to the
+  `auteur` collection; orphan chunks are purged. Never touches the `sessions`
+  collection.
+- **Index → prompt.** Writing chunks (voice, current state, psychology) by
+  deterministic id; world chunks for fact derivation; style sections from
+  disk with example lines stripped; no previous entries during writing.
+- **Chapter 7 spec → state.** `ch7.py` reads `chapters/07-anniversaire/
+  brief.md` and `brief-entree-2.md` by section, the movement line of the
+  chapter from the deep table, and builds the `graph.invoke` state
+  (`entrees_spec`, beats, anchor, fall). Chapter 2 is built the same way in
+  `outillage/run_s4.py`. Both become a YAML spec and a loader at step 5.
+- **State → artifacts.** The API writes `output/chapitre.md` and
+  `output/chapitre.wav`; calibration runs write frontmatter Markdown under
+  `experiments/runs/`.
+- **Roleplay.** `sessions/<character>/<timestamp>.md` (summary + transcript)
+  is written first, then its summary is indexed in the `sessions` collection
+  and retrieved at the next session start.
+
+## Boundaries that are tested
+
+- Model boundary: `llm.chat` / `llm.chat_turns`, faked in tests; served
+  prompts frozen in `tests/snapshots/`.
+- Store boundary: Chroma client, faked from the indexer's chunker.
+- Machine boundary: preflight probes, TTS synthesizer, Telegram, faked.
+
+## Target
+
+`docs/plans/2026-09-revamp.md` §4: one package `src/factory/`, chapter
+knowledge in `chapters/NN-slug/spec.yaml`, per-run API, narrative state per
+chapter, English identifiers. Steps 4 to 7.

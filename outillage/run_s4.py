@@ -11,7 +11,7 @@ Les deux étages ne diffèrent QUE par `rag` :
     contexte narratif se limite au brief ;
   - étage B : `rag=True`, collections indexées.
 
-Les briefs sont lus dans `briefs/protocole-calibration-ch2.md` (§3 du protocole
+Les briefs sont lus dans `experiments/reports/protocole-calibration-ch2.md` (§3 du protocole
 de session pour la version 2) : ils ne sont pas recopiés ici, pour qu'un brief
 modifié n'ait pas deux vérités.
 

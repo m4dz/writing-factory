@@ -1,21 +1,8 @@
-# Stack fiction-assistant
-# Ollama reste HORS conteneur (accès GPU Apple Silicon direct).
-# Depuis les conteneurs, il est joignable via host.containers.internal:11434
-#
-# Si tu as déjà un podman-compose.yml avec OpenWebUI, fusionne simplement
-# les services `chromadb` et `indexer` dans ton fichier existant.
+# writing-factory containers: ChromaDB (persistent) and the indexer (on demand).
+# Ollama stays OUT of containers (direct Apple Silicon GPU access) and is reached
+# from containers through host.containers.internal:11434.
 
 services:
-  openwebui:
-    image: ghcr.io/open-webui/open-webui:main
-    ports:
-      - "3000:8080"
-    environment:
-      - OLLAMA_BASE_URL=http://host.containers.internal:11434
-    volumes:
-      - openwebui-data:/app/backend/data
-    restart: unless-stopped
-
   chromadb:
     image: docker.io/chromadb/chroma:latest
     ports:
@@ -46,5 +33,3 @@ services:
     depends_on:
       - chromadb
 
-volumes:
-  openwebui-data:

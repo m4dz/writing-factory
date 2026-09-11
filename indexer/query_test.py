@@ -17,7 +17,7 @@ CHROMA_HOST = os.environ.get("CHROMA_HOST", "localhost")
 CHROMA_PORT = int(os.environ.get("CHROMA_PORT", "8000"))
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
 EMBED_MODEL = os.environ.get("EMBED_MODEL", "nomic-embed-text")
-COLLECTION = os.environ.get("CHROMA_COLLECTION", "bible")
+COLLECTION = os.environ.get("CHROMA_COLLECTION", "auteur")
 
 
 def main() -> None:

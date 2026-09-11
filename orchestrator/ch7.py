@@ -36,11 +36,11 @@ NARRATRICE = ["judith"]
 
 # --- CHAPITRE 7 — la répétition en conditions réelles ------------------------
 #
-# Le brief machine est LU dans `briefs/brief-chapitre-7.md` (§3), jamais recopié
+# Le brief machine est LU dans `chapters/07-anniversaire/brief.md` (§3), jamais recopié
 # ici : un brief modifié ne doit pas avoir deux vérités. C'est la règle posée en
 # tête de ce fichier pour les briefs de session, et elle vaut d'autant plus pour
 # celui qui part sur scène.
-BRIEF_CH7_FICHIER = RACINE / "briefs" / "brief-chapitre-7.md"
+BRIEF_CH7_FICHIER = RACINE / "chapters" / "07-anniversaire" / "brief.md"
 
 # La traduction en langue du monde du §5 du brief v2. Le contenu est le même,
 # le destinataire change : le modèle, pas l'implémenteur.
@@ -63,7 +63,7 @@ VETOS_SERVIS = (
 )
 
 MOUVEMENTS = RACINE / "bible" / "profond" / "mouvements-chapitres.md"
-BRIEF_CH7_E2 = RACINE / "briefs" / "brief-ch7-entree2-v2.md"
+BRIEF_CH7_E2 = RACINE / "chapters" / "07-anniversaire" / "brief-entree-2.md"
 
 
 def mouvement(chapitre: int, entree: int | None = None) -> str:
