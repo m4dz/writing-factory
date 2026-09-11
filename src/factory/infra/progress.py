@@ -2,7 +2,7 @@
 """Affichage de progression et compte à rebours pour la démo de scène.
 
 Le problème que ce module résout n'est pas cosmétique. La génération d'un
-chapitre prend dix-sept minutes, pendant lesquelles `run_chapter.py` n'affichait
+chapitre prend dix-sept minutes, pendant lesquelles le pilote en ligne de commande n'affichait
 RIEN : la sortie n'arrivait qu'à la fin. Devant une salle, un écran figé se lit
 comme une machine plantée — soit l'inverse exact de ce que la démo doit montrer.
 
@@ -39,7 +39,8 @@ _ANSI_LINE_START = "\r"
 # pipeline. Mesures du run de référence (17,0 min, 4 scènes) : le plan pèse
 # ~2 min, l'écriture ~7, la relecture ~5, la QA ~3.
 BANDS = {
-    "Invariants de la bible": (0.00, 0.03),
+    "Préflight": (0.00, 0.01),
+    "Invariants de la bible": (0.01, 0.03),
     # Plan et « Plan d'entrées » sont deux CHEMINS du même nœud (brief imposé vs
     # généré) : même bande, un seul est émis par run.
     "Plan": (0.03, 0.08),
@@ -245,7 +246,7 @@ SINK = Progress(active=False)
 
 
 def install(sink: Progress) -> None:
-    """Remplace le puits global (appelé par run_chapter.py)."""
+    """Remplace le puits global (appelé par `factory generate` et l'API)."""
     global SINK
     SINK = sink
 

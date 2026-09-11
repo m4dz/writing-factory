@@ -42,13 +42,11 @@ from factory.infra import notify
 from factory.settings import settings
 from factory.infra import progress
 from factory.chapter_spec import chapter7 as ch7
-from factory.pipeline.assembly import assemble
 from factory.pipeline.graph import build_graph
-from factory.infra.ollama import unload
-from factory.infra.preflight import PreflightError, preflight, report
+from factory.pipeline.nodes.render import audio_path, chapter_path
+from factory.infra.preflight import PreflightError, report
 from factory.retrieval.context import list_characters
 from factory.roleplay.session import read_session, list_sessions
-from factory.infra.tts import render_chapter
 
 STATIC = Path(__file__).resolve().parent / "static"
 
@@ -97,14 +95,6 @@ _TYPES = {
 # origine mal devinée le jour J casserait la démo pour rien. À resserrer si le
 # deck est servi depuis une origine stable connue).
 
-
-def chapter_path() -> Path:
-    return settings.output_dir / "chapitre.md"
-
-
-def audio_path() -> Path:
-    return settings.output_dir / "chapitre.wav"
-
 # Le récit généré est le CHAPITRE 7 de « L'Involontaire ». Le contrat dit
 # « corps minimal ou vide » : le deck ne connaît pas le récit, c'est la machine
 # qui sait quoi écrire. Toute la structure du chapitre (deux entrées, ancre,
@@ -123,7 +113,7 @@ class Job:
 
     def __init__(self):
         self.lock = threading.Lock()
-        self.status = "idle"        # idle | generating | tts | ready | error
+        self.status = "idle"        # idle | generating | ready | error
         self.started_at: float | None = None
         self.finished_at: float | None = None
         self.error: str | None = None
@@ -140,7 +130,7 @@ class Job:
         et le contrat en dépend (« un second POST ne relance pas »).
         """
         with self.lock:
-            if self.status in ("generating", "tts", "ready"):
+            if self.status in ("generating", "ready"):
                 return False
             self.status = "generating"
             self.started_at = time.time()
@@ -163,25 +153,24 @@ class Job:
     def _run(self) -> None:
         """Exécute le pipeline. N'échoue JAMAIS vers l'appelant HTTP."""
         try:
-            # Le préflight refuse une machine étranglée — mais son refus ne doit
+            # Le préflight est le PREMIER NŒUD du graphe ; son refus ne doit
             # pas devenir une erreur réseau pour le deck : il devient un état
             # `error` que le deck traite comme « pas prêt », donc un fallback
             # silencieux, tandis que la raison m'est rapportée telle quelle.
-            # `chrono=True` : c'est la voie de la scène, celle qui court contre
+            # `timer=True` : c'est la voie de la scène, celle qui court contre
             # le compteur du deck. Ici la durée est l'enjeu, donc un swap saturé
             # redevient bloquant — au contraire de l'outillage de calibration,
             # qui juge de la prose et se moque des secondes.
-            warnings = preflight(strict=True, timer=True)
-            for a in warnings:
-                progress.note(f"préflight : {a}")
-
+            # `render=True` : le DERNIER nœud écrit `chapitre.md` puis rend le
+            # WAV ; un échec de voix laisse le chapitre servi et l'audio absent.
             graph = build_graph()
             final = graph.invoke(
-                ch7.ch7_state(),
+                {**ch7.ch7_state(),
+                 "preflight": {"strict": True, "timer": True},
+                 "render": True},
                 config={"recursion_limit": 50},
             )
-            self._write_chapter(final)
-            audio = self._render_audio()
+            audio = final.get("audio")
             with self.lock:
                 self.result = {
                     "audio": audio,
@@ -227,47 +216,6 @@ class Job:
         progress.note(f"ÉCHEC : {reason}")
         notify.failure(kind, short or reason)
 
-    def _write_chapter(self, final: dict) -> None:
-        """Écrit le Markdown du chapitre sur disque (source de `GET /chapter`).
-
-        C'est ici que le marqueur de bascule est posé — par le code, jamais par
-        le modèle (cf. `chapitre.py`). Les paramètres CH7 (`MARQUEURS_CH7`)
-        placent la bascule sur le SECOND en-tête daté — les deux entrées portent
-        le même jour — et bornent l'audio sur la chute « Constat : anniversaire. »
-        plutôt que sur un plafond de mots.
-        """
-        settings.output_dir.mkdir(parents=True, exist_ok=True)
-        scenes = final.get("repaired") or final.get("scenes") or []
-        chapter_path().write_text(assemble(scenes, **ch7.MARKERS_CH7),
-                               encoding="utf-8")
-
-    def _render_audio(self) -> dict | None:
-        """Synthétise l'extrait post-bascule. Retourne les métriques, ou None.
-
-        Un échec de TTS ne fait PAS échouer le job. Le chapitre, lui, est valide
-        et écrit : le deck doit pouvoir afficher le vrai texte tout en repliant
-        sur son audio embarqué. Le contrat gèle un fallback PAR RESSOURCE — se
-        rabattre sur les deux parce que la voix a manqué serait perdre du bon
-        travail pour rien.
-        """
-        with self.lock:
-            self.status = "tts"
-        # Qwen n'a plus rien à faire à ce stade, et 4,8 GB de rendus au modèle de
-        # voix valent mieux qu'un swap. Même logique que la bascule nemo → Qwen.
-        unload(settings.qa_model)
-        try:
-            metrics = render_chapter(
-                chapter_path().read_text(encoding="utf-8"), audio_path()
-            )
-            progress.note(
-                f"lecture prête : {metrics['audio_s']:.0f} s restituées en "
-                f"{metrics['calcul_s']:.0f} s (×{metrics['facteur_temps_reel']})"
-            )
-            return metrics
-        except Exception as exc:                        # noqa: BLE001
-            progress.note(f"lecture indisponible : {exc} — chapitre servi sans lecture")
-            return None
-
     def cancel(self) -> bool:
         """Demande l'arrêt du job en cours. Vrai s'il y avait quelque chose.
 
@@ -280,7 +228,7 @@ class Job:
         suivante, donc au pire après l'appel modèle en cours.
         """
         with self.lock:
-            if self.status not in ("generating", "tts") or not self.tracking:
+            if self.status != "generating" or not self.tracking:
                 return False
             self.tracking.cancelled = True
             return True
@@ -310,9 +258,11 @@ class Job:
         # `GenStatus`, et prétendre « generating » avant tout lancement — ou
         # après une annulation — laisserait le deck attendre un chapitre que
         # personne n'écrit.
+        # Pendant la génération, la phase vient du puits (« Restitution » se
+        # projette en `tts`) : le rendu est un nœud du graphe, pas un état du job.
         base["phase"] = {
-            "ready": "ready", "tts": "tts", "error": "error", "idle": "idle",
-        }.get(status, "generating")
+            "ready": "ready", "error": "error", "idle": "idle",
+        }.get(status, base["phase"] if tracking else "generating")
         base["ready"] = status == "ready" and chapter_path().exists()
         base["state"] = status
         base["progress"] = 1.0 if status == "ready" else base["progress"]
@@ -572,7 +522,7 @@ class Handler(BaseHTTPRequestHandler):
         # machine. On refuse franchement plutôt que de laisser découvrir la
         # latence en direct. Conséquence de planning : la démo d'acteur se joue
         # AVANT le lancement du chapitre, ou APRÈS sa récolte.
-        if JOB.status in ("generating", "tts"):
+        if JOB.status == "generating":
             self._json(409, {
                 "error": "génération en cours",
                 "detail": "Le mode acteur et la génération partagent le même "

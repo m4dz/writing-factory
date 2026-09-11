@@ -3,13 +3,17 @@ name = "writing-factory"
 version = "0.1.0"
 description = "Local-only chapter generation pipeline for L'Involontaire (author mode, actor mode, cloned-voice rendering)."
 requires-python = ">=3.10"
+# Core: what `factory index`, `factory query` and `factory eval` need — the
+# indexer container installs exactly this. The graph is the `pipeline` extra.
 dependencies = [
-    "langgraph>=1.0",
     "chromadb-client>=0.5",
     "python-frontmatter>=1.1",
     "httpx>=0.27",
     "pyyaml>=6",
 ]
+
+[project.scripts]
+factory = "factory.cli:main"
 
 [build-system]
 requires = ["setuptools>=64"]
@@ -22,10 +26,12 @@ where = ["src"]
 factory = ["api/static/*", "eval/data/*"]
 
 [project.optional-dependencies]
+# The generation graph and the API (`factory generate|calibrate|serve|chat`).
+pipeline = ["langgraph>=1.0"]
 # Cloned-voice rendering: Apple Silicon only (mlx). Installed on the stage
 # machine, never in the test environment; the import is lazy (ADR-0012).
 tts = ["mlx-audio>=0.4", "soundfile>=0.12", "numpy>=1.26"]
-test = ["pytest>=8", "ruff>=0.6"]
+test = ["pytest>=8", "ruff>=0.6", "langgraph>=1.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

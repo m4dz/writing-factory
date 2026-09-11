@@ -102,7 +102,7 @@ def dump() -> dict:
     return col.get(include=["documents", "metadatas"])
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     MARKERS, MANIFESTO = markers(), manifesto()
     failures: list[str] = []
     out = ["# Rapport d'étanchéité — collection auteur", "",

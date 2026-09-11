@@ -46,6 +46,44 @@ mounted at `/bible` and `BIBLE_DIR` still points there. The image carries
 LangGraph it does not need; splitting the dependency groups is deferred
 until the CLI exists (part 3).
 
-## Parts 2 and 3
+## Part 2 — settings and identifiers
 
-Designed when their turn comes, in this file, after part 1 is merged.
+`factory.settings.Settings` is a dataclass with every knob and its default;
+`Settings.from_env()` applies the environment once; the module singleton
+`settings` is read at call time (`settings.qa_model`), never bound at import,
+so tests monkeypatch a field and see it applied. Formerly French variables are
+renamed (table in the module docstring and runbook §1.6).
+
+`factory.infra.ollama.OllamaClient` holds the HTTP calls; `client` is the one
+instance and `chat` / `chat_turns` / `unload` delegate to it, so the fake
+replaces three methods in one place.
+
+Identifiers were renamed with a tokenizer pass (same French word → same
+English word everywhere, f-string expressions and format placeholders
+included), verified by the prompt snapshots. Data keys stay: run frontmatter,
+lint report keys, entry-spec dicts (step 5 makes them YAML), the deck's JSON.
+ChapterState keys are English; graph nodes `glisse` and `poser_gestes` became
+`drift` and `place_gestures`.
+
+## Part 3 — nodes and CLI
+
+The graph is `preflight → plan → … → coherence → render`. Both machine nodes
+are driven by state fields so that calibration runs and the snapshot suite,
+which do not set them, never probe `vm_stat` or load the voice model:
+
+- `preflight: true | {strict, timer}` — runs `infra.preflight.preflight`,
+  notes warnings, returns `preflight_warnings`; a refusal raises out of
+  `graph.invoke` (the API turns it into `phase: error`, the CLI into exit 1).
+- `assembly: dict` — kwargs of `assembly.assemble`, chapter knowledge
+  (`ch7_state` carries `{on_second_header, fall}`); the node always produces
+  `chapter_md`.
+- `render: bool` — writes `chapitre.md`, unloads the QA model, renders the
+  WAV; `audio` is the metrics dict or None on an ordinary voice failure.
+
+`GET /status` takes its `tts` phase from the progress sink (the render node
+enters the `Restitution` band) rather than from a job state.
+
+`factory.cli` dispatches subcommands onto module `main(argv)` functions with
+lazy pipeline imports. Dependency groups: core (chromadb-client, frontmatter,
+httpx, pyyaml) for `index`/`query`/`eval`, `pipeline` for LangGraph, `tts`,
+`test`. The indexer image installs core and runs `factory index`.

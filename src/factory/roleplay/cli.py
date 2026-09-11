@@ -19,8 +19,9 @@ import sys
 from factory.roleplay.session import Session
 
 
-def main() -> None:
-    p = argparse.ArgumentParser(description="Dialoguer avec un personnage.")
+def main(argv: list[str] | None = None) -> None:
+    p = argparse.ArgumentParser(prog="factory chat",
+                                description="Dialoguer avec un personnage.")
     p.add_argument("--character", required=True,
                    help="doc_id de la fiche (ex: judith)")
     p.add_argument("--nom", default=None,
@@ -29,7 +30,7 @@ def main() -> None:
                    help="Ignorer les souvenirs des sessions précédentes")
     p.add_argument("--keep-turns", type=int, default=None,
                    help="Échanges gardés verbatim avant fonte dans le résumé")
-    args = p.parse_args()
+    args = p.parse_args(argv)
 
     kwargs = {"name": args.nom, "remind": not args.no_memoire}
     if args.keep_turns is not None:

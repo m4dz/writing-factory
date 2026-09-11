@@ -47,6 +47,9 @@ def test_served_prompts_and_chapter_are_frozen(scenario, fake_model, fake_chroma
 
     prompts = scenarios.render_prompts(fake_model.calls)
     chapter = assembly.assemble(final["repaired"], **scenario.assembly)
+    # The render node assembles the same chapter into the state (no file, no
+    # voice: the scenario does not ask for rendering).
+    assert final["chapter_md"] == chapter and "audio" not in final
     warnings = "\n".join(final.get("warnings") or []) + "\n"
 
     folder = HERE / scenario.name

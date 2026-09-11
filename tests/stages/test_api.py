@@ -1,4 +1,5 @@
-"""The HTTP surface, served in-process with the pipeline replaced by a fake.
+"""The HTTP surface, served in-process, the graph running on the fake model
+with the machine probes and the voice replaced.
 
 Covers the current (keynote) contract: idempotent ``POST /generate``, ``204``
 for absent artifacts, ``409`` on chat during generation, the whitelist on
@@ -18,26 +19,16 @@ from factory.api import server as api
 from factory.pipeline import assembly
 from factory.settings import settings
 
-FINAL = {
-    "repaired": ["Samedi 14. Beau temps.\n\nUne. Deux. Trois.",
-                 "Samedi 14. Beau temps.\n\n« Cit. »\n\nQuatre.\n\nConstat : anniversaire."],
-    "warnings": ["w1"], "coherence": "FAIT 1 : tenu", "plan_report": "plan fourni",
-}
-
-
-class FakeGraph:
-    def invoke(self, state, config=None):
-        return dict(FINAL)
-
 
 @pytest.fixture
-def server(tmp_path, monkeypatch, fake_chroma):
+def server(tmp_path, monkeypatch, fake_chroma, fake_model):
+    from factory.pipeline.nodes import preflight as preflight_node
+    from factory.pipeline.nodes import render as render_node
+
     monkeypatch.setattr(settings, "output_dir", tmp_path / "out")
-    monkeypatch.setattr(api, "preflight", lambda **k: ["avertissement machine"])
+    monkeypatch.setattr(preflight_node, "preflight", lambda **k: ["avertissement machine"])
     monkeypatch.setattr(api, "report", lambda: "machine ok")
-    monkeypatch.setattr(api, "build_graph", lambda: FakeGraph())
-    monkeypatch.setattr(api, "unload", lambda *a, **k: True)
-    monkeypatch.setattr(api, "render_chapter",
+    monkeypatch.setattr(render_node, "render_chapter",
                         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("no voice")))
     slides = tmp_path / "slides"
     slides.mkdir()
@@ -65,7 +56,7 @@ def call(addr, method, path, body=None):
     return resp.status, resp.getheader("Content-Type", ""), payload
 
 
-def wait_ready(timeout=10.0):
+def wait_ready(timeout=60.0):
     t0 = time.time()
     while api.JOB.status not in ("ready", "error") and time.time() - t0 < timeout:
         time.sleep(0.05)
@@ -85,8 +76,10 @@ def test_generate_is_idempotent_and_artifacts_appear_on_disk(server):
     status, _, body = call(server, "GET", "/status")
     snap = json.loads(body)
     assert snap["phase"] == "ready" and snap["ready"] is True and snap["progress"] == 1.0
-    assert "préflight : avertissement machine" in snap["notes"]
-    assert any("lecture indisponible" in n for n in snap["notes"])
+    notes = api.JOB.tracking.notes
+    assert "préflight : avertissement machine" in notes
+    assert any("lecture indisponible" in n for n in notes)
+    assert api.JOB.result["scenes"] == 2 and api.JOB.result["audio"] is None
 
     status, ctype, body = call(server, "GET", "/chapter")
     text = body.decode()

@@ -52,7 +52,8 @@ names as composed.
 
 ### Requirement: The reference is accepted
 
-The lint SHALL pass its own reference excerpts (`--etalons`): no pastiche, no
+The lint SHALL pass its own reference excerpts (`factory eval lint
+--references`): no pastiche, no
 AI tic, no adverbial incise on them, and exactly one accumulation on the
 excerpt that defines it.
 

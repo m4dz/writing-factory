@@ -32,6 +32,8 @@ from factory.infra.ollama import chat, unload
 from factory.retrieval.context import REVIEW_STYLE, assemble_system_prompt
 from factory.text import delint, ends_mid_sentence, sentence_ends, trim_to_sentence
 from factory.pipeline.qa import repair, derive_facts, check_facts, check_plan
+from factory.pipeline.nodes.preflight import preflight_node
+from factory.pipeline.nodes.render import render_node
 from factory.settings import settings
 from factory.pipeline.gestures import (assemble, compose_drift, passage_valid,
                     frontier_position, draw_approach,
@@ -111,6 +113,13 @@ class ChapterState(TypedDict):
     seed: int           # tirage du glissement, consigné au frontmatter du run
     chapter: int         # numéro du chapitre — scope des interdits matériels
     drawn_approaches: list[str]  # jamais deux fois la même dans un chapitre
+    # --- machine nodes (ADR-0002, item 5) ------------------------------------
+    preflight: object     # None/False: skipped; True or {strict, timer}: checked first
+    preflight_warnings: list[str]
+    render: bool          # write chapitre.md and render the WAV after coherence
+    assembly: dict        # kwargs of assembly.assemble (switch mode, imposed fall)
+    chapter_md: str       # the assembled chapter, both markers, always produced
+    audio: object         # TTS metrics dict, or None when the voice failed / was not asked
 
 
 # --- Nœuds -------------------------------------------------------------------
@@ -2098,13 +2107,17 @@ def coherence_node(state: ChapterState) -> dict:
 
 def build_graph():
     g = StateGraph(ChapterState)
+    # The machine gate opens the graph (ADR-0002, item 5): a throttled machine
+    # is refused before any model call, from the API and the CLI alike.
+    g.add_node("preflight", preflight_node)
     g.add_node("plan", plan_node)
     g.add_node("write", write_node)
     g.add_node("review", review_node)
     g.add_node("repair", repair_node)
     g.add_node("coherence", coherence_node)
 
-    g.add_edge(START, "plan")
+    g.add_edge(START, "preflight")
+    g.add_edge("preflight", "plan")
     g.add_node("accumulate", accumulate_node)
     g.add_node("drift", drift_node)
     g.add_edge("plan", "write")
@@ -2125,5 +2138,9 @@ def build_graph():
     g.add_edge("repair", "assemble")
     g.add_edge("assemble", "place_gestures")
     g.add_edge("place_gestures", "coherence")
-    g.add_edge("coherence", END)
+    # Assembly and voice close the graph: the chapter judged by coherence is
+    # the chapter served, and the WAV is rendered from that same text.
+    g.add_node("render", render_node)
+    g.add_edge("coherence", "render")
+    g.add_edge("render", END)
     return g.compile()

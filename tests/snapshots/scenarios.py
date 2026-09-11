@@ -6,7 +6,7 @@ Three scenarios cover every writing strategy and both plan paths:
   imposed by the brief, entry 1 single call with best-of-3, entry 2 in three
   bounded beats with best-of-3, gestures on entry 2 only, drift passage from
   the brief, fall posed by code.
-- ``ch2-s7-score``: chapter 2, stage S7 scored run (``stage_runner.py --etage S7``,
+- ``ch2-s7-score``: chapter 2, stage S7 scored run (``factory calibrate --stage S7``,
   run S7-1): single entry, plan short-circuited, three segments with stations,
   accumulation and drift from the bank.
 - ``ch2-s7-chapter``: same stage, the full chapter (run S7-C): three entries,
@@ -64,7 +64,7 @@ def _etat_s7(brief: str, *, mono: bool) -> dict:
 
 def all_scenarios() -> list[Scenario]:
     return [
-        Scenario("ch7", ch7.ch7_state(seed=SEED), dict(ch7.MARKERS_CH7)),
+        Scenario("ch7", ch7.ch7_state(seed=SEED), ch7.ch7_state(seed=SEED)["assembly"]),
         Scenario("ch2-s7-score", _etat_s7(stage_runner.BRIEF_V4, mono=True), {}),
         Scenario("ch2-s7-chapter", _etat_s7(stage_runner.CHAPTER_GOAL_V4, mono=False), {}),
     ]

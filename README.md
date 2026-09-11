@@ -29,18 +29,26 @@ the operator's Telegram pager, which can never carry text of the work
 ## Quick start (development)
 
 ```bash
-make venv     # python3 -m venv .venv && pip install -e ".[test]"
+make venv     # python3 -m venv .venv && pip install -e ".[pipeline,test]"
 make check    # ruff + pytest; needs no model, no Chroma, no macOS
 ```
 
 Running the pipeline for real needs Ollama, ChromaDB and the models; see the
-runbook.
+runbook. The entry point is one command:
+
+```bash
+.venv/bin/factory doctor       # machine, backends, models, voice
+.venv/bin/factory index        # bible → ChromaDB
+.venv/bin/factory generate     # chapter 7, artifacts in output/
+.venv/bin/factory serve        # the API the deck talks to
+```
 
 ## Layout
 
 ```
-src/factory/    the package: pipeline, API, actor mode, retrieval and
-                indexer, eval (lint, grid, seal), infra, tooling drivers
+src/factory/    the package: cli (the `factory` command), pipeline, API,
+                actor mode, retrieval and indexer, eval (lint, grid, seal),
+                infra, settings
 docker/         the indexer image (installs the package)
 bible/          canon; surface/ is indexed, profond/ never is
 chapters/       per-chapter briefs, never indexed

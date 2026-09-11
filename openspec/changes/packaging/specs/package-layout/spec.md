@@ -29,5 +29,45 @@ the actor page SHALL be package data addressed from the package, never from
 a repository directory.
 
 #### Scenario: Installed container
-- **WHEN** the indexer image runs `python -m factory.retrieval.indexer`
+- **WHEN** the indexer image runs `factory index`
 - **THEN** it indexes the mounted bible without any repository checkout
+
+### Requirement: One settings object
+
+Every operator knob SHALL be a field of `factory.settings.Settings` with its
+default, overridden once from the environment; modules SHALL read
+`settings.<field>` at call time and never `os.environ`.
+
+#### Scenario: A test changes a knob
+- **WHEN** a test sets `settings.output_dir` to a temporary directory
+- **THEN** the render node writes there without any module reload
+
+### Requirement: One model client
+
+Model calls SHALL go through `factory.infra.ollama.client`, an `OllamaClient`
+whose `chat`, `chat_turns` and `unload` the module functions delegate to.
+
+#### Scenario: The fake model
+- **WHEN** the test suite replaces the client's three methods
+- **THEN** every node, the QA and the actor mode use the fake
+
+### Requirement: One command line
+
+`factory` SHALL expose `doctor`, `index`, `query`, `generate`, `calibrate`,
+`eval {lint|grid|seal|journal}`, `serve`, `chat` and a `promote` placeholder,
+each delegating to a module `main(argv)`; pipeline imports SHALL be lazy so
+`factory index` runs where LangGraph is not installed.
+
+#### Scenario: Chapter without spec
+- **WHEN** `factory generate --chapter 2` is called before step 5
+- **THEN** the command says no specification exists and exits without calling a model
+
+### Requirement: Dependency groups
+
+Core dependencies SHALL be those of indexing, querying and evaluation; the
+graph SHALL be the `pipeline` extra and the voice the `tts` extra; the
+indexer image SHALL install core only.
+
+#### Scenario: Container image
+- **WHEN** the indexer image is built
+- **THEN** LangGraph is not installed and `factory index` runs

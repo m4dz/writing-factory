@@ -130,26 +130,27 @@ def line(label: str, cells: list[str]) -> str:
     return f"| {label} | " + " | ".join(cells) + " |"
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
     # Une session par dossier : les runs de la fiche v1 restent lisibles quand
     # la v2 tourne. Comparer deux versions de la fiche suppose de garder les
     # deux jeux de tirages.
-    folder = sys.argv[1] if len(sys.argv) > 1 else "runs"
+    folder = argv[0] if len(argv) > 0 else "runs"
     # La cible de longueur change avec le brief : 400-550 pour la scène test de
     # la session 1, 450-600 pour le chapitre 2. Codée en dur, elle aurait
     # affiché « hors cible » sur des runs conformes — un faux défaut, et le
     # genre qui envoie durcir une section qui va bien.
-    target = sys.argv[2] if len(sys.argv) > 2 else "400-600"
+    target = argv[1] if len(argv) > 1 else "400-600"
     target_min, target_max = (int(x) for x in target.split("-"))
     # Numéro de chapitre : active les interdits SCOPÉS (notes §3 et §4). Sans
     # lui, la grille ne peut pas savoir que « la tierce » est légitime au
     # chapitre 9 et interdite au 2 — et un interdit qui ne connaît pas sa
     # portée est soit inutile, soit faux.
-    chapter = int(sys.argv[3]) if len(sys.argv) > 3 else None
+    chapter = int(argv[2]) if len(argv) > 2 else None
     constraints = chapter_constraints(chapter) if chapter else None
     available = discover(folder)
     if not available:
-        print("ERREUR : aucun run dans runs/.", file=sys.stderr)
+        print(f"ERREUR : aucun run dans {folder}.", file=sys.stderr)
         return 1
 
     res = {name: analyze(p.read_text(encoding="utf-8")) for name, p in available}

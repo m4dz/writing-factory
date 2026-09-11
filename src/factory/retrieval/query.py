@@ -15,13 +15,14 @@ import chromadb
 from factory.settings import settings
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Teste le retrieval sur la bible.")
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(prog="factory query",
+                                     description="Teste le retrieval sur la bible.")
     parser.add_argument("query", help="Requête en langage naturel")
     parser.add_argument("--n", type=int, default=5, help="Nombre de résultats")
     parser.add_argument("--type", help="Filtre sur le type (character, lieu, prop, scene)")
     parser.add_argument("--doc", help="Filtre sur un doc_id précis")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     resp = httpx.post(
         f"{settings.ollama_url}/api/embed",

@@ -16,9 +16,9 @@ de session pour la version 2) : ils ne sont pas recopiés ici, pour qu'un brief
 modifié n'ait pas deux vérités.
 
 Usage :
-  python3 outillage/run_s4.py --etage A                 # A1-A3 + AC
-  python3 outillage/run_s4.py --etage A --seulement A1
-  python3 outillage/run_s4.py --etage B
+  factory calibrate --stage A                 # A1-A3 + AC
+  factory calibrate --stage A --only A1
+  factory calibrate --stage B
 
 Stdlib + le venv de l'orchestrateur (langgraph, chromadb).
 """
@@ -36,7 +36,7 @@ from factory.paths import REPO_ROOT as RACINE
 from factory.eval.lint import META_TERMS, analyze
 from factory.retrieval import context as retrieval
 from factory.text import ends_mid_sentence
-from factory.infra.preflight import PreflightError, preflight
+from factory.infra.preflight import PreflightError
 # La spécification du chapitre 7 vit dans orchestrator/ch7.py — source unique
 # partagée avec le chemin live de l'API (voir le module). NARRATRICE y est aussi
 # (le doc_id de la narratrice vaut pour TOUS les étages, pas seulement le ch. 7).
@@ -282,21 +282,23 @@ def time_per_node(metrics: list[dict]) -> dict[str, float]:
     return out
 
 
-def main() -> int:
-    p = argparse.ArgumentParser()
-    p.add_argument("--etage", choices=["A", "B", "Bp", "C", "S6", "S7", "CH7"],
+def main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(prog="factory calibrate",
+                                description="Calibration stages of chapter 2 and the "
+                                            "chapter 7 rehearsal, one run file per draw.")
+    p.add_argument("--stage", choices=["A", "B", "Bp", "C", "S6", "S7", "CH7"],
                    required=True)
     # La graine du tirage de glissement, consignée au frontmatter : le tirage
     # varie d'un run à l'autre (sinon la même phrase à la même place devient une
     # liturgie de notre propre gabarit), mais un run reste rejouable à
     # l'identique quand un geste sort mal.
-    p.add_argument("--graine", type=int, default=None)
+    p.add_argument("--seed", type=int, default=None)
     p.add_argument("--skip-preflight", action="store_true",
                    help="passe outre le préflight — les durées relevées ne "
                         "sont alors PAS comparables au run de référence")
-    p.add_argument("--seulement", nargs="*", default=None)
+    p.add_argument("--only", nargs="*", default=None)
     p.add_argument("--out-dir", default=None)
-    args = p.parse_args()
+    args = p.parse_args(argv)
 
     # PRÉFLIGHT, BLOQUANT POUR S6 SEULEMENT.
     #
@@ -310,22 +312,21 @@ def main() -> int:
     #
     # Les autres étages gardent le comportement d'avant : on ne change pas la
     # règle d'un étage en passant.
-    timer = args.etage in ("S6", "S7", "CH7")
-    try:
-        for warning in preflight(timer=timer):
-            print(f"  ⚠ {warning}", file=sys.stderr)
-    except PreflightError as exc:
-        print(f"\n{exc}\n", file=sys.stderr)
-        if not args.skip_preflight:
-            return 1
+    #
+    # Depuis l'étape 4, le préflight est le premier nœud du graphe : il tourne
+    # AVANT CHAQUE RUN (le runbook l'exigeait déjà à la main), bloquant pour les
+    # étages chronométrés seulement, avertissement partout ailleurs.
+    timer = args.stage in ("S6", "S7", "CH7")
+    preflight_request = {"strict": timer and not args.skip_preflight, "timer": timer}
+    if timer and args.skip_preflight:
         print("  (--skip-preflight : on passe outre, temps NON comparables)",
               file=sys.stderr)
 
-    rag = args.etage != "A"
+    rag = args.stage != "A"
     # Runs land under experiments/runs/<date>-<stage> (ADR-0003).
     out_dir = Path(args.out_dir or (
         RACINE / "experiments" / "runs"
-        / f"{datetime.now():%Y%m%d}-{args.etage.lower()}"))
+        / f"{datetime.now():%Y%m%d}-{args.stage.lower()}"))
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Import TARDIF : construire le graphe importe chromadb et, à l'étage A, on
@@ -334,8 +335,8 @@ def main() -> int:
     from factory.pipeline.graph import build_graph
     graph = build_graph()
 
-    for ident, brief, role in PLAN_RUNS[args.etage]:
-        if args.seulement and ident not in args.seulement:
+    for ident, brief, role in PLAN_RUNS[args.stage]:
+        if args.only and ident not in args.only:
             continue
         print(f"\n{'=' * 66}\n[{ident}] {role} — rag={rag}\n{'=' * 66}",
               flush=True)
@@ -345,7 +346,7 @@ def main() -> int:
         # Une graine PAR RUN : trois runs d'un même étage doivent tirer des
         # glissements différents, sinon la variation qu'on cherche à obtenir est
         # annulée à l'intérieur même de la série. Consignée au frontmatter.
-        seed = (args.graine if args.graine is not None
+        seed = (args.seed if args.seed is not None
                   else random.randrange(1, 10**6))
         start, wall_start = time.monotonic(), time.time()
         # `entrees_attendues` commande le court-circuit du plan (item 10) et
@@ -356,9 +357,11 @@ def main() -> int:
         # câblage : deux entrées du même jour, la première en deux phrases sans
         # citation. `entrees_spec` porte cette structure ; partout ailleurs elle
         # est vide et le comportement est inchangé.
-        ch7 = args.etage == "CH7"
-        status = graph.invoke(
-            {"brief": brief_chapter_7() if ch7 else brief,
+        ch7 = args.stage == "CH7"
+        try:
+            status = graph.invoke(
+                {"brief": brief_chapter_7() if ch7 else brief,
+             "preflight": preflight_request,
              "characters": NARRATOR, "rag": rag,
              "expected_entries": len(ENTRIES_CH7) if ch7 else (1 if mono else 3),
              "entry_specs": ENTRIES_CH7 if ch7 else [],
@@ -366,12 +369,12 @@ def main() -> int:
              # L'ancre du ch. 7 est PAR ENTRÉE (l'entrée 1 ne cite pas), donc
              # elle vit dans `entrees_spec` et non dans le préfixe global.
              "prefix": "" if ch7 else (
-                 ANCHOR_CH2 if args.etage in ("Bp", "C", "S6", "S7") else ""),
-             "micro_nodes": args.etage in ("C", "S6", "S7", "CH7"),
+                 ANCHOR_CH2 if args.stage in ("Bp", "C", "S6", "S7") else ""),
+             "micro_nodes": args.stage in ("C", "S6", "S7", "CH7"),
              # LA VARIABLE MESURÉE. Hors S6, `write` reste l'appel unique par
              # lequel tout le pipeline a été chronométré : l'habillage d'un
              # étage ne doit jamais rejouer la validation d'un autre.
-             "segments": args.etage in ("S6", "S7", "CH7"),
+             "segments": args.stage in ("S6", "S7", "CH7"),
              "seed": seed,
              # Le numéro de chapitre commande le SCOPE des interdits matériels
              # et la chute imposée de l'accumulation. Sans lui, un lint qui ne
@@ -384,8 +387,13 @@ def main() -> int:
              "active_objects": OBJECTS_CH7 if ch7 else OBJECTS_CH2,
              "start_weather": "Beau temps" if ch7 else START_WEATHER,
              "accumulation": ""},
-            config={"recursion_limit": 50},
-        )
+                config={"recursion_limit": 50},
+            )
+        except PreflightError as exc:
+            print(f"\n{exc}\n", file=sys.stderr)
+            return 1
+        for w in status.get("preflight_warnings") or []:
+            print(f"  ⚠ {w}", file=sys.stderr)
         duration = time.monotonic() - start
         # DEUX HORLOGES, et elles ne mesurent pas la même chose.
         #
@@ -432,12 +440,12 @@ def main() -> int:
         path.write_text(
             "---\n"
             f"run: {ident}\n"
-            f"etage: {args.etage}\n"
+            f"etage: {args.stage}\n"
             f"role: {role}\n"
             f"rag: {rag}\n"
             f"ctx_need_max: {ctx_max}\n"
             f"graine: {seed}\n"
-            f"segments: {args.etage in ('S6', 'S7', 'CH7')}\n"
+            f"segments: {args.stage in ('S6', 'S7', 'CH7')}\n"
             f"temps_par_segment: {json.dumps(segment_times, ensure_ascii=False)}\n"
             f"date: {datetime.now().isoformat(timespec='seconds')}\n"
             f"mots: {len(text.split())}\n"
@@ -476,7 +484,7 @@ def main() -> int:
         for g in guards:
             print(f"  ⚠ {g}", file=sys.stderr)
 
-    print(f"\nGrille : python3 outillage/grille_session.py {out_dir} 450-600")
+    print(f"\nGrille : factory eval grid {out_dir} 450-600")
     return 0
 
 

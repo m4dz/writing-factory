@@ -1,5 +1,6 @@
 # Bible indexer, run on demand (podman-compose --profile tools run --rm indexer).
-# Installs the factory package; only factory.retrieval.indexer is executed.
+# Installs the factory package with its core dependencies only (no LangGraph,
+# no TTS): `factory index`, `factory query` and `factory eval` run here.
 FROM docker.io/library/python:3.12-slim
 
 WORKDIR /app
@@ -9,5 +10,5 @@ RUN pip install --no-cache-dir .
 
 ENV FACTORY_ROOT=/app
 # Default: index. Override to test retrieval:
-#   podman-compose --profile tools run --rm indexer python -m factory.retrieval.query "ma requête"
-CMD ["python", "-m", "factory.retrieval.indexer"]
+#   podman-compose --profile tools run --rm indexer factory query "ma requête"
+CMD ["factory", "index"]

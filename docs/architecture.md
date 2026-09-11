@@ -18,12 +18,14 @@ Everything runs on one Apple Silicon laptop: Ollama on the host (author model
 `mistral-nemo` 12B, QA model `qwen2.5` 7B, embeddings `nomic-embed-text`),
 ChromaDB in a Podman container, the `factory` package in a host venv.
 
-## Layout today (step 4, part 2)
+## Layout today (step 4 done)
 
 ```
 src/factory/
   paths.py           repository paths, resolved once (FACTORY_ROOT override)
   settings.py        one Settings object; every knob, env overrides, read at use
+  cli.py             the `factory` command: doctor, index, query, generate,
+                     calibrate, eval, serve, chat, promote (step 6)
   text.py            French guard, delint, sentence detection
   infra/             ollama.py (OllamaClient, one `client`, metrics), preflight.py (machine
                      gate), tts.py (cloned voice, lazy mlx import),
@@ -31,8 +33,9 @@ src/factory/
   retrieval/         context.py (Chroma access, style sections, system
                      prompt), indexer.py (bible → chunks → ChromaDB),
                      query.py (retrieval smoke test)
-  pipeline/          graph.py (state, nodes, strategies, wiring),
-                     gestures.py (validators, drift bank, placement),
+  pipeline/          graph.py (state, writing nodes, strategies, wiring),
+                     nodes/preflight.py and nodes/render.py (the machine
+                     nodes), gestures.py (validators, drift bank, placement),
                      assembly.py (audio switch, excerpt bound),
                      qa.py (Qwen roles: repair, facts, violation questions)
   chapter_spec/      chapter7.py (chapter 7 as Python, reads chapters/07-*/),
@@ -40,9 +43,9 @@ src/factory/
   roleplay/          session.py (memory, out-of-role guard), cli.py
   api/               server.py (HTTP surface), static/acteur.html
   eval/              lint.py, grid.py, seal.py, journal.py, data/
-  tooling/           drivers: stage_runner (calibration stages), ch2_runner,
-                     scene_runner, interviews, resolution_xp, modelfile,
-                     run_chapter — replaced by the CLI in part 3
+  tooling/           stage_runner (calibration stages, `factory calibrate`;
+                     chapter 2 constants until step 5), interviews (demo
+                     sessions), resolution_xp (an experiment's recipe)
 docker/              indexer.Dockerfile (installs the package)
 bible/               canon, French, author-owned; surface/ and profond/ layers
 chapters/07-*/       chapter 7 briefs (author-owned, never indexed)
@@ -60,12 +63,17 @@ step 5 turns into YAML, the JSON the keynote deck reads.
 ## The graph
 
 ```
-plan ──▶ write ──▶ accumulate ──▶ drift ───┐
-  ▲                                        │ more entries?
-  └────────────────────────────────────────┘
-                                           ▼ no
-                   review ──▶ repair ──▶ assemble ──▶ place_gestures ──▶ coherence
+preflight ──▶ plan ──▶ write ──▶ accumulate ──▶ drift ───┐
+               ▲                                         │ more entries?
+               └─────────────────────────────────────────┘
+                                                         ▼ no
+        review ──▶ repair ──▶ assemble ──▶ place_gestures ──▶ coherence ──▶ render
 ```
+
+- **preflight** (no model): the machine gate of ADR-0016, run when the state
+  asks for it (`preflight: {strict, timer}`; the API and `factory generate`
+  ask, calibration asks in warning mode, tests never do). A refusal raises
+  out of the graph before any model call.
 
 - **plan** (nemo, checked by Qwen): derives bible facts, plans dated entries
   under those facts, verifies the plan by violation questions, replans once.
@@ -89,10 +97,12 @@ plan ──▶ write ──▶ accumulate ──▶ drift ───┐
   while protecting composed ones.
 - **coherence** (Qwen): facts → violation questions → answers per scene, with
   code-verified citations and a severe counter-call.
-
-Around the graph, called by the API and the CLI: **preflight** before,
-**assembly** of the chapter Markdown (`assembly.assemble`) and **render**
-(TTS) after. Both become graph nodes at step 4.
+- **render** (no model, then the voice): assembles the chapter Markdown with
+  both stage markers into `chapter_md` (kwargs from the state field
+  `assembly`: switch on the second header, imposed fall), always; when the
+  state asks (`render: true`) writes `output/chapitre.md`, unloads the QA
+  model and renders `output/chapitre.wav`. A voice failure leaves the chapter
+  on disk and `audio` at None, with an operator note.
 
 ## Data flows
 
@@ -108,8 +118,9 @@ Around the graph, called by the API and the CLI: **preflight** before,
   chapter from the deep table, and builds the `graph.invoke` state
   (`entry_specs`, beats, anchor, fall). Chapter 2 is built the same way in
   `factory.tooling.stage_runner`. Both become a YAML spec and a loader at step 5.
-- **State → artifacts.** The API writes `output/chapitre.md` and
-  `output/chapitre.wav`; calibration runs write frontmatter Markdown under
+- **State → artifacts.** The render node writes `output/chapitre.md` and
+  `output/chapitre.wav` (`factory generate`, `POST /generate`); calibration
+  runs (`factory calibrate`) write frontmatter Markdown under
   `experiments/runs/`.
 - **Roleplay.** `sessions/<character>/<timestamp>.md` (summary + transcript)
   is written first, then its summary is indexed in the `sessions` collection
@@ -133,7 +144,9 @@ not either (`factory.paths`). The variable table is in the runbook, §1.6.
   the fake replaces its three methods in one place. Served prompts frozen in
   `tests/snapshots/`.
 - Store boundary: Chroma client, faked from the indexer's chunker.
-- Machine boundary: preflight probes, TTS synthesizer, Telegram, faked.
+- Machine boundary: preflight probes, TTS synthesizer, Telegram, faked; the
+  two machine nodes are tested with those fakes, and `factory doctor` runs
+  the real probes on the owner's machine.
 
 ## Target
 

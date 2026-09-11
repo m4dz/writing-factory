@@ -358,4 +358,7 @@ def ch7_state(seed: int | None = None) -> dict:
         "active_objects": OBJECTS_CH7,
         "start_weather": "Beau temps",
         "accumulation": "",
+        # Assembly for the stage: switch on the second header, audio ending on
+        # the fall — the chapter's own structure, not a run option.
+        "assembly": dict(MARKERS_CH7),
     }

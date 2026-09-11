@@ -31,8 +31,19 @@
 
 ## Part 3 — nodes and CLI
 
-- [ ] `preflight` and `render` as graph nodes with their spec fields.
-- [ ] `factory` CLI: `generate`, `index`, `eval`, `serve`, `doctor`,
-      `promote` placeholder; `tooling/` drivers folded or deleted.
-- [ ] Runbook rewritten for the CLI; container dependency groups split.
-- [ ] `make check` green; snapshots identical.
+- [x] `preflight` and `render` as graph nodes (`pipeline/nodes/`), driven by
+      the state fields `preflight`, `render`, `assembly`; the API job is the
+      graph and nothing around it.
+- [x] `factory` CLI (`factory.cli`, `[project.scripts]`): `doctor`, `index`,
+      `query`, `generate`, `calibrate`, `eval lint|grid|seal|journal`,
+      `serve`, `chat`, `promote` placeholder. Drivers deleted: `run_chapter`
+      (folded into `generate`), `ch2_runner`, `scene_runner`, `modelfile`
+      (pre-graph sessions; their protocols and results are in
+      `experiments/`, their code at `v0-keynote`). Kept in `tooling/`:
+      `stage_runner` (`factory calibrate`, chapter 2 constants → step 5),
+      `interviews` (demo assets), `resolution_xp` (an experiment's recipe).
+- [x] English CLI flags (`--stage`, `--only`, `--seed`, `--references`,
+      `--sheet`); entry points take `argv`.
+- [x] Runbook rewritten for the CLI; dependency groups: core, `pipeline`,
+      `tts`, `test`; the indexer image installs core and runs `factory index`.
+- [x] `make check` green; snapshots identical.

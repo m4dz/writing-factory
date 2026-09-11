@@ -41,7 +41,7 @@ in that order, whatever the generated text.
 
 `GET /status` SHALL return `{phase, ready, progress, label, detail, elapsed_s,
 budget_s, gen_toks, notes}` with `phase` in `generating | tts | ready | error |
-idle`. `GET /events` SHALL stream the same payload as server-sent events about
+idle` (`tts` while the render node speaks). `GET /events` SHALL stream the same payload as server-sent events about
 once a second and SHALL close after a terminal state.
 
 #### Scenario: Idle server
@@ -55,7 +55,7 @@ A preflight refusal, a model failure or any exception in the graph SHALL set
 SHALL leave the artifact routes at `204`.
 
 #### Scenario: Preflight refuses
-- **WHEN** the preflight raises before the graph starts
+- **WHEN** the preflight node raises before any model call
 - **THEN** `/status` reports `phase: error` with the reason, `/chapter` and `/audio` answer `204`, the operator is notified
 
 ### Requirement: Cancellation

@@ -5,7 +5,7 @@ RUFF ?= .venv/bin/ruff
 
 venv:
 	python3 -m venv .venv
-	.venv/bin/pip install -q -e ".[test]"
+	.venv/bin/pip install -q -e ".[pipeline,test]"
 
 lint:
 	$(RUFF) check .

@@ -17,7 +17,7 @@ services:
 
   # The indexer is not a service: it runs on demand, after every change to bible/.
   #   podman-compose --profile tools run --rm indexer                  -> indexation
-  #   podman-compose --profile tools run --rm indexer python -m factory.retrieval.query "ma requête"
+  #   podman-compose --profile tools run --rm indexer factory query "ma requête"
   indexer:
     build:
       context: .

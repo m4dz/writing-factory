@@ -55,12 +55,13 @@ def auto_failures(text: str, constraints: dict | None) -> list[str]:
     return out
 
 
-def main() -> int:
-    if len(sys.argv) < 2:
-        sys.exit("usage : journal_des_murs.py <dossier-runs> [chapitre]")
-    folder = sys.argv[1]
-    constraints = (chapter_constraints(int(sys.argv[2]))
-                   if len(sys.argv) > 2 else None)
+def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if len(argv) < 1:
+        sys.exit("usage : factory eval journal <dossier-runs> [chapitre]")
+    folder = argv[0]
+    constraints = (chapter_constraints(int(argv[1]))
+                   if len(argv) > 1 else None)
     WALL.mkdir(exist_ok=True)
 
     archives = 0

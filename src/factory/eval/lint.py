@@ -22,7 +22,7 @@ ce qu'un post-filtre rattrape.
 
 Usage :
   python3 outillage/lint_style.py runs/run-1.md
-  python3 outillage/lint_style.py --etalons        # auto-test sur la fiche
+  factory eval lint --references                   # auto-test sur la fiche
 
 Stdlib uniquement.
 """
@@ -44,7 +44,7 @@ from factory.text import delint
 # fiche (« une seule phrase longue, construite en accumulation de propositions
 # juxtaposées par des virgules »). Les deux seuils sont calibrés pour séparer
 # l'étalon 2 (la cible) des trois autres étalons — c'est ce que vérifie
-# `--etalons`. Baisser l'un des deux ferait passer des phrases ordinaires.
+# `--references`. Baisser l'un des deux ferait passer des phrases ordinaires.
 ACC_COMMAS = 4
 ACC_WORDS = 45
 
@@ -1803,20 +1803,20 @@ def autotest(sheet: Path) -> int:
     return 0
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("fichiers", nargs="*", help="Runs à analyser")
-    parser.add_argument("--etalons", action="store_true",
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="factory eval lint")
+    parser.add_argument("files", nargs="*", help="Runs à analyser")
+    parser.add_argument("--references", action="store_true",
                         help="Auto-test sur les étalons de la fiche")
-    parser.add_argument("--fiche", default=str(BIBLE_DIR / "style-auteur.md"))
-    args = parser.parse_args()
+    parser.add_argument("--sheet", default=str(BIBLE_DIR / "style-auteur.md"))
+    args = parser.parse_args(argv)
 
-    if args.etalons:
-        return autotest(Path(args.fiche))
-    if not args.fichiers:
-        parser.error("donne au moins un fichier, ou --etalons")
+    if args.references:
+        return autotest(Path(args.sheet))
+    if not args.files:
+        parser.error("donne au moins un fichier, ou --references")
 
-    for path in args.fichiers:
+    for path in args.files:
         p = Path(path)
         print(report(analyze(p.read_text(encoding="utf-8")), title=p.name))
         print()
