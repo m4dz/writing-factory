@@ -7,6 +7,16 @@ requires-python = ">=3.10"
 # packaging step (revamp step 4) moves the code under src/factory/.
 dependencies = []
 
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+# No package yet: the code lives in script directories until revamp step 4.
+# Until then `pip install -e ".[test]"` installs only the dependencies, and
+# setuptools must not try to discover packages in the flat layout.
+[tool.setuptools]
+packages = []
+
 [project.optional-dependencies]
 test = [
     "pytest>=8",
