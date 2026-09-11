@@ -1,4 +1,4 @@
-import notify
+from factory.infra import notify
 
 
 def test_sanitiser_strips_quotes_and_bounds_length():

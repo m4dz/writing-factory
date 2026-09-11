@@ -21,8 +21,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import ch7
-import run_s4
+from factory.chapter_spec import chapter7 as ch7
+from factory.tooling import stage_runner as run_s4
 
 
 @dataclass(frozen=True)
@@ -72,7 +72,7 @@ def all_scenarios() -> list[Scenario]:
 
 def run(scenario: Scenario, fake_model) -> dict:
     """Invoke the compiled graph on the scenario with the fake model installed."""
-    from graph import build_graph
+    from factory.pipeline.graph import build_graph
 
     fake_model.calls.clear()
     final = build_graph().invoke(scenario.state, config={"recursion_limit": 50})

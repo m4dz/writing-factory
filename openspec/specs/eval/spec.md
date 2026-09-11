@@ -2,9 +2,9 @@
 
 ## Purpose
 
-Current behaviour of the deterministic lint (`outillage/lint_style.py`), the
-grid (`outillage/grille_session.py`) and the journal archiver
-(`outillage/journal_des_murs.py`). No model is involved (doctrine 3).
+Current behaviour of the deterministic lint (`factory.eval.lint`), the
+grid (`factory.eval.grid`) and the journal archiver
+(`factory.eval.journal`). No model is involved (doctrine 3).
 
 ## Requirements
 

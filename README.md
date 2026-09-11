@@ -39,9 +39,9 @@ runbook.
 ## Layout
 
 ```
-orchestrator/   the pipeline, the API, the actor mode (host venv)
-outillage/      calibration tooling: deterministic lint, grids, seal test
-indexer/        bible → ChromaDB (container)
+src/factory/    the package: pipeline, API, actor mode, retrieval and
+                indexer, eval (lint, grid, seal), infra, tooling drivers
+docker/         the indexer image (installs the package)
 bible/          canon; surface/ is indexed, profond/ never is
 chapters/       per-chapter briefs, never indexed
 experiments/    runs with manifests, journal of failed draws, grids, reports

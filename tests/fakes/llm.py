@@ -15,9 +15,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-import qa
-import roleplay
-
+from factory.pipeline import qa
+from factory.roleplay import session as roleplay
 from fakes import fixtures as fx
 
 Response = str | list[str]

@@ -1,14 +1,7 @@
-"""Test wiring for the CURRENT layout (before packaging, revamp step 4).
+"""Shared fixtures: the fake model, the fake vector store, a quiet progress sink.
 
-The code still lives in three script directories linked by ``sys.path``
-insertions. The tests reproduce that wiring here, once, so that every test
-module imports ``graph``, ``qa``, ``lint_style``, ``index`` the way the code
-does. When step 4 moves the code into ``src/factory``, this file shrinks to the
-fixtures and the imports in the tests are updated with the moves.
-
-Several modules resolve data files relative to the CURRENT WORKING DIRECTORY
-(``bible/style-auteur.md``, ``outillage/lexique-fuite.txt``, the pilot table).
-The session runs from the repository root for that reason.
+The code is the installed ``factory`` package; only ``tests/`` itself is added
+to the path so that ``fakes`` and ``snapshots`` import as modules.
 """
 
 from __future__ import annotations
@@ -20,13 +13,6 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parent.parent
-for sub in ("orchestrator", "outillage", "indexer"):
-    p = str(REPO / sub)
-    if p not in sys.path:
-        sys.path.insert(0, p)
-
-os.chdir(REPO)
-os.environ.setdefault("BIBLE_DIR", str(REPO / "bible"))
 # A stray Telegram token in the developer's shell must never make a test post.
 os.environ["TELEGRAM_BOT_TOKEN"] = ""
 os.environ["TELEGRAM_CHAT_ID"] = ""
@@ -58,8 +44,8 @@ def bible_chroma() -> FakeChromaClient:
 @pytest.fixture
 def fake_chroma(monkeypatch, bible_chroma):
     """Route every retrieval call to the fake collections; no embeddings."""
-    import retrieval
-    import roleplay
+    from factory.retrieval import context as retrieval
+    from factory.roleplay import session as roleplay
 
     monkeypatch.setattr(retrieval, "_client", bible_chroma)
     monkeypatch.setattr(retrieval, "embed", lambda text: [0.0] * 768)
@@ -78,10 +64,9 @@ def fake_model(monkeypatch):
     patching ``llm.chat`` alone would leave ``graph.chat`` and ``qa.chat``
     pointing at the real client. Each binding is patched.
     """
-    import graph
-    import llm
-    import qa
-    import roleplay
+    from factory.infra import ollama as llm
+    from factory.pipeline import graph, qa
+    from factory.roleplay import session as roleplay
 
     model = FakeModel()
     for mod in (llm, graph, qa, roleplay):
@@ -96,7 +81,7 @@ def fake_model(monkeypatch):
 @pytest.fixture
 def quiet_progress(monkeypatch):
     """A fresh, inactive progress sink whose notes the test can read."""
-    import progress
+    from factory.infra import progress
 
     sink = progress.Progress(actif=False)
     monkeypatch.setattr(progress, "SINK", sink)

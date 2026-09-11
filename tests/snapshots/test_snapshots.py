@@ -16,8 +16,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import chapitre
 import pytest
+
+from factory.pipeline import assembly as chapitre
 from snapshots import scenarios
 
 HERE = Path(__file__).resolve().parent

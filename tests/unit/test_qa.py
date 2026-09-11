@@ -1,4 +1,4 @@
-import qa
+from factory.pipeline import qa
 from fakes import fixtures as fx
 
 SCENE = ("Elle a ouvert la porte et la femme qu'elle aimait était là, dans le couloir, "

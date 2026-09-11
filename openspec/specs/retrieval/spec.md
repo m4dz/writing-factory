@@ -2,8 +2,8 @@
 
 ## Purpose
 
-Current behaviour of indexing (`indexer/index.py`) and context assembly
-(`orchestrator/retrieval.py`). Decisions: ADR-0007, ADR-0011, ADR-0017.
+Current behaviour of indexing (`factory.retrieval.indexer`) and context assembly
+(`factory.retrieval.context`). Decisions: ADR-0007, ADR-0011, ADR-0017.
 
 ## Requirements
 

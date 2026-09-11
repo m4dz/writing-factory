@@ -5,8 +5,9 @@ machine; the macOS probes themselves (``sysctl``, ``vm_stat``, ``ps``, the
 Ollama HTTP calls) are replaced, not exercised.
 """
 
-import preflight
 import pytest
+
+from factory.infra import preflight
 
 HEALTHY = {
     "_disk_free_gb": lambda *a, **k: 120.0,

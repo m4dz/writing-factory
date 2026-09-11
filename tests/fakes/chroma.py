@@ -69,7 +69,7 @@ class FakeChromaClient:
     @classmethod
     def from_bible(cls, bible_dir: Path, collection: str = "auteur") -> "FakeChromaClient":
         """Index ``bible/`` with the real chunker, firewall rules included."""
-        import index  # indexer/index.py, on sys.path via conftest
+        from factory.retrieval import indexer as index
 
         client = cls()
         col = client.get_or_create_collection(collection)

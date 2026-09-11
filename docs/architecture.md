@@ -16,32 +16,33 @@ character with a stateful memory.
 
 Everything runs on one Apple Silicon laptop: Ollama on the host (author model
 `mistral-nemo` 12B, QA model `qwen2.5` 7B, embeddings `nomic-embed-text`),
-ChromaDB in a Podman container, the orchestrator in a host venv.
+ChromaDB in a Podman container, the `factory` package in a host venv.
 
-## Layout today (after step 3)
+## Layout today (step 4, part 1)
 
 ```
-orchestrator/        the pipeline (host venv)
-  api.py             HTTP surface for the deck and the actor page
-  graph.py           LangGraph: state, nodes, strategies, wiring
-  ch7.py             chapter 7 specification (Python, reads chapters/07-*/)
-  chapitre.py        assembly: audio switch and excerpt bound
-  gestes.py          gesture validators, drift bank, placement
-  qa.py              Qwen roles: repair, facts, violation questions
-  retrieval.py       Chroma access, style sections, system prompt
-  roleplay.py        actor mode: session, memory, out-of-role guard
-  preflight.py       machine gate (disk, swap, pressure, daemons, Ollama)
-  tts.py             cloned-voice rendering (mlx-audio, lazy import)
-  notify.py          Telegram beeper (structured fields only)
-  progress.py        progress sink: countdown, /status payload
-  llm.py             Ollama chat client, metrics, context estimates
-  style.py           French guard, delint, sentence detection
-  run_chapter.py     generic CLI (one chapter, ad hoc brief)
-  static/acteur.html the actor page
-outillage/           calibration tooling: lint_style, grille_session,
-                     etancheite, run_s4 (stage driver), journal_des_murs,
-                     build_etat_narratif, and the lint data files
-indexer/             bible → chunks → embeddings → ChromaDB (container)
+src/factory/
+  paths.py           repository paths, resolved once (FACTORY_ROOT override)
+  text.py            French guard, delint, sentence detection
+  infra/             ollama.py (chat client, metrics), preflight.py (machine
+                     gate), tts.py (cloned voice, lazy mlx import),
+                     notify.py (Telegram, structured fields), progress.py
+  retrieval/         context.py (Chroma access, style sections, system
+                     prompt), indexer.py (bible → chunks → ChromaDB),
+                     query.py (retrieval smoke test)
+  pipeline/          graph.py (state, nodes, strategies, wiring),
+                     gestures.py (validators, drift bank, placement),
+                     assembly.py (audio switch, excerpt bound),
+                     qa.py (Qwen roles: repair, facts, violation questions)
+  chapter_spec/      chapter7.py (chapter 7 as Python, reads chapters/07-*/),
+                     narrative_state.py (state chunk from the pilot table)
+  roleplay/          session.py (memory, out-of-role guard), cli.py
+  api/               server.py (HTTP surface), static/acteur.html
+  eval/              lint.py, grid.py, seal.py, journal.py, data/
+  tooling/           drivers: stage_runner (calibration stages), ch2_runner,
+                     scene_runner, interviews, resolution_xp, modelfile,
+                     run_chapter — replaced by the CLI in part 3
+docker/              indexer.Dockerfile (installs the package)
 bible/               canon, French, author-owned; surface/ and profond/ layers
 chapters/07-*/       chapter 7 briefs (author-owned, never indexed)
 experiments/         runs (with manifests), journal, grids, reports
@@ -50,8 +51,8 @@ docs/                architecture, runbook, doctrines, adr/, plans/
 tests/               fakes, unit, stages, snapshots
 ```
 
-`graph.py` and `gestes.py` import the calibration lint from `outillage/`
-through `sys.path`; the package step (revamp step 4) removes that.
+Module names are English; most identifiers inside are still French until
+part 2 of step 4 renames them (ADR-0001).
 
 ## The graph
 
@@ -92,18 +93,18 @@ Around the graph, called by the API and the CLI: **preflight** before,
 
 ## Data flows
 
-- **Bible → index.** `indexer/index.py` chunks each Markdown file by `## `
+- **Bible → index.** `factory.retrieval.indexer` chunks each Markdown file by `## `
   section under three firewall barriers (ADR-0017), embeds, upserts to the
   `auteur` collection; orphan chunks are purged. Never touches the `sessions`
   collection.
 - **Index → prompt.** Writing chunks (voice, current state, psychology) by
   deterministic id; world chunks for fact derivation; style sections from
   disk with example lines stripped; no previous entries during writing.
-- **Chapter 7 spec → state.** `ch7.py` reads `chapters/07-anniversaire/
+- **Chapter 7 spec → state.** `factory.chapter_spec.chapter7` reads `chapters/07-anniversaire/
   brief.md` and `brief-entree-2.md` by section, the movement line of the
   chapter from the deep table, and builds the `graph.invoke` state
   (`entrees_spec`, beats, anchor, fall). Chapter 2 is built the same way in
-  `outillage/run_s4.py`. Both become a YAML spec and a loader at step 5.
+  `factory.tooling.stage_runner`. Both become a YAML spec and a loader at step 5.
 - **State → artifacts.** The API writes `output/chapitre.md` and
   `output/chapitre.wav`; calibration runs write frontmatter Markdown under
   `experiments/runs/`.

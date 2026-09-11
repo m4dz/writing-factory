@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Current behaviour of the HTTP surface (`orchestrator/api.py`), as frozen for
+Current behaviour of the HTTP surface (`factory.api.server`), as frozen for
 the keynote deck. ADR-0005 replaces it at revamp step 6 (mandatory payload,
 artifacts per run); this spec is rewritten then.
 

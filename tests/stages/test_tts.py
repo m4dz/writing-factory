@@ -5,10 +5,11 @@ exceptions (never a ``SystemExit`` inside the server)."""
 import sys
 import types
 
-import chapitre
 import numpy as np
 import pytest
-import tts
+
+from factory.infra import tts
+from factory.pipeline import assembly as chapitre
 
 
 def test_segmenter_splits_paragraphs_on_sentence_ends_under_the_cap():

@@ -1,5 +1,6 @@
-import gestes
 import pytest
+
+from factory.pipeline import gestures as gestes
 from fakes import fixtures as fx
 
 

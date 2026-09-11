@@ -1,4 +1,4 @@
-import style
+from factory import text as style
 
 
 def test_sentence_ends_counts_french_punctuation_and_closing_quotes():

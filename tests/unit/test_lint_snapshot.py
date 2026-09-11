@@ -10,7 +10,8 @@ on a run it accepted, or stops firing on one it flagged, shows up here.
 from pathlib import Path
 
 import pytest
-from lint_style import analyse, rapport
+
+from factory.eval.lint import analyse, rapport
 
 REPO = Path(__file__).resolve().parents[2]
 GOLDEN = REPO / "tests" / "snapshots" / "lint"

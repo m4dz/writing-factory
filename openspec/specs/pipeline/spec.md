@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Current behaviour of the generation graph (`orchestrator/graph.py`). The
+Current behaviour of the generation graph (`factory.pipeline.graph`). The
 served prompts of three reference scenarios are frozen in `tests/snapshots/`.
 
 ## Requirements

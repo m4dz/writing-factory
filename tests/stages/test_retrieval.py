@@ -1,4 +1,4 @@
-import retrieval
+from factory.retrieval import context as retrieval
 
 
 def test_system_prompt_without_rag_is_style_and_rules_only(fake_chroma):

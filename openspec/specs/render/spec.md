@@ -2,8 +2,8 @@
 
 ## Purpose
 
-Current behaviour of chapter assembly (`orchestrator/chapitre.py`) and voice
-rendering (`orchestrator/tts.py`). Decisions: ADR-0012, ADR-0013.
+Current behaviour of chapter assembly (`factory.pipeline.assembly`) and voice
+rendering (`factory.infra.tts`). Decisions: ADR-0012, ADR-0013.
 
 ## Requirements
 

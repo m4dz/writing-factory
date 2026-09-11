@@ -1,6 +1,6 @@
 import re
 
-import ch7
+from factory.chapter_spec import chapter7 as ch7
 
 
 def test_brief_is_read_from_the_file_and_names_no_bible_file():

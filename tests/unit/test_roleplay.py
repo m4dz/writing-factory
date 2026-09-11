@@ -1,5 +1,6 @@
 import pytest
-import roleplay
+
+from factory.roleplay import session as roleplay
 from fakes import fixtures as fx
 
 

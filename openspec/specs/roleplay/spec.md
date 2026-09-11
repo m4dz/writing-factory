@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Current behaviour of the actor mode (`orchestrator/roleplay.py`). Decision:
+Current behaviour of the actor mode (`factory.roleplay.session`). Decision:
 ADR-0014.
 
 ## Requirements

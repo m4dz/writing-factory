@@ -4,11 +4,11 @@ If a fixture stops conforming, the graph leaves its nominal path and the
 snapshot diff becomes unreadable. This file says which fixture broke, and why.
 """
 
-import gestes
-import graph
-import style
+from factory import text as style
+from factory.eval.lint import interdits_materiels
+from factory.pipeline import gestures as gestes
+from factory.pipeline import graph
 from fakes import fixtures as fx
-from lint_style import interdits_materiels
 
 
 def test_accumulations_pass_the_gesture_validator():
@@ -56,5 +56,5 @@ def test_failing_fixtures_do_fail():
     assert graph._scorer_beat(fx.BEAT_RESOLVING, False, 7)[0] < 0
     assert not gestes.valider_accumulation(fx.ACCUMULATION_ENGLISH, chapitre=2)[0]
     assert not gestes.valider_accumulation(fx.ACCUMULATION_SHORT, chapitre=2)[0]
-    import roleplay
+    from factory.roleplay import session as roleplay
     assert roleplay.hors_role(fx.OUT_OF_ROLE)

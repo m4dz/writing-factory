@@ -1,7 +1,8 @@
 from pathlib import Path
 
-import index
 import pytest
+
+from factory.retrieval import indexer as index
 
 SHEET = """---
 doc_id: x
@@ -99,7 +100,7 @@ def test_slug_and_name_translation():
 
 
 def test_real_bible_exposes_the_sections_retrieval_asks_for(bible_chroma):
-    import retrieval
+    from factory.retrieval import context as retrieval
 
     col = bible_chroma.get_collection("auteur")
     for section in retrieval.WRITING_SECTIONS + retrieval.WORLD_SECTIONS:

@@ -12,9 +12,10 @@ import threading
 import time
 from http.server import ThreadingHTTPServer
 
-import api
-import chapitre
 import pytest
+
+from factory.api import server as api
+from factory.pipeline import assembly as chapitre
 
 FINAL = {
     "repaired": ["Samedi 14. Beau temps.\n\nUne. Deux. Trois.",
@@ -111,7 +112,7 @@ def test_chat_validates_input_and_unknown_character_is_404(server, fake_model):
 
 
 def test_chat_turn_then_close(server, fake_model, tmp_path, monkeypatch):
-    import roleplay
+    from factory.roleplay import session as roleplay
     monkeypatch.setattr(roleplay, "SESSIONS_DIR", tmp_path / "sessions")
     status, _, body = call(server, "POST", "/chat", {"character": "judith", "message": "Bonsoir"})
     assert status == 200
@@ -133,7 +134,7 @@ def test_session_identifiers_are_whitelisted(server, path):
 
 
 def test_unknown_session_is_404_and_listing_works(server, tmp_path, monkeypatch):
-    import roleplay
+    from factory.roleplay import session as roleplay
     monkeypatch.setattr(roleplay, "SESSIONS_DIR", tmp_path / "none")
     assert call(server, "GET", "/session/judith/2026-01-01T00-00-00Z")[0] == 404
     status, _, body = call(server, "GET", "/sessions?character=judith")

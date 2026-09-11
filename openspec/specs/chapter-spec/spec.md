@@ -3,8 +3,8 @@
 ## Purpose
 
 Current behaviour: how a chapter's structure reaches the pipeline. Today
-chapter 7 is Python (`orchestrator/ch7.py`) reading the briefs in
-`chapters/07-anniversaire/`; chapter 2 is constants in `outillage/run_s4.py`.
+chapter 7 is Python (`factory.chapter_spec.chapter7`) reading the briefs in
+`chapters/07-anniversaire/`; chapter 2 is constants in `factory.tooling.stage_runner`.
 Revamp step 5 replaces both with `chapters/NN-slug/spec.yaml` and a loader.
 
 ## Requirements

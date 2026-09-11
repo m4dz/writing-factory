@@ -15,12 +15,13 @@ services:
       - ./data/chromadb:/data
     restart: unless-stopped
 
-  # L'indexeur ne tourne pas en continu : c'est un outil qu'on invoque
-  # à chaque modification de la bible.
+  # The indexer is not a service: it runs on demand, after every change to bible/.
   #   podman-compose --profile tools run --rm indexer                  -> indexation
-  #   podman-compose --profile tools run --rm indexer python query_test.py "ma requête"
+  #   podman-compose --profile tools run --rm indexer python -m factory.retrieval.query "ma requête"
   indexer:
-    build: ./indexer
+    build:
+      context: .
+      dockerfile: docker/indexer.Dockerfile
     profiles: ["tools"]
     environment:
       - CHROMA_HOST=chromadb

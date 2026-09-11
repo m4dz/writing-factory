@@ -1,5 +1,5 @@
-import chapitre
-from chapitre import BASCULE, FIN_AUDIO
+from factory.pipeline import assembly as chapitre
+from factory.pipeline.assembly import BASCULE, FIN_AUDIO
 
 HEADER = "Samedi 14. Beau temps."
 

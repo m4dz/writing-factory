@@ -1,5 +1,6 @@
-import graph
 import pytest
+
+from factory.pipeline import graph
 from fakes import fixtures as fx
 
 HEADER = "Samedi 14. Beau temps."
