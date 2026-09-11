@@ -4,7 +4,7 @@ Each scenario runs the whole graph on the fake model at a fixed seed and is
 compared, byte for byte, to the golden files under ``tests/snapshots/<name>/``:
 
 - ``prompts.md``   every (system, user) pair served, in call order;
-- ``chapter.md``   the chapter as ``chapitre.assembler`` serves it;
+- ``chapter.md``   the chapter as ``assembly.assembler`` serves it;
 - ``warnings.txt`` the pipeline's own trace of what it did.
 
 A diff here is not necessarily a bug: it is a change to what the model sees or
@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from factory.pipeline import assembly as chapitre
+from factory.pipeline import assembly
 from snapshots import scenarios
 
 HERE = Path(__file__).resolve().parent
@@ -46,7 +46,7 @@ def test_served_prompts_and_chapter_are_frozen(scenario, fake_model, fake_chroma
     final = scenarios.run(scenario, fake_model)
 
     prompts = scenarios.render_prompts(fake_model.calls)
-    chapter = chapitre.assembler(final["repaired"], **scenario.assembly)
+    chapter = assembly.assemble(final["repaired"], **scenario.assembly)
     warnings = "\n".join(final.get("warnings") or []) + "\n"
 
     folder = HERE / scenario.name
@@ -55,7 +55,7 @@ def test_served_prompts_and_chapter_are_frozen(scenario, fake_model, fake_chroma
     _compare(folder / "warnings.txt", warnings, update)
 
     # The prompts the code kept for the run are the same as what was served.
-    served = {u for _, u in final.get("prompts_servis") or []}
+    served = {u for _, u in final.get("served_prompts") or []}
     assert served <= {c.user for c in fake_model.calls}
 
 
@@ -70,7 +70,7 @@ def test_ch7_structure_is_the_stage_structure(fake_model, fake_chroma, quiet_pro
     assert e1.startswith("Samedi 14.") and e2.startswith("Samedi 14.")
     assert "« Neuf ans aujourd'hui" not in e1 and "« Neuf ans aujourd'hui" in e2
     assert e2.rstrip().endswith("Constat : anniversaire.")
-    chapter = chapitre.assembler(final["repaired"], **sc.assembly)
-    before, after = chapter.split(chapitre.BASCULE)
+    chapter = assembly.assemble(final["repaired"], **sc.assembly)
+    before, after = chapter.split(assembly.SWITCH)
     assert before.count("Samedi 14.") == 1 and after.count("Samedi 14.") == 1
-    assert after.split(chapitre.FIN_AUDIO)[0].rstrip().endswith("Constat : anniversaire.")
+    assert after.split(assembly.AUDIO_END)[0].rstrip().endswith("Constat : anniversaire.")

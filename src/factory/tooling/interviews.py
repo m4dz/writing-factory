@@ -51,7 +51,7 @@ from factory.roleplay.session import Session
 # servi au modèle est « la narratrice » : cf. le docstring, le firewall
 # d'indexation scrubbe « Judith » du texte de la fiche.
 DOC_ID = "judith"
-NOM = "la narratrice"
+NAME = "la narratrice"
 
 # Les trois jeux, verbatim. Une entrée = une interview = trois questions posées
 # dans l'ordre, dans un seul et même contexte.
@@ -77,40 +77,40 @@ INTERVIEWS: list[list[str]] = [
 ]
 
 
-def jouer_interview(numero: int, questions: list[str], *,
+def play_interview(number: int, questions: list[str], *,
                     temperature: float, keep_turns: int) -> dict:
     """Joue une interview de bout en bout et rend son bilan.
 
     Une seule `Session` pour les trois questions : le contexte est partagé à
     l'intérieur, isolé à l'extérieur (`rappeler=False`).
     """
-    print(f"\n{'=' * 70}\nINTERVIEW {numero} — {len(questions)} questions\n{'=' * 70}")
+    print(f"\n{'=' * 70}\nINTERVIEW {number} — {len(questions)} questions\n{'=' * 70}")
 
-    session = Session(DOC_ID, nom=NOM, keep_turns=keep_turns, rappeler=False)
+    session = Session(DOC_ID, name=NAME, keep_turns=keep_turns, remind=False)
 
     for i, question in enumerate(questions, 1):
         t0 = time.monotonic()
-        reponse = session.say(question, temperature=temperature)
+        reply = session.say(question, temperature=temperature)
         dt = time.monotonic() - t0
         print(f"\n[Q{i}] {question}")
-        print(f"[{NOM}, {dt:.0f}s] {reponse}")
+        print(f"[{NAME}, {dt:.0f}s] {reply}")
 
     # close() force une dernière fonte (résumé) puis écrit le Markdown ;
     # indexer=False → rien n'entre dans la collection `sessions`.
-    chemin = session.close(indexer=False)
+    path = session.close(indexer=False)
 
     total = sum(m["wall_s"] for m in session.metrics)
     ctx_max = max((m["ctx_need"] for m in session.metrics), default=0.0)
     if session.warnings:
-        print(f"\n⚠ Interview {numero} — {len(session.warnings)} alerte(s) :")
+        print(f"\n⚠ Interview {number} — {len(session.warnings)} alerte(s) :")
         for w in session.warnings:
             print(f"    {w}")
-    print(f"\n→ Interview {numero} écrite : {chemin}"
+    print(f"\n→ Interview {number} écrite : {path}"
           f"  ({len(session.metrics)} appels, {total:.0f}s, ctx_need max {ctx_max:.2f})")
 
     return {
-        "numero": numero,
-        "chemin": chemin,
+        "numero": number,
+        "chemin": path,
         "warnings": list(session.warnings),
         "appels": len(session.metrics),
         "wall_s": total,
@@ -129,26 +129,26 @@ def main() -> None:
     args = p.parse_args()
 
     try:
-        Session(DOC_ID, nom=NOM, rappeler=False)  # valide la fiche AVANT de jouer
+        Session(DOC_ID, name=NAME, remind=False)  # valide la fiche AVANT de jouer
     except ValueError as exc:
         raise SystemExit(
             f"Fiche « {DOC_ID} » introuvable dans la collection Chroma. "
             f"Vérifier que la bible est indexée (collection `auteur`, chunks "
             f"{DOC_ID}::voix …) et que Chroma répond.\n  → {exc}")
 
-    bilans = []
-    for numero, questions in enumerate(INTERVIEWS, 1):
-        bilans.append(jouer_interview(
-            numero, questions,
+    summaries = []
+    for number, questions in enumerate(INTERVIEWS, 1):
+        summaries.append(play_interview(
+            number, questions,
             temperature=args.temperature, keep_turns=args.keep_turns))
 
-    print(f"\n{'=' * 70}\nBILAN — trois interviews de {NOM}\n{'=' * 70}")
-    total_alertes = sum(len(b["warnings"]) for b in bilans)
-    for b in bilans:
-        marque = f"  ⚠ {len(b['warnings'])} alerte(s)" if b["warnings"] else ""
-        print(f"  Interview {b['numero']} : {b['chemin']}{marque}")
-    print(f"\n  {total_alertes} alerte(s) au total, "
-          f"{sum(b['wall_s'] for b in bilans):.0f}s cumulées.")
+    print(f"\n{'=' * 70}\nBILAN — trois interviews de {NAME}\n{'=' * 70}")
+    total_alerts = sum(len(b["warnings"]) for b in summaries)
+    for b in summaries:
+        mark = f"  ⚠ {len(b['warnings'])} alerte(s)" if b["warnings"] else ""
+        print(f"  Interview {b['numero']} : {b['chemin']}{mark}")
+    print(f"\n  {total_alerts} alerte(s) au total, "
+          f"{sum(b['wall_s'] for b in summaries):.0f}s cumulées.")
     print("  Transcripts sous sessions/judith/ — à curer à la main avant la scène "
           "(section ## Transcription).")
 

@@ -34,7 +34,7 @@ def test_derive_facts_filters_pilot_vocabulary_and_adds_negative_facts(fake_mode
     facts, _ = fake_model and qa.derive_facts(["judith"])
     assert facts[0] == "Elle relit son cahier chaque soir."
     assert not any("verdict imposé" in f or "Grade" in f for f in facts)
-    assert facts[-len(qa.FAITS_NEGATIFS):] == qa.FAITS_NEGATIFS
+    assert facts[-len(qa.NEGATIVE_FACTS):] == qa.NEGATIVE_FACTS
     assert "[la narratrice / Psychologie]" in fake_model.by_role("qa.facts")[0].user
 
 

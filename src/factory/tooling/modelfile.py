@@ -84,7 +84,7 @@ def main() -> int:
     # traite déjà — attention du relecteur brûlée sur un faux problème.
     system = f"{FRENCH_GUARD}\n\n{body}"
 
-    if '"""' in system:
+    if '""'"" in system:
         print("ERREUR : la fiche contient une séquence \"\"\" qui casserait "
               "le Modelfile. Corrige-la d'abord.", file=sys.stderr)
         return 1

@@ -39,13 +39,13 @@ from factory.settings import settings
 # non pas faute de les avoir écrits dans la fiche, mais faute de les avoir
 # SERVIS. Le verdict oral de la session 4 (« la voix nulle part ») porte
 # d'abord sur ce trou de liste.
-STYLE_ECRITURE = ("Narration", "Lexique et registre", "Interdits")
-STYLE_RELECTURE = ("Interdits", "Phrase et rythme")
+WRITING_STYLE = ("Narration", "Lexique et registre", "Interdits")
+REVIEW_STYLE = ("Interdits", "Phrase et rythme")
 
 # La règle épistémique du roman, servie à l'écriture. Elle n'est pas une
 # section de la fiche : c'est la ligne qui décide qui a raison quand la mémoire
 # et le texte divergent, et tout le fantastique en découle.
-LIGNE_EPISTEMIQUE = (
+EPISTEMIC_LINE = (
     "Le texte fait foi : l'entrée relue a toujours raison contre la mémoire."
 )
 
@@ -68,8 +68,8 @@ def world_context(doc_id: str) -> str:
     """Chunks de monde d'un personnage — base des faits invariants."""
     ids = [f"{doc_id}::{s}" for s in WORLD_SECTIONS]
     got = _collection().get(ids=ids, include=["documents"])
-    trouve = {i: d for i, d in zip(got["ids"], got["documents"])}
-    return "\n\n".join(trouve[i] for i in ids if i in trouve)
+    found_item = {i: d for i, d in zip(got["ids"], got["documents"])}
+    return "\n\n".join(found_item[i] for i in ids if i in found_item)
 
 # Chunks qui comptent pour INCARNER un personnage (mode acteur). La liste est
 # plus large que celle d'écriture, et ce n'est pas une négligence : écrire une
@@ -92,25 +92,25 @@ _client = None
 # laisse son nom : à la fin d'un run B, une seule valeur doit y figurer. Un
 # firewall qui repose sur « on n'interroge que la bonne collection » n'est une
 # garantie que si on peut le PROUVER après coup.
-_ROUTAGE: list[str] = []
+_ROUTING: list[str] = []
 
 
-def routage() -> list[str]:
+def routing() -> list[str]:
     """Collections réellement interrogées depuis le dernier `vider_routage`."""
-    return list(_ROUTAGE)
+    return list(_ROUTING)
 
 
-def vider_routage() -> None:
-    _ROUTAGE.clear()
+def clear_routing() -> None:
+    _ROUTING.clear()
 
 
-def _collection(nom: str | None = None):
+def _collection(name: str | None = None):
     """Point de passage UNIQUE vers une collection — et donc seul endroit à
     instrumenter. Des appels dispersés à `get_collection` rendraient le
     journal de routage incomplet sans que rien ne le signale."""
-    nom = nom or settings.author_collection
-    _ROUTAGE.append(nom)
-    return _chroma().get_collection(nom)
+    name = name or settings.author_collection
+    _ROUTING.append(name)
+    return _chroma().get_collection(name)
 
 
 def _chroma():
@@ -140,7 +140,7 @@ def embed(text: str) -> list[float]:
 _STYLE_CACHE: dict[str, str] | None = None
 
 
-def style_sections(noms: tuple[str, ...]) -> str:
+def style_sections(names: tuple[str, ...]) -> str:
     """Rend les sections nommées de la fiche de style, lues sur disque.
 
     Sur DISQUE et non depuis Chroma : la fiche de style n'est pas de la matière
@@ -151,28 +151,28 @@ def style_sections(noms: tuple[str, ...]) -> str:
     global _STYLE_CACHE
     if _STYLE_CACHE is None:
         _STYLE_CACHE = {}
-        chemin = str(settings.style_path)
-        if os.path.isfile(chemin):
-            with open(chemin, encoding="utf-8") as fh:
-                texte = fh.read()
+        path = str(settings.style_path)
+        if os.path.isfile(path):
+            with open(path, encoding="utf-8") as fh:
+                text = fh.read()
             # Le frontmatter et les commentaires HTML sont des notes d'édition.
-            if texte.startswith("---"):
-                texte = texte.split("---", 2)[-1]
-            texte = re.sub(r"<!--.*?-->", "", texte, flags=re.DOTALL)
-            titre, corps = None, []
-            for ligne in texte.splitlines():
-                if ligne.startswith("## "):
-                    if titre:
-                        _STYLE_CACHE[titre] = "\n".join(corps).strip()
-                    titre, corps = ligne[3:].strip(), []
-                elif titre:
-                    corps.append(ligne)
-            if titre:
-                _STYLE_CACHE[titre] = "\n".join(corps).strip()
+            if text.startswith("---"):
+                text = text.split("---", 2)[-1]
+            text = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
+            title, body = None, []
+            for line in text.splitlines():
+                if line.startswith("## "):
+                    if title:
+                        _STYLE_CACHE[title] = "\n".join(body).strip()
+                    title, body = line[3:].strip(), []
+                elif title:
+                    body.append(line)
+            if title:
+                _STYLE_CACHE[title] = "\n".join(body).strip()
 
-    blocs = [f"## {n}\n{_sans_exemples(_STYLE_CACHE[n])}"
-             for n in noms if _STYLE_CACHE.get(n)]
-    return "\n\n".join(blocs)
+    blocks = [f"## {n}\n{_without_examples(_STYLE_CACHE[n])}"
+             for n in names if _STYLE_CACHE.get(n)]
+    return "\n\n".join(blocks)
 
 
 # Les exemples Écrire / Ne pas écrire sont RETIRÉS DU SERVICE, pas de la fiche :
@@ -181,13 +181,13 @@ def style_sections(noms: tuple[str, ...]) -> str:
 # C'est la troisième fois qu'on mesure la même chose — un exemple montré se
 # récite, quel que soit le panneau qu'on plante devant (« ne pas écrire »).
 # La règle prescriptive, elle, survit : seule l'illustration part.
-_EXEMPLE_SERVI = re.compile(
+_SERVED_EXAMPLE = re.compile(
     r"^\s*\*\*(?:Écrire|Ne pas écrire)\s*:?\*\*.*?(?=^\s*[-*]\s|^\s*\*\*|\Z)",
     re.MULTILINE | re.DOTALL)
 
 
-def _sans_exemples(section: str) -> str:
-    return re.sub(r"\n{3,}", "\n\n", _EXEMPLE_SERVI.sub("", section)).strip()
+def _without_examples(section: str) -> str:
+    return re.sub(r"\n{3,}", "\n\n", _SERVED_EXAMPLE.sub("", section)).strip()
 
 
 def character_context(doc_id: str) -> str:
@@ -216,16 +216,16 @@ def list_characters() -> list[dict]:
         )
     except Exception:                      # collection absente : bible non indexée
         return []
-    vus: dict[str, dict] = {}
+    seen_map: dict[str, dict] = {}
     for meta in got.get("metadatas") or []:
         doc_id = (meta or {}).get("doc_id")
-        if doc_id and doc_id not in vus:
-            vus[doc_id] = {
+        if doc_id and doc_id not in seen_map:
+            seen_map[doc_id] = {
                 "id": doc_id,
                 "rank": (meta or {}).get("rank", ""),
                 "nom": doc_id.split("-")[0].capitalize(),
             }
-    return sorted(vus.values(), key=lambda c: c["id"])
+    return sorted(seen_map.values(), key=lambda c: c["id"])
 
 
 def acting_context(doc_id: str) -> str:
@@ -261,12 +261,12 @@ def session_memories(doc_id: str, *, n: int = 3) -> list[str]:
         )
     except Exception:      # collection absente ou Chroma muet : pas de mémoire
         return []
-    paires = sorted(
+    pairs = sorted(
         zip(got.get("metadatas") or [], got.get("documents") or []),
         key=lambda p: (p[0] or {}).get("horodatage", ""),
         reverse=True,
     )
-    return [doc for _, doc in paires[:n]]
+    return [doc for _, doc in pairs[:n]]
 
 
 def semantic_context(query: str, *, doc_type: str, n: int = 3) -> list[str]:
@@ -288,7 +288,7 @@ def semantic_context(query: str, *, doc_type: str, n: int = 3) -> list[str]:
 # simple, qui contredisait FRONTALEMENT la fiche de style — laquelle classe le
 # passé simple parmi ses interdits bloquants. Deux consignes contraires dans le
 # même prompt système ne lèvent aucune erreur : elles produisent du texte moyen.
-PREAMBULE = (
+PREAMBLE = (
     "Tu écris le carnet de relecture d'une correctrice, à la première "
     "personne. Fantastique psychologique contemporain, passé composé et "
     "présent. Une maison, une voix, aucun dialogue. Elle écrit pour "
@@ -303,8 +303,8 @@ def assemble_system_prompt(
     n_scenes: int = 2,
     include_scenes: bool = True,
     rag: bool = True,
-    style: tuple[str, ...] = STYLE_ECRITURE,
-    epistemique: bool = True,
+    style: tuple[str, ...] = WRITING_STYLE,
+    epistemic: bool = True,
 ) -> str:
     """Construit le prompt système d'une entrée.
 
@@ -322,14 +322,14 @@ def assemble_system_prompt(
     L'appel « lieu par similarité » a disparu : il n'y a qu'une maison, et
     aucune scène hors les murs.
     """
-    parts: list[str] = [PREAMBULE]
+    parts: list[str] = [PREAMBLE]
 
-    bloc_style = style_sections(style)
-    if bloc_style:
+    style_block = style_sections(style)
+    if style_block:
         parts.append("=== CONTRAT DE STYLE (à respecter sans exception) ===\n"
-                     + bloc_style)
-    if epistemique:
-        parts.append("=== RÈGLE DU RÉCIT ===\n" + LIGNE_EPISTEMIQUE)
+                     + style_block)
+    if epistemic:
+        parts.append("=== RÈGLE DU RÉCIT ===\n" + EPISTEMIC_LINE)
 
     if not rag:
         return "\n\n".join(parts)

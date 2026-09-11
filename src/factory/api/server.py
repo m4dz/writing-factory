@@ -42,13 +42,13 @@ from factory.infra import notify
 from factory.settings import settings
 from factory.infra import progress
 from factory.chapter_spec import chapter7 as ch7
-from factory.pipeline.assembly import assembler
+from factory.pipeline.assembly import assemble
 from factory.pipeline.graph import build_graph
 from factory.infra.ollama import unload
 from factory.infra.preflight import PreflightError, preflight, report
 from factory.retrieval.context import list_characters
-from factory.roleplay.session import lire_session, lister_sessions
-from factory.infra.tts import rendre_chapitre
+from factory.roleplay.session import read_session, list_sessions
+from factory.infra.tts import render_chapter
 
 STATIC = Path(__file__).resolve().parent / "static"
 
@@ -123,44 +123,44 @@ class Job:
 
     def __init__(self):
         self.lock = threading.Lock()
-        self.etat = "idle"        # idle | generating | tts | ready | error
-        self.demarre_a: float | None = None
-        self.fini_a: float | None = None
-        self.erreur: str | None = None
-        self.suivi: progress.Progress | None = None
-        self.resultat: dict | None = None
+        self.status = "idle"        # idle | generating | tts | ready | error
+        self.started_at: float | None = None
+        self.finished_at: float | None = None
+        self.error: str | None = None
+        self.tracking: progress.Progress | None = None
+        self.result: dict | None = None
         self.thread: threading.Thread | None = None
 
     # --- lancement -----------------------------------------------------------
 
-    def lancer(self) -> bool:
+    def launch(self) -> bool:
         """Démarre la génération si rien ne tourne. Retourne True si démarré.
 
         L'idempotence est ici, pas dans le handler : c'est une propriété du job,
         et le contrat en dépend (« un second POST ne relance pas »).
         """
         with self.lock:
-            if self.etat in ("generating", "tts", "ready"):
+            if self.status in ("generating", "tts", "ready"):
                 return False
-            self.etat = "generating"
-            self.demarre_a = time.time()
-            self.fini_a = None
-            self.erreur = None
-            self.resultat = None
-            self.suivi = progress.Progress(actif=True)
+            self.status = "generating"
+            self.started_at = time.time()
+            self.finished_at = None
+            self.error = None
+            self.result = None
+            self.tracking = progress.Progress(active=True)
             # Le bipeur écoute les changements de phase. Il ne reçoit que le
             # LIBELLÉ de phase et le pourcentage — jamais les notes, qui citent
             # la bible et le chapitre (cf. notify.py).
-            self.suivi.observateur = lambda s: notify.avancement(
-                s.phase_courante, s.avancement, int(time.time() - s.t0)
+            self.tracking.observer = lambda s: notify.advancement(
+                s.current_phase, s.advancement, int(time.time() - s.t0)
             )
-            progress.install(self.suivi)
-            notify.demarrage()
-            self.thread = threading.Thread(target=self._tourner, daemon=True)
+            progress.install(self.tracking)
+            notify.startup()
+            self.thread = threading.Thread(target=self._run, daemon=True)
             self.thread.start()
             return True
 
-    def _tourner(self) -> None:
+    def _run(self) -> None:
         """Exécute le pipeline. N'échoue JAMAIS vers l'appelant HTTP."""
         try:
             # Le préflight refuse une machine étranglée — mais son refus ne doit
@@ -171,63 +171,63 @@ class Job:
             # le compteur du deck. Ici la durée est l'enjeu, donc un swap saturé
             # redevient bloquant — au contraire de l'outillage de calibration,
             # qui juge de la prose et se moque des secondes.
-            avertissements = preflight(strict=True, chrono=True)
-            for a in avertissements:
+            warnings = preflight(strict=True, timer=True)
+            for a in warnings:
                 progress.note(f"préflight : {a}")
 
             graph = build_graph()
             final = graph.invoke(
-                ch7.etat_ch7(),
+                ch7.ch7_state(),
                 config={"recursion_limit": 50},
             )
-            self._ecrire_chapitre(final)
-            audio = self._rendre_audio()
+            self._write_chapter(final)
+            audio = self._render_audio()
             with self.lock:
-                self.resultat = {
+                self.result = {
                     "audio": audio,
                     "scenes": len(final.get("repaired") or []),
                     "warnings": final.get("warnings") or [],
                     "coherence": final.get("coherence") or "",
                     "plan_report": final.get("plan_report") or "",
                 }
-                self.etat = "ready"
-                self.fini_a = time.time()
+                self.status = "ready"
+                self.finished_at = time.time()
             progress.note("chapitre prêt")
-            notify.pret(int(self.fini_a - self.demarre_a),
+            notify.ready(int(self.finished_at - self.started_at),
                         len(final.get("repaired") or []),
                         (audio or {}).get("audio_s"))
-        except progress.Annulation:
+        except progress.Cancelled:
             with self.lock:
-                self.etat = "idle"       # la machine redevient disponible
-                self.fini_a = time.time()
+                self.status = "idle"       # la machine redevient disponible
+                self.finished_at = time.time()
             progress.note("génération annulée")
-            notify.annule()
+            notify.cancelled()
         except PreflightError as exc:
             # Le message de préflight vient de NOUS, sans contenu d'œuvre — mais
             # c'est un mode d'emploi de plusieurs lignes, illisible sur une
             # montre : le bipeur n'en reçoit que la première.
-            self._echouer(f"préflight refusé : {exc}", classe="préflight",
-                          bref=str(exc).splitlines()[1].strip(" -") if
+            self._fail(f"préflight refusé : {exc}", kind="préflight",
+                          short=str(exc).splitlines()[1].strip(" -") if
                           len(str(exc).splitlines()) > 1 else str(exc))
         except Exception as exc:                       # noqa: BLE001
             # Large volontairement : sur scène, une exception non prévue doit
             # produire un fallback propre, pas un traceback dans un thread.
-            self._echouer(f"{type(exc).__name__} : {exc}",
-                          classe=type(exc).__name__, bref=str(exc))
+            self._fail(f"{type(exc).__name__} : {exc}",
+                          kind=type(exc).__name__, short=str(exc))
         finally:
-            if self.suivi:
-                self.suivi.fin()
+            if self.tracking:
+                self.tracking.end()
 
-    def _echouer(self, raison: str, *, classe: str = "erreur",
-                 bref: str = "") -> None:
+    def _fail(self, reason: str, *, kind: str = "erreur",
+                 short: str = "") -> None:
         with self.lock:
-            self.etat = "error"
-            self.erreur = raison
-            self.fini_a = time.time()
-        progress.note(f"ÉCHEC : {raison}")
-        notify.echec(classe, bref or raison)
+            self.status = "error"
+            self.error = reason
+            self.finished_at = time.time()
+        progress.note(f"ÉCHEC : {reason}")
+        notify.failure(kind, short or reason)
 
-    def _ecrire_chapitre(self, final: dict) -> None:
+    def _write_chapter(self, final: dict) -> None:
         """Écrit le Markdown du chapitre sur disque (source de `GET /chapter`).
 
         C'est ici que le marqueur de bascule est posé — par le code, jamais par
@@ -238,10 +238,10 @@ class Job:
         """
         settings.output_dir.mkdir(parents=True, exist_ok=True)
         scenes = final.get("repaired") or final.get("scenes") or []
-        chapter_path().write_text(assembler(scenes, **ch7.MARQUEURS_CH7),
+        chapter_path().write_text(assemble(scenes, **ch7.MARKERS_CH7),
                                encoding="utf-8")
 
-    def _rendre_audio(self) -> dict | None:
+    def _render_audio(self) -> dict | None:
         """Synthétise l'extrait post-bascule. Retourne les métriques, ou None.
 
         Un échec de TTS ne fait PAS échouer le job. Le chapitre, lui, est valide
@@ -251,24 +251,24 @@ class Job:
         travail pour rien.
         """
         with self.lock:
-            self.etat = "tts"
+            self.status = "tts"
         # Qwen n'a plus rien à faire à ce stade, et 4,8 GB de rendus au modèle de
         # voix valent mieux qu'un swap. Même logique que la bascule nemo → Qwen.
         unload(settings.qa_model)
         try:
-            metriques = rendre_chapitre(
+            metrics = render_chapter(
                 chapter_path().read_text(encoding="utf-8"), audio_path()
             )
             progress.note(
-                f"lecture prête : {metriques['audio_s']:.0f} s restituées en "
-                f"{metriques['calcul_s']:.0f} s (×{metriques['facteur_temps_reel']})"
+                f"lecture prête : {metrics['audio_s']:.0f} s restituées en "
+                f"{metrics['calcul_s']:.0f} s (×{metrics['facteur_temps_reel']})"
             )
-            return metriques
+            return metrics
         except Exception as exc:                        # noqa: BLE001
             progress.note(f"lecture indisponible : {exc} — chapitre servi sans lecture")
             return None
 
-    def annuler(self) -> bool:
+    def cancel(self) -> bool:
         """Demande l'arrêt du job en cours. Vrai s'il y avait quelque chose.
 
         Sortie de secours d'opérateur, née d'une interaction que le deck ne
@@ -280,24 +280,24 @@ class Job:
         suivante, donc au pire après l'appel modèle en cours.
         """
         with self.lock:
-            if self.etat not in ("generating", "tts") or not self.suivi:
+            if self.status not in ("generating", "tts") or not self.tracking:
                 return False
-            self.suivi.annule = True
+            self.tracking.cancelled = True
             return True
 
     # --- lecture -------------------------------------------------------------
 
-    def instantane(self) -> dict:
+    def snapshot(self) -> dict:
         """Charge utile de `GET /status`.
 
         `phase` et `ready` sont les deux champs du contrat gelé ; tout le reste
         est additif, et le deck peut l'ignorer sans rien perdre.
         """
         with self.lock:
-            etat, erreur = self.etat, self.erreur
-            debut, fin = self.demarre_a, self.fini_a
-            suivi = self.suivi
-        base = suivi.instantane() if suivi else {
+            status, error = self.status, self.error
+            start, end = self.started_at, self.finished_at
+            tracking = self.tracking
+        base = tracking.snapshot() if tracking else {
             "phase": "generating", "ready": False, "progress": 0.0,
             "label": "", "detail": "", "elapsed_s": 0,
             "budget_s": int(settings.stage_budget_min * 60), "gen_toks": 0, "notes": [],
@@ -312,14 +312,14 @@ class Job:
         # personne n'écrit.
         base["phase"] = {
             "ready": "ready", "tts": "tts", "error": "error", "idle": "idle",
-        }.get(etat, "generating")
-        base["ready"] = etat == "ready" and chapter_path().exists()
-        base["state"] = etat
-        base["progress"] = 1.0 if etat == "ready" else base["progress"]
-        if erreur:
-            base["error"] = erreur
-        if debut and fin:
-            base["duration_s"] = int(fin - debut)
+        }.get(status, "generating")
+        base["ready"] = status == "ready" and chapter_path().exists()
+        base["state"] = status
+        base["progress"] = 1.0 if status == "ready" else base["progress"]
+        if error:
+            base["error"] = error
+        if start and end:
+            base["duration_s"] = int(end - start)
         return base
 
 
@@ -335,14 +335,14 @@ JOB = Job()
 
 
 
-class Salon:
+class ChatRoom:
     """Registre des conversations en cours, purgé sur inactivité."""
 
     def __init__(self):
         self.lock = threading.Lock()
         self.sessions: dict[str, tuple[object, float]] = {}
 
-    def _purger(self) -> None:
+    def _purge(self) -> None:
         """Ferme et ÉCRIT les sessions inactives avant de les oublier.
 
         Une session qui s'évapore sans laisser de trace contredirait toute la
@@ -350,43 +350,43 @@ class Salon:
         sessions pré-générées de la scène. L'oubli silencieux serait la perte
         d'un contenu de démo.
         """
-        limite = time.time() - settings.chat_ttl_s   # 2 h d'inactivité
-        for cle in [k for k, (_, vu) in self.sessions.items() if vu < limite]:
-            session, _ = self.sessions.pop(cle)
+        limit = time.time() - settings.chat_ttl_s   # 2 h d'inactivité
+        for key in [k for k, (_, seen) in self.sessions.items() if seen < limit]:
+            session, _ = self.sessions.pop(key)
             try:
                 session.close()
             except Exception:                           # noqa: BLE001
                 pass    # une purge ne doit jamais faire échouer la requête en cours
 
-    def fermer(self, cle: str):
+    def close_chat(self, key: str):
         """Termine une session : écrit le Markdown et l'indexe. Retourne le
         chemin, ou None si la session est inconnue ou trop courte."""
         with self.lock:
-            entree = self.sessions.pop(cle, None)
-        if entree is None:
+            entry = self.sessions.pop(key, None)
+        if entry is None:
             return None
-        return entree[0].close()
+        return entry[0].close()
 
-    def obtenir(self, cle: str | None, personnage: str, nom: str | None):
+    def acquire(self, key: str | None, character: str, name: str | None):
         """Session existante, ou nouvelle. Retourne (clé, session)."""
         from factory.roleplay.session import Session
 
         with self.lock:
-            self._purger()
-            if cle and cle in self.sessions:
-                session, _ = self.sessions[cle]
-                self.sessions[cle] = (session, time.time())
-                return cle, session
+            self._purge()
+            if key and key in self.sessions:
+                session, _ = self.sessions[key]
+                self.sessions[key] = (session, time.time())
+                return key, session
         # Construction HORS verrou : elle interroge ChromaDB (souvenirs, fiche)
         # et n'a aucune raison de bloquer les autres conversations.
-        session = Session(personnage, nom=nom)
-        cle = f"{personnage}-{int(time.time() * 1000):x}"
+        session = Session(character, name=name)
+        key = f"{character}-{int(time.time() * 1000):x}"
         with self.lock:
-            self.sessions[cle] = (session, time.time())
-        return cle, session
+            self.sessions[key] = (session, time.time())
+        return key, session
 
 
-SALON = Salon()
+ROOM = ChatRoom()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -399,35 +399,35 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
-    def _repondre(self, code: int, corps: bytes = b"",
-                  type_mime: str = "application/json") -> None:
+    def _reply(self, code: int, body: bytes = b"",
+                  mime_type: str = "application/json") -> None:
         self.send_response(code)
         self._cors()
-        if corps:
-            self.send_header("Content-Type", type_mime)
-            self.send_header("Content-Length", str(len(corps)))
+        if body:
+            self.send_header("Content-Type", mime_type)
+            self.send_header("Content-Length", str(len(body)))
         # Aucun cache : le deck interroge la même URL pendant que l'état change.
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
-        if corps and self.command != "HEAD":
-            self.wfile.write(corps)
+        if body and self.command != "HEAD":
+            self.wfile.write(body)
 
-    def _json(self, code: int, charge: dict) -> None:
-        self._repondre(code, json.dumps(charge, ensure_ascii=False).encode())
+    def _json(self, code: int, payload_dict: dict) -> None:
+        self._reply(code, json.dumps(payload_dict, ensure_ascii=False).encode())
 
-    def _fichier(self, chemin: Path, type_mime: str) -> None:
+    def _file(self, path: Path, mime_type: str) -> None:
         """Sert un artefact, ou 204 s'il n'est pas prêt.
 
         204 et non 404 : le contrat traite les deux comme « pas prêt », mais 204
         dit « rien à donner pour l'instant » là où 404 dirait « cette route
         n'existe pas ». Le deck retentera puis basculera sur son embarqué.
         """
-        if not chemin.exists() or chemin.stat().st_size == 0:
-            self._repondre(204)
+        if not path.exists() or path.stat().st_size == 0:
+            self._reply(204)
             return
-        self._repondre(200, chemin.read_bytes(), type_mime)
+        self._reply(200, path.read_bytes(), mime_type)
 
-    def _servir_statique(self, chemin: Path, mime: str) -> None:
+    def _serve_static(self, path: Path, mime: str) -> None:
         """Sert un fichier du build, avec cache adapté.
 
         On N'UTILISE PAS `_repondre` : il force `no-store`, ce qui est juste pour
@@ -436,21 +436,21 @@ class Handler(BaseHTTPRequestHandler):
         immuables par construction (le hash change avec le contenu) → cache long ;
         l'index et le reste → revalidation simple.
         """
-        corps = chemin.read_bytes()
+        body = path.read_bytes()
         self.send_response(200)
         self._cors()
         self.send_header("Content-Type", mime)
-        self.send_header("Content-Length", str(len(corps)))
-        if "/assets/" in chemin.as_posix() and chemin.suffix.lower() != ".html":
+        self.send_header("Content-Length", str(len(body)))
+        if "/assets/" in path.as_posix() and path.suffix.lower() != ".html":
             self.send_header("Cache-Control",
                              "public, max-age=31536000, immutable")
         else:
             self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         if self.command != "HEAD":
-            self.wfile.write(corps)
+            self.wfile.write(body)
 
-    def _servir_slides(self, route: str) -> None:
+    def _serve_slides(self, route: str) -> None:
         """Sert le build Slidev du talk (SPA à base `/`), repli sur index.html.
 
         Ordre imposé par le contrat : les routes de l'API passent AVANT (elles
@@ -468,23 +468,23 @@ class Handler(BaseHTTPRequestHandler):
                              "detail": f"attendu dans {slides}"})
             return
         rel = route.lstrip("/") or "index.html"
-        cible = (slides / rel).resolve()
+        target = (slides / rel).resolve()
         # Anti-traversée : la cible DOIT rester sous dist. Ce serveur écoute sur
         # le réseau d'une conférence — même garde que les identifiants de session.
         try:
-            cible.relative_to(slides)
+            target.relative_to(slides)
         except ValueError:
-            self._repondre(403)
+            self._reply(403)
             return
-        if not cible.is_file():
-            cible = slides / "index.html"
-            if not cible.is_file():
+        if not target.is_file():
+            target = slides / "index.html"
+            if not target.is_file():
                 self._json(404, {"error": "index des slides absent"})
                 return
-        mime = _TYPES.get(cible.suffix.lower(), "application/octet-stream")
-        self._servir_statique(cible, mime)
+        mime = _TYPES.get(target.suffix.lower(), "application/octet-stream")
+        self._serve_static(target, mime)
 
-    def _flux_evenements(self) -> None:
+    def _event_stream(self) -> None:
         """Flux SSE des instantanés de `/status` — le compteur du deck y lit les
         étapes en direct (phase, label, detail, notes, progress).
 
@@ -509,7 +509,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         try:
             while True:
-                snap = JOB.instantane()
+                snap = JOB.snapshot()
                 self.wfile.write(b"data: "
                                  + json.dumps(snap, ensure_ascii=False).encode()
                                  + b"\n\n")
@@ -525,40 +525,40 @@ class Handler(BaseHTTPRequestHandler):
     # --- routes --------------------------------------------------------------
 
     def do_OPTIONS(self) -> None:          # noqa: N802
-        self._repondre(204)
+        self._reply(204)
 
-    def _param(self, nom: str) -> str:
+    def _param(self, name: str) -> str:
         """Valeur d'un paramètre de requête, ou chaîne vide."""
-        _, _, requete = self.path.partition("?")
-        return parse_qs(requete).get(nom, [""])[0]
+        _, _, request = self.path.partition("?")
+        return parse_qs(request).get(name, [""])[0]
 
     # Composants d'identifiant de session. Le filtre est une LISTE BLANCHE, pas
     # une chasse aux `..` : ce serveur écoute sur le réseau d'une conférence, et
     # ces deux valeurs arrivent dans un chemin de fichier.
-    _ID_PERSO = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
-    _ID_HORODATAGE = re.compile(r"^[0-9A-Za-z:_-]{1,40}$")
+    _CHARACTER_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+    _TIMESTAMP_ID = re.compile(r"^[0-9A-Za-z:_-]{1,40}$")
 
-    def _session_enregistree(self, reste: str) -> None:
+    def _saved_session(self, rest: str) -> None:
         """`GET /session/<personnage>/<horodatage>` — transcription rejouable."""
-        morceaux = [m for m in reste.split("?")[0].split("/") if m]
-        if len(morceaux) != 2:
+        pieces = [m for m in rest.split("?")[0].split("/") if m]
+        if len(pieces) != 2:
             self._json(400, {"error": "format attendu : /session/<perso>/<horodatage>"})
             return
-        perso, horodatage = morceaux
-        if not self._ID_PERSO.match(perso) or not self._ID_HORODATAGE.match(horodatage):
+        char_id, timestamp = pieces
+        if not self._CHARACTER_ID.match(char_id) or not self._TIMESTAMP_ID.match(timestamp):
             self._json(400, {"error": "identifiant de session invalide"})
             return
         try:
-            self._json(200, lire_session(perso, horodatage))
+            self._json(200, read_session(char_id, timestamp))
         except FileNotFoundError as exc:
             self._json(404, {"error": str(exc)})
 
-    def _corps_json(self) -> dict:
-        taille = int(self.headers.get("Content-Length") or 0)
-        if not taille:
+    def _json_body(self) -> dict:
+        size = int(self.headers.get("Content-Length") or 0)
+        if not size:
             return {}
         try:
-            return json.loads(self.rfile.read(taille) or b"{}")
+            return json.loads(self.rfile.read(size) or b"{}")
         except json.JSONDecodeError:
             return {}
 
@@ -572,53 +572,53 @@ class Handler(BaseHTTPRequestHandler):
         # machine. On refuse franchement plutôt que de laisser découvrir la
         # latence en direct. Conséquence de planning : la démo d'acteur se joue
         # AVANT le lancement du chapitre, ou APRÈS sa récolte.
-        if JOB.etat in ("generating", "tts"):
+        if JOB.status in ("generating", "tts"):
             self._json(409, {
                 "error": "génération en cours",
                 "detail": "Le mode acteur et la génération partagent le même "
                           "modèle ; la machine n'en tient qu'un. Réessayer "
                           "après la récolte du chapitre.",
-                "state": JOB.etat,
+                "state": JOB.status,
             })
             return
 
-        charge = self._corps_json()
-        personnage = (charge.get("character") or "").strip()
-        message = (charge.get("message") or "").strip()
+        payload_dict = self._json_body()
+        character = (payload_dict.get("character") or "").strip()
+        message = (payload_dict.get("message") or "").strip()
 
         # Fin explicite : c'est ce qui transforme une conversation en artefact
         # rejouable sur scène (résumé + transcription écrits en Markdown).
-        if charge.get("close") and charge.get("session"):
-            chemin = SALON.fermer(charge["session"])
+        if payload_dict.get("close") and payload_dict.get("session"):
+            path = ROOM.close_chat(payload_dict["session"])
             self._json(200, {
                 "closed": True,
-                "fichier": str(chemin) if chemin else None,
-                "detail": None if chemin else "session inconnue ou trop courte",
+                "fichier": str(path) if path else None,
+                "detail": None if path else "session inconnue ou trop courte",
             })
             return
 
-        if not personnage or not message:
+        if not character or not message:
             self._json(400, {"error": "champs `character` et `message` requis"})
             return
 
         try:
-            cle, session = SALON.obtenir(charge.get("session"), personnage,
-                                         charge.get("nom"))
+            key, session = ROOM.acquire(payload_dict.get("session"), character,
+                                         payload_dict.get("nom"))
         except ValueError as exc:          # fiche absente de la bible
             self._json(404, {"error": str(exc)})
             return
 
         try:
-            reponse = session.say(message)
+            reply = session.say(message)
         except Exception as exc:           # noqa: BLE001
             self._json(503, {"error": f"{type(exc).__name__} : {exc}"})
             return
 
         self._json(200, {
-            "session": cle,
-            "character": personnage,
-            "nom": session.nom,
-            "reply": reponse,
+            "session": key,
+            "character": character,
+            "nom": session.name,
+            "reply": reply,
             # Les alertes (sortie de rôle rattrapée, fuite de langue) sont
             # rendues pour l'opérateur — la page ne les montre pas au public.
             "warnings": session.warnings[-3:],
@@ -631,57 +631,57 @@ class Handler(BaseHTTPRequestHandler):
             self._chat()
             return
         if route == "/cancel":
-            arrete = JOB.annuler()
-            self._json(200, {"cancelled": arrete, "state": JOB.etat,
-                             "detail": None if arrete else "aucun job en cours"})
+            stopped = JOB.cancel()
+            self._json(200, {"cancelled": stopped, "state": JOB.status,
+                             "detail": None if stopped else "aucun job en cours"})
             return
         if route != "/generate":
             self._json(404, {"error": "route inconnue"})
             return
         # On lit et jette le corps : le contrat le dit « minimal ou vide », et
         # laisser des octets non lus dans la socket casse le keep-alive.
-        taille = int(self.headers.get("Content-Length") or 0)
-        if taille:
-            self.rfile.read(taille)
-        demarre = JOB.lancer()
+        size = int(self.headers.get("Content-Length") or 0)
+        if size:
+            self.rfile.read(size)
+        demarre = JOB.launch()
         # 202 dans les DEUX cas : « accepté », que ce POST ait démarré le job ou
         # qu'il ait trouvé le travail déjà en route. C'est ça, l'idempotence vue
         # du deck — qui ne doit pas avoir à distinguer.
         self._json(202, {"accepted": True, "started": demarre,
-                         "state": JOB.etat})
+                         "state": JOB.status})
 
     def do_GET(self) -> None:              # noqa: N802
         route = self.path.split("?")[0].rstrip("/") or "/"
         if route == "/status":
-            self._json(200, JOB.instantane())
+            self._json(200, JOB.snapshot())
         elif route == "/events":
-            self._flux_evenements()
+            self._event_stream()
         elif route == "/chapter":
-            self._fichier(chapter_path(), "text/markdown; charset=utf-8")
+            self._file(chapter_path(), "text/markdown; charset=utf-8")
         elif route == "/audio":
-            self._fichier(audio_path(), "audio/wav")
+            self._file(audio_path(), "audio/wav")
         elif route == "/health":
             self._json(200, {"ok": True, "machine": report()})
         elif route == "/characters":
             self._json(200, {"characters": list_characters()})
         elif route == "/sessions":
-            perso = self._param("character")
-            self._json(200, {"sessions": lister_sessions(perso or None)})
+            char_id = self._param("character")
+            self._json(200, {"sessions": list_sessions(char_id or None)})
         elif route.startswith("/session/"):
-            self._session_enregistree(route[len("/session/"):])
+            self._saved_session(route[len("/session/"):])
         elif route == "/acteur":
             # La page du mode acteur. Servie par nous : elle peut donc être
             # ouverte en iframe depuis une slide, sur le même hôte que le reste.
             # La racine `/` est désormais le DECK — l'iframe pointe ici, `/acteur`.
             page = STATIC / "acteur.html"
             if page.exists():
-                self._repondre(200, page.read_bytes(), "text/html; charset=utf-8")
+                self._reply(200, page.read_bytes(), "text/html; charset=utf-8")
             else:
                 self._json(404, {"error": "page absente"})
         else:
             # Tout le reste — `/`, `/favicon.svg`, `/assets/...`, routes client
             # de Slidev — est servi par le build du deck, repli sur index.html.
-            self._servir_slides(route)
+            self._serve_slides(route)
 
     def log_message(self, fmt: str, *args) -> None:
         # Le journal par défaut écrit sur stderr en écrasant le panneau de
@@ -691,16 +691,16 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> None:
     settings.output_dir.mkdir(parents=True, exist_ok=True)
-    serveur = ThreadingHTTPServer((settings.api_host, settings.api_port), Handler)
+    server = ThreadingHTTPServer((settings.api_host, settings.api_port), Handler)
     print(f"[api] écoute sur http://{settings.api_host}:{settings.api_port}")
     print(f"[api] machine : {report()}")
     print(f"[api] artefacts : {settings.output_dir}")
     try:
-        serveur.serve_forever()
+        server.serve_forever()
     except KeyboardInterrupt:
         print("\n[api] arrêt")
     finally:
-        serveur.server_close()
+        server.server_close()
 
 
 if __name__ == "__main__":

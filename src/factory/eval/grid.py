@@ -20,19 +20,19 @@ import re
 import sys
 from pathlib import Path
 
-from factory.eval.lint import (ACC_ABSTRAIT_MAX, ENTETE_ENTREE,
-                        L3_MOTS, L3_VIRGULES,
-                        analyse, contraintes_chapitre, controles_chapitre,
+from factory.eval.lint import (ACC_ABSTRACT_MAX, ENTRY_HEADER,
+                        L3_WORDS, L3_COMMAS,
+                        analyze, chapter_constraints, chapter_checks,
                         strip_frontmatter)
 
-def decouvrir(dossier: str = "runs") -> list[tuple[str, Path]]:
+def discover(folder: str = "runs") -> list[tuple[str, Path]]:
     """Tous les runs présents, runs standard d'abord puis contrôles.
 
     Découverte par glob et non liste figée : le protocole prévoit de relancer un
     tirage pour lever une zone grise, et une grille qui ignorerait le run
     supplémentaire ferait décider sur des données incomplètes.
     """
-    def cle(f: Path) -> tuple[int, int, str]:
+    def key(f: Path) -> tuple[int, int, str]:
         """Ordre de lecture : runs de score, puis contrôle, puis exploration.
 
         C'est l'ordre du protocole, et il porte du sens : on lit d'abord ce qui
@@ -41,33 +41,33 @@ def decouvrir(dossier: str = "runs") -> list[tuple[str, Path]]:
         `run-controle` (le tiret précède le point) — de quoi comparer les
         mauvaises colonnes.
         """
-        nom = f.stem.removeprefix("run-")
-        num = re.search(r"(\d+)", nom)
-        rang = int(num.group(1)) if num else 1
-        if nom.lower().startswith("x"):
-            famille = 2                      # exploration, hors score
-        elif nom.upper().endswith("C") or nom.lower().startswith(
+        name = f.stem.removeprefix("run-")
+        num = re.search(r"(\d+)", name)
+        rank = int(num.group(1)) if num else 1
+        if name.lower().startswith("x"):
+            family = 2                      # exploration, hors score
+        elif name.upper().endswith("C") or name.lower().startswith(
                 ("c", "controle", "contrôle")):
             # `AC`/`BC` sont les chapitres complets hors score : ils se lisent
             # APRÈS les runs scorés, comme le contrôle. Sans ce cas, `AC` se
             # rangeait entre A1 et A2 (rang 1, faute de chiffre).
-            famille = 1
+            family = 1
         else:
-            famille = 0                      # runs de score
-        return (famille, rang, nom)
+            family = 0                      # runs de score
+        return (family, rank, name)
 
-    def nommer(f: Path) -> str:
-        nom = f.stem.removeprefix("run-")
-        if nom.lower().startswith(("controle", "contrôle")):
-            return "Contrôle" + nom[8:]
-        if nom.upper() == "C":
+    def name_for(f: Path) -> str:
+        name = f.stem.removeprefix("run-")
+        if name.lower().startswith(("controle", "contrôle")):
+            return "Contrôle" + name[8:]
+        if name.upper() == "C":
             return "Contrôle"
-        if nom.lower().startswith("x"):
-            return nom.upper()               # X1, X2 — exploration
-        return f"Run {nom}"
+        if name.lower().startswith("x"):
+            return name.upper()               # X1, X2 — exploration
+        return f"Run {name}"
 
-    fichiers = sorted(Path(dossier).glob("run-*.md"), key=cle)
-    return [(nommer(f), f) for f in fichiers]
+    files = sorted(Path(folder).glob("run-*.md"), key=key)
+    return [(name_for(f), f) for f in files]
 
 # Lignes que le code ne peut PAS trancher sans comprendre le texte. Elles sont
 # listées explicitement plutôt qu'omises : une grille silencieuse sur une ligne
@@ -75,16 +75,16 @@ def decouvrir(dossier: str = "runs") -> list[tuple[str, Path]]:
 # LE JUGE. Une ligne, en tête, manuelle : la grille automatique ne dit plus si
 # c'est bon, elle dit si c'est disqualifié. Cette question-là est le seul
 # jugement qui distingue une structure conforme d'un texte qui tient.
-MANUELLE_JUGE = "**Le mouvement déclaré est-il accompli ?**"
+MANUAL_JUDGE = "**Le mouvement déclaré est-il accompli ?**"
 
-MANUELLES_MECANIQUE = [
+MANUAL_MECHANICS = [
     "Deux adjectifs ou plus coordonnés sur un même nom",
     "Émotion annoncée avant d'être montrée",
     "Météo ou obscurité corrélée à la tension",
     "Information hors du champ perceptif du narrateur",
     "Doute résolu, dans un sens ou dans l'autre",
 ]
-MANUELLES_STRUCTURE = [
+MANUAL_STRUCTURE = [
     "Une vérification matérielle de l'anomalie (le geste, décrit)",
     "Le décalage dans le dialogue (la sœur répond à côté)",
     "Les cinq beats présents, dans l'ordre",
@@ -92,7 +92,7 @@ MANUELLES_STRUCTURE = [
 # M1-M4 du protocole de calibration ch. 2. Explicitement NON automatisés : ils
 # demandent de lire, pas de compter. Les laisser en lignes vides plutôt que de
 # les omettre — une grille muette sur une ligne se lit comme une ligne tenue.
-MANUELLES_PROTOCOLE = [
+MANUAL_PROTOCOL = [
     "M1 · Le glissement — la phrase s'interrompt au bord du où/pourquoi, "
     "puis retour immédiat à un fait matériel",
     "M2 · Le « tu » — adressé à celle qui est partie, toléré avec réticence "
@@ -103,7 +103,7 @@ MANUELLES_PROTOCOLE = [
     "de la narratrice",
 ]
 
-MANUELLES_ORAL = [
+MANUAL_ORAL = [
     "Tenu en moins de 2 minutes à voix haute",
     "Aucune phrase reprise deux fois pour la comprendre",
     "Le style est audible : quelqu'un qui a entendu les étalons "
@@ -111,52 +111,52 @@ MANUELLES_ORAL = [
 ]
 
 
-def frontmatter(chemin: Path) -> dict:
+def frontmatter(path: Path) -> dict:
     """Lit le frontmatter du run (température, done_reason, durée…)."""
-    meta, dans = {}, False
-    for ligne in chemin.read_text(encoding="utf-8").splitlines():
-        if ligne.strip() == "---":
-            if dans:
+    meta, inside = {}, False
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip() == "---":
+            if inside:
                 break
-            dans = True
+            inside = True
             continue
-        if dans and ":" in ligne:
-            k, v = ligne.split(":", 1)
+        if inside and ":" in line:
+            k, v = line.split(":", 1)
             meta[k.strip()] = v.strip()
     return meta
 
 
-def ligne(libelle: str, cellules: list[str]) -> str:
-    return f"| {libelle} | " + " | ".join(cellules) + " |"
+def line(label: str, cells: list[str]) -> str:
+    return f"| {label} | " + " | ".join(cells) + " |"
 
 
 def main() -> int:
     # Une session par dossier : les runs de la fiche v1 restent lisibles quand
     # la v2 tourne. Comparer deux versions de la fiche suppose de garder les
     # deux jeux de tirages.
-    dossier = sys.argv[1] if len(sys.argv) > 1 else "runs"
+    folder = sys.argv[1] if len(sys.argv) > 1 else "runs"
     # La cible de longueur change avec le brief : 400-550 pour la scène test de
     # la session 1, 450-600 pour le chapitre 2. Codée en dur, elle aurait
     # affiché « hors cible » sur des runs conformes — un faux défaut, et le
     # genre qui envoie durcir une section qui va bien.
-    cible = sys.argv[2] if len(sys.argv) > 2 else "400-600"
-    cible_min, cible_max = (int(x) for x in cible.split("-"))
+    target = sys.argv[2] if len(sys.argv) > 2 else "400-600"
+    target_min, target_max = (int(x) for x in target.split("-"))
     # Numéro de chapitre : active les interdits SCOPÉS (notes §3 et §4). Sans
     # lui, la grille ne peut pas savoir que « la tierce » est légitime au
     # chapitre 9 et interdite au 2 — et un interdit qui ne connaît pas sa
     # portée est soit inutile, soit faux.
-    chapitre = int(sys.argv[3]) if len(sys.argv) > 3 else None
-    contraintes = contraintes_chapitre(chapitre) if chapitre else None
-    dispo = decouvrir(dossier)
-    if not dispo:
+    chapter = int(sys.argv[3]) if len(sys.argv) > 3 else None
+    constraints = chapter_constraints(chapter) if chapter else None
+    available = discover(folder)
+    if not available:
         print("ERREUR : aucun run dans runs/.", file=sys.stderr)
         return 1
 
-    res = {nom: analyse(p.read_text(encoding="utf-8")) for nom, p in dispo}
-    meta = {nom: frontmatter(p) for nom, p in dispo}
-    noms = [nom for nom, _ in dispo]
-    entete = "| Contrôle attendu | " + " | ".join(noms) + " |"
-    sep = "|---|" + "---|" * len(noms)
+    res = {name: analyze(p.read_text(encoding="utf-8")) for name, p in available}
+    meta = {name: frontmatter(p) for name, p in available}
+    names = [name for name, _ in available]
+    header = "| Contrôle attendu | " + " | ".join(names) + " |"
+    sep = "|---|" + "---|" * len(names)
 
     out = [
         "# Grille de lint",
@@ -182,35 +182,35 @@ def main() -> int:
         "ancre, interdits, bornes). Le jugement est ici, et il se rend à la "
         "lecture debout.",
         "",
-        entete,
+        header,
         sep,
-        ligne(MANUELLE_JUGE, [" "] * len(noms)),
+        line(MANUAL_JUDGE, [" "] * len(names)),
         "",
         "## Conditions des runs",
         "",
-        "| | " + " | ".join(noms) + " |",
+        "| | " + " | ".join(names) + " |",
         sep,
     ]
     # Plusieurs clés possibles par ligne : les runs de sessions différentes
     # n'écrivent pas le même frontmatter, et une grille qui n'en connaît qu'un
     # affiche « ? » sur des données présentes.
-    for cles, lib in [(("temperature",), "Température"),
+    for keys, lib in [(("temperature",), "Température"),
                       (("mots",), "Mots"),
                       (("duree_s", "duree_totale_s"), "Durée (s)"),
                       (("done_reason",), "done_reason"),
                       (("entrees_generees",), "Entrées générées"),
                       (("garde_fou_60",), "Garde-fou 60 % déclenché"),
                       (("temps_par_noeud",), "Temps par nœud (s)")]:
-        valeurs = [next((meta[n][c] for c in cles if meta[n].get(c)), "—")
-                   for n in noms]
-        if any(v != "—" for v in valeurs):
-            out.append(ligne(lib, valeurs))
-    out.append(ligne(f"Cible {cible_min}-{cible_max}",
-                     ["✓" if cible_min <= res[n]["mots"] <= cible_max
-                      else "✗ hors cible" for n in noms]))
+        values = [next((meta[n][c] for c in keys if meta[n].get(c)), "—")
+                   for n in names]
+        if any(v != "—" for v in values):
+            out.append(line(lib, values))
+    out.append(line(f"Cible {target_min}-{target_max}",
+                     ["✓" if target_min <= res[n]["mots"] <= target_max
+                      else "✗ hors cible" for n in names]))
 
-    out += ["", "## Mécanique — échec si présent (AUTO)", "", entete, sep]
-    for cle, lib in [
+    out += ["", "## Mécanique — échec si présent (AUTO)", "", header, sep]
+    for key, lib in [
         ("pastiche", "Lexique pastiche (indicible, ténèbres, effroi…)"),
         ("tics_ia", "Tic d'IA (« une part de moi », « un mélange de »…)"),
         ("exclamation_hors_dialogue", "Point d'exclamation hors dialogue"),
@@ -218,55 +218,55 @@ def main() -> int:
          "Incise adverbiale ou prépositionnelle (« d'un ton surpris »)"),
         ("elision", "Élision manquante (« je te appelle »)"),
     ]:
-        out.append(ligne(lib, ["✗" if res[n][cle] else "✓" for n in noms]))
-    out.append(ligne("Passé simple *(candidats, à confirmer)*",
+        out.append(line(lib, ["✗" if res[n][key] else "✓" for n in names]))
+    out.append(line("Passé simple *(candidats, à confirmer)*",
                      ["⚠ " + ", ".join(res[n]["passe_simple"])
-                      if res[n]["passe_simple"] else "✓" for n in noms]))
+                      if res[n]["passe_simple"] else "✓" for n in names]))
 
-    out += ["", "## Mécanique — échec si présent (MANUEL)", "", entete, sep]
-    for lib in MANUELLES_MECANIQUE:
-        out.append(ligne(lib, [" "] * len(noms)))
+    out += ["", "## Mécanique — échec si présent (MANUEL)", "", header, sep]
+    for lib in MANUAL_MECHANICS:
+        out.append(line(lib, [" "] * len(names)))
 
-    out += ["", "## Structure — échec si absent (AUTO)", "", entete, sep]
-    out.append(ligne(
+    out += ["", "## Structure — échec si absent (AUTO)", "", header, sep]
+    out.append(line(
         "Exactement une phrase d'accumulation",
         [f"{'✓' if len(res[n]['accumulations']) == 1 else '✗'} "
-         f"({len(res[n]['accumulations'])})" for n in noms]))
-    out.append(ligne(
+         f"({len(res[n]['accumulations'])})" for n in names]))
+    out.append(line(
         "≥ 1 phrase-couperet (3-6 mots) en fin de paragraphe",
         [f"{'✓' if res[n]['couperets_fin_para'] else '✗'} "
-         f"({len(res[n]['couperets_fin_para'])})" for n in noms]))
-    out.append(ligne(
+         f"({len(res[n]['couperets_fin_para'])})" for n in names]))
+    out.append(line(
         "Heure ou quantité exacte",
         [f"{'✓' if res[n]['precision'] else '✗'} "
-         f"({len(res[n]['precision'])})" for n in noms]))
+         f"({len(res[n]['precision'])})" for n in names]))
 
-    out += ["", "## Structure — échec si absent (MANUEL)", "", entete, sep]
-    for lib in MANUELLES_STRUCTURE:
-        out.append(ligne(lib, [" "] * len(noms)))
+    out += ["", "## Structure — échec si absent (MANUEL)", "", header, sep]
+    for lib in MANUAL_STRUCTURE:
+        out.append(line(lib, [" "] * len(names)))
 
     # --- Extensions L1-L4 du protocole de calibration ch. 2 ------------------
-    out += ["", "## Protocole ch. 2 — contrôles L1-L4 (AUTO)", "", entete, sep]
+    out += ["", "## Protocole ch. 2 — contrôles L1-L4 (AUTO)", "", header, sep]
 
-    out.append(ligne("Entrées de journal détectées",
-                     [str(res[n]["entrees"]) for n in noms]))
+    out.append(line("Entrées de journal détectées",
+                     [str(res[n]["entrees"]) for n in names]))
     # §1 : l'en-tête normalisé est le repère partagé par le comptage L3, la
     # grille, et la bascule audio de `lire_chapitre.py`. Un en-tête malformé
     # ne casse pas que la grille — il casse la scène.
-    entetes = {n: ENTETE_ENTREE.findall(
+    headers = {n: ENTRY_HEADER.findall(
         strip_frontmatter(Path(p).read_text(encoding="utf-8")))
-        for n, p in dispo}
-    out.append(ligne(
+        for n, p in available}
+    out.append(line(
         "En-têtes au format normalisé (« Jour N. Météo. »)",
-        [f"{'✓' if entetes[n] else '✗'} ({len(entetes[n])})" for n in noms]))
+        [f"{'✓' if headers[n] else '✗'} ({len(headers[n])})" for n in names]))
 
     # Dates CONSÉCUTIVES et sans doublon. L'objectif de chapitre l'exige, et un
     # carnet dont les entrées se répètent ou reculent n'est plus un carnet.
     # Constaté sur BC : huit en-têtes pour trois entrées, dont un répété cinq
     # fois — le comptage d'en-têtes seul ne l'aurait pas vu.
     def _dates(n: str) -> str:
-        jours = [int(j) for _, j in entetes[n]]
-        if not jours:
+        days = [int(j) for _, j in headers[n]]
+        if not days:
             return "—"
         # DEUX ENTRÉES LE MÊME JOUR sont légitimes : c'est la structure du
         # chapitre 7 (l'après-midi et la nuit de l'anniversaire), et la bascule
@@ -276,73 +276,73 @@ def main() -> int:
         #
         # Ce qui reste fautif : une date qui RECULE, ou un saut de plus d'un
         # jour entre deux entrées de dates différentes.
-        ecarts = [b - a for a, b in zip(jours, jours[1:])]
-        recule = [e for e in ecarts if e < 0]
-        saute = [e for e in ecarts if e > 1]
-        if recule:
-            return f"✗ la date recule : {jours}"
-        if saute:
-            return f"✗ saut de date : {jours}"
-        memes = ecarts.count(0)
-        return (f"✓ : {jours}" if not memes
-                else f"✓ : {jours} ({memes} même jour — structure imposée)")
+        gaps = [b - a for a, b in zip(days, days[1:])]
+        step_back = [e for e in gaps if e < 0]
+        skipped = [e for e in gaps if e > 1]
+        if step_back:
+            return f"✗ la date recule : {days}"
+        if skipped:
+            return f"✗ saut de date : {days}"
+        same_ones = gaps.count(0)
+        return (f"✓ : {days}" if not same_ones
+                else f"✓ : {days} ({same_ones} même jour — structure imposée)")
 
-    out.append(ligne("Dates consécutives, sans répétition", [_dates(n) for n in noms]))
+    out.append(line("Dates consécutives, sans répétition", [_dates(n) for n in names]))
 
     # L1 — zéro toléré. La détection est une heuristique de majuscule : les
     # occurrences sont citées en annexe pour que la lecture tranche.
-    out.append(ligne(
+    out.append(line(
         "L1 · Noms propres (zéro toléré)",
         [f"{'✓' if not res[n]['l1_noms_propres'] else '✗'} "
-         f"({len(res[n]['l1_noms_propres'])})" for n in noms]))
+         f"({len(res[n]['l1_noms_propres'])})" for n in names]))
 
     # L2 — en frappe directe sans RAG, une fuite est un échec FICHE/INTERDITS :
     # aucun contexte retrieval ne peut en porter la responsabilité.
-    out.append(ligne(
+    out.append(line(
         "L2 · Fuite lexicale — champ de la mort",
         [f"{'✓' if not res[n]['l2_fuite'] else '✗'} "
-         f"({len(res[n]['l2_fuite'])})" for n in noms]))
-    out.append(ligne(
+         f"({len(res[n]['l2_fuite'])})" for n in names]))
+    out.append(line(
         "L2b · Fuite ambiguë (« disparue ») — signalée, non bloquante",
         [f"{'—' if not res[n]['l2_fuite_ambigue'] else '⚠'} "
-         f"({len(res[n]['l2_fuite_ambigue'])})" for n in noms]))
+         f"({len(res[n]['l2_fuite_ambigue'])})" for n in names]))
 
     # L3 — exactement une accumulation PAR ENTRÉE (D1), aux seuils que la fiche
     # v3 énonce (60 mots, 6 virgules), et non aux seuils de la session 1.
     def _l3(n: str) -> str:
-        par_entree = res[n]["l3_par_entree"]
-        compte = [len(e) for e in par_entree]
-        ok = compte and all(c == 1 for c in compte)
+        per_entry = res[n]["l3_par_entree"]
+        count = [len(e) for e in per_entry]
+        ok = count and all(c == 1 for c in count)
         recop = sum(len(e) for e in res[n]["l3_recopies"])
-        marque = "✓" if ok else "✗"
-        detail = "/".join(str(c) for c in compte) or "0"
-        return f"{marque} ({detail})" + (f" ⛔{recop} recopie(s)" if recop else "")
+        mark = "✓" if ok else "✗"
+        detail = "/".join(str(c) for c in count) or "0"
+        return f"{mark} ({detail})" + (f" ⛔{recop} recopie(s)" if recop else "")
 
     # L3 EXEMPTÉ quand la table met le chapitre hors échelle — le chapitre 7
     # n'exige pas d'accumulation, elle y est autorisée. Afficher « ✗ (0) » sur
     # un contrôle non exigé, c'est un vert impossible lu comme un défaut : le
     # tirage 6 en portait un.
-    l3_exempte = bool(contraintes
-                      and "hors échelle" in (contraintes.get("verdict") or ""))
-    out.append(ligne(
-        f"L3 · Accumulation par entrée (≥{L3_MOTS} mots, ≥{L3_VIRGULES} virg.)"
-        + (" — *non exigée à ce chapitre*" if l3_exempte else ""),
-        ["— non exigée" if l3_exempte else _l3(n) for n in noms]))
+    l3_exempt = bool(constraints
+                      and "hors échelle" in (constraints.get("verdict") or ""))
+    out.append(line(
+        f"L3 · Accumulation par entrée (≥{L3_WORDS} mots, ≥{L3_COMMAS} virg.)"
+        + (" — *non exigée à ce chapitre*" if l3_exempt else ""),
+        ["— non exigée" if l3_exempt else _l3(n) for n in names]))
 
     # L4 — le glissement est le seul emploi autorisé des « … ». Deux façons
     # d'échouer : trop d'occurrences, ou une occurrence loin du champ du départ.
     def _l4(n: str) -> str:
-        par_entree = res[n]["l4_par_entree"]
-        total = sum(c for c, _ in par_entree)
-        trop = any(c > 1 for c, _ in par_entree)
-        hors = sum(len(h) for _, h in par_entree)
-        if trop or hors:
-            raisons = []
-            if trop:
-                raisons.append(">1/entrée")
-            if hors:
-                raisons.append(f"{hors} hors champ")
-            return f"✗ ({total}) " + ", ".join(raisons)
+        per_entry = res[n]["l4_par_entree"]
+        total = sum(c for c, _ in per_entry)
+        too_many = any(c > 1 for c, _ in per_entry)
+        outside = sum(len(h) for _, h in per_entry)
+        if too_many or outside:
+            reasons = []
+            if too_many:
+                reasons.append(">1/entrée")
+            if outside:
+                reasons.append(f"{outside} hors champ")
+            return f"✗ ({total}) " + ", ".join(reasons)
         # Zéro occurrence passe L4 tel que le protocole le formule (il ne
         # sanctionne que l'excès et le hors-champ) mais échoue M1, qui en exige
         # au moins un. Le dire ici : une coche isolée se lirait comme « tenu ».
@@ -350,49 +350,49 @@ def main() -> int:
             return "✓ (0) — mais aucun glissement, échec M1"
         return f"✓ ({total})"
 
-    out.append(ligne("L4 · Points de suspension = glissement seul",
-                     [_l4(n) for n in noms]))
+    out.append(line("L4 · Points de suspension = glissement seul",
+                     [_l4(n) for n in names]))
 
     # --- Interdits SCOPÉS par chapitre (notes §3 et §4) ---------------------
-    if contraintes:
+    if constraints:
         # `strip_frontmatter` est OBLIGATOIRE ici : le frontmatter d'un run
         # recopie le brief, lequel NOMME les termes réservés pour les
         # interdire. Sans cette coupe, tout run conforme sortait à trois
         # violations — la grille sanctionnait le brief, pas le texte.
-        scope = {n: controles_chapitre(
-            strip_frontmatter(Path(p).read_text(encoding="utf-8")), contraintes)
-            for n, p in dispo}
-        out += ["", f"## Chapitre {contraintes['chapitre']} — interdits scopés "
+        scope = {n: chapter_checks(
+            strip_frontmatter(Path(p).read_text(encoding="utf-8")), constraints)
+            for n, p in available}
+        out += ["", f"## Chapitre {constraints['chapter']} — interdits scopés "
                     "(AUTO)", "",
-                f"Verdict imposé : **{contraintes['verdict'] or '—'}** · "
-                f"objets actifs : {contraintes['objets_actifs'] or '—'}", "",
-                entete, sep]
-        out.append(ligne(
+                f"Verdict imposé : **{constraints['verdict'] or '—'}** · "
+                f"objets actifs : {constraints['active_objects'] or '—'}", "",
+                header, sep]
+        out.append(line(
             "Verdict du chapitre présent (lint EN PRÉSENCE)",
-            [("—" if not contraintes["verdict_attendu"]
-              else "✓" if not scope[n]["verdict"] else "✗") for n in noms]))
-        out.append(ligne(
+            [("—" if not constraints["verdict_attendu"]
+              else "✓" if not scope[n]["verdict"] else "✗") for n in names]))
+        out.append(line(
             "Termes réservés absents (la tierce, l'errata, le bon à tirer)",
             [f"{'✓' if not scope[n]['reserves'] else '✗'} "
-             f"({len(scope[n]['reserves'])})" for n in noms]))
-        out.append(ligne(
+             f"({len(scope[n]['reserves'])})" for n in names]))
+        out.append(line(
             f"Quatuor réservé ch. 7 absent"
-            f"{'' if contraintes['quatuor_interdit'] else ' — N/A ici'}",
-            [("—" if not contraintes["quatuor_interdit"]
+            f"{'' if constraints['quatuor_interdit'] else ' — N/A ici'}",
+            [("—" if not constraints["quatuor_interdit"]
               else f"{'✓' if not scope[n]['quatuor'] else '✗'} "
-                   f"({len(scope[n]['quatuor'])})") for n in noms]))
+                   f"({len(scope[n]['quatuor'])})") for n in names]))
         # INTERDITS MATÉRIELS — le décor générique de nemo, en DRAPEAU sur le
         # texte d'écriture. Bloquant dans `accumulate` (le validateur relance),
         # drapeau ici : automatiser un contrôle et le rendre bloquant sont deux
         # décisions distinctes, et un run ne doit pas échouer sur un mot de
         # mobilier pendant que la masse et les gestes passent. La famille est
         # nommée pour que la lecture sache quoi chercher.
-        out.append(ligne(
+        out.append(line(
             "⚑ Interdits matériels *(drapeau — décor hors du monde)*",
             [(lambda fam: f"{'—' if not fam else '⚑'} "
                           f"({', '.join(sorted(fam)) or '0'})")(
                 {x.split(" : ")[0] for x in scope[n]["materiels"]})
-             for n in noms]))
+             for n in names]))
 
     # --- Session 5 : les cinq détecteurs, ENFIN branchés ---------------------
     #
@@ -402,8 +402,8 @@ def main() -> int:
     # troué, il était débranché. Le lint fantôme est la forme la plus coûteuse
     # d'échec d'outillage, parce qu'elle se lit comme un succès.
     out += ["", "## Sessions 5-6 — voix, formulaire et décor (AUTO)", "",
-            entete, sep]
-    for cle, lib in [
+            header, sep]
+    for key, lib in [
         ("attracteurs", "Attracteurs *(familles : folie, demain qui résout, "
                         "bouée/océan)*"),
         ("meta_termes", "Méta-termes en sortie (couperet, squelette, beat…)"),
@@ -419,43 +419,43 @@ def main() -> int:
         # pour pouvoir la retirer.
         ("marques", "Marque déposée *(Bluetooth, Frigidaire…)*"),
     ]:
-        out.append(ligne(lib, [f"{'✓' if not res[n].get(cle) else '✗'} "
-                              f"({len(res[n].get(cle) or [])})" for n in noms]))
+        out.append(line(lib, [f"{'✓' if not res[n].get(key) else '✗'} "
+                              f"({len(res[n].get(key) or [])})" for n in names]))
 
     # DRAPEAUX, non bloquants. L'arbitrage 1B a sorti le plafond de M3 comme
     # lint séparé — « drapeau posé ». Le rendre bloquant ferait échouer un run
     # entier sur un tic à deux occurrences alors que L3 et M1 passeraient ;
     # automatiser un contrôle et le rendre bloquant sont deux décisions
     # distinctes. M3 reste la ligne manuelle qui tranche le couple.
-    out.append(ligne(
+    out.append(line(
         "⚑ « je décide de » ≤ 1/entrée *(drapeau, non bloquant)*",
         [(lambda c: f"{'—' if all(x <= 1 for x in c) else '⚑'} "
                     f"({'/'.join(map(str, c)) or '0'})")(
-            res[n].get("je_decide_par_entree") or [0]) for n in noms]))
-    out.append(ligne(
+            res[n].get("je_decide_par_entree") or [0]) for n in names]))
+    out.append(line(
         "⚑ Couple décision-exécution *(candidat, M3 tranche)*",
         [f"{'—' if not res[n].get('couples_m3') else '⚑'} "
-         f"({len(res[n].get('couples_m3') or [])})" for n in noms]))
-    out.append(ligne(
+         f"({len(res[n].get('couples_m3') or [])})" for n in names]))
+    out.append(line(
         "En-têtes cohérents (jour de semaine ↔ date)",
         [f"{'✓' if not res[n].get('entetes_incoherents') else '✗'} "
-         f"({len(res[n].get('entetes_incoherents') or [])})" for n in noms]))
+         f"({len(res[n].get('entetes_incoherents') or [])})" for n in names]))
 
     # L'ACCUMULATION QUI SE RÉSUME. Bloquant DANS le nœud (le validateur
     # relance), donc une croix ici signale que le nœud a rendu son dernier essai
     # malgré tout — pas un défaut de plume, un défaut de dispositif.
     # Le ratio est affiché, pas seulement le verdict : le seuil de 0,20 est un
     # arbitrage, et il doit rester rediscutable avec les chiffres sous les yeux.
-    def _resume(n: str) -> str:
+    def _summary(n: str) -> str:
         ratios = res[n].get("accumulations_abstraction") or []
         if not ratios:
             return "— (aucune accumulation)"
-        marque = "✓" if all(r <= ACC_ABSTRAIT_MAX for r in ratios) else "✗"
-        return f"{marque} ({'/'.join(f'{r:.0%}' for r in ratios)})"
+        mark = "✓" if all(r <= ACC_ABSTRACT_MAX for r in ratios) else "✗"
+        return f"{mark} ({'/'.join(f'{r:.0%}' for r in ratios)})"
 
-    out.append(ligne(
+    out.append(line(
         "Accumulation d'étapes, non de beats *(≤ 20 % d'items abstraits)*",
-        [_resume(n) for n in noms]))
+        [_summary(n) for n in names]))
 
     # M1 EN CONTRÔLE DE COMPOSITION (session 6, §2). Le glissement ne se demande
     # plus au modèle : il se prend en banque, le code le coupe et le colle. Ce
@@ -469,17 +469,17 @@ def main() -> int:
     # dans le texte rendu. Le dire plutôt que laisser croire que la ligne les
     # couvre — une grille muette sur un critère se lit comme un critère tenu.
     def _compo(n: str) -> str:
-        par_entree = res[n].get("l4_par_entree") or []
-        if not par_entree:
+        per_entry = res[n].get("l4_par_entree") or []
+        if not per_entry:
             return "—"
-        total = sum(c for c, _ in par_entree)
-        hors = sum(len(h) for _, h in par_entree)
-        trop = [c for c, _ in par_entree if c > 1]
+        total = sum(c for c, _ in per_entry)
+        outside = sum(len(h) for _, h in per_entry)
+        too_many = [c for c, _ in per_entry if c > 1]
         if not total:
             return "✗ (aucun glissement)"
-        if hors or trop:
-            return (f"✗ ({total} posé(s), {hors} non conforme(s), "
-                    f"{len(trop)} entrée(s) à plus d'un)")
+        if outside or too_many:
+            return (f"✗ ({total} posé(s), {outside} non conforme(s), "
+                    f"{len(too_many)} entrée(s) à plus d'un)")
         return f"✓ ({total} posé(s), un par entrée, conformes)"
 
     # LA REDITE — bloquante. Le code retire le doublon à l'assemblage (cf.
@@ -488,48 +488,48 @@ def main() -> int:
     # dans un paragraphe par ailleurs différent. Ce que le CODE compose est
     # exclu des deux comptes — en-têtes, ancre, glissements se répètent par
     # fonction, et les compter aurait fait retirer la bascule et le geste.
-    out.append(ligne(
+    out.append(line(
         "Aucun paragraphe redit *(similarité ≥ 50 %, hors artefacts du code)*",
         [(lambda r: f"{'✓' if not r else '✗'} ({len(r)})")(
-            res[n].get("paragraphes_redits") or []) for n in noms]))
+            res[n].get("paragraphes_redits") or []) for n in names]))
     # LA PERSONNE de l'accumulation — bloquante dans le nœud, donc une croix
     # ici signale que le dernier essai est passé malgré tout.
-    out.append(ligne(
+    out.append(line(
         "Accumulation à la première personne",
         [(lambda r: f"{'✓' if not r else '✗'} ({len(r)})")(
-            res[n].get("accumulations_3p") or []) for n in noms]))
+            res[n].get("accumulations_3p") or []) for n in names]))
     # LES CITATIONS FABRIQUÉES — drapeau. L'ancre et le verdict sont retirés du
     # compte par `citations_hors_ancre` quand on les lui donne ; ici la grille
     # ne connaît pas l'ancre du run, donc elle passe l'ancre du chapitre.
-    out.append(ligne(
+    out.append(line(
         "⚑ Citation hors ancre *(drapeau — le cahier est fourni, pas fabriqué)*",
         [(lambda r: f"{'—' if not r else '⚑'} ({len(r)})")(
             [c for c in (res[n].get("citations") or [])
-             if not (contraintes and contraintes.get("verdict")
-                     and contraintes["verdict"].split("(")[0].strip().lower()
-                     in c.lower())]) for n in noms]))
-    out.append(ligne(
+             if not (constraints and constraints.get("verdict")
+                     and constraints["verdict"].split("(")[0].strip().lower()
+                     in c.lower())]) for n in names]))
+    out.append(line(
         "Aucune phrase reprise d'un paragraphe à l'autre",
         [(lambda r: f"{'✓' if not r else '✗'} ({len(r)})")(
-            res[n].get("phrases_redites") or []) for n in noms]))
+            res[n].get("phrases_redites") or []) for n in names]))
 
-    out.append(ligne(
+    out.append(line(
         "M1 · composition du glissement *(présence, unicité, conformité L4)*",
-        [_compo(n) for n in noms]))
+        [_compo(n) for n in names]))
 
-    out += ["", "## Protocole ch. 2 — contrôles M1-M4 (MANUEL)", "", entete, sep]
-    for lib in MANUELLES_PROTOCOLE:
-        out.append(ligne(lib, [" "] * len(noms)))
+    out += ["", "## Protocole ch. 2 — contrôles M1-M4 (MANUEL)", "", header, sep]
+    for lib in MANUAL_PROTOCOL:
+        out.append(line(lib, [" "] * len(names)))
 
     out += ["", "## Oral — jugement à la lecture (MANUEL, debout, chronométré)",
-            "", entete, sep]
-    for lib in MANUELLES_ORAL:
-        out.append(ligne(lib, [" "] * len(noms)))
+            "", header, sep]
+    for lib in MANUAL_ORAL:
+        out.append(line(lib, [" "] * len(names)))
 
     out += ["", "## Preuves des croix automatiques", ""]
-    for n in noms:
-        preuves = []
-        for cle, lib in [("pastiche", "pastiche"), ("tics_ia", "tic d'IA"),
+    for n in names:
+        evidence = []
+        for key, lib in [("pastiche", "pastiche"), ("tics_ia", "tic d'IA"),
                          ("exclamation_hors_dialogue", "exclamation"),
                          ("incise_adverbiale", "incise"),
                          ("elision", "élision"),
@@ -538,32 +538,32 @@ def main() -> int:
                          ("formulaire", "formulaire"),
                          ("couples_m3", "⚑ couple décision-exécution"),
                          ("entetes_incoherents", "en-tête incohérent")]:
-            for e in res[n][cle]:
-                preuves.append(f"  - **{lib}** : `{e}`")
+            for e in res[n][key]:
+                evidence.append(f"  - **{lib}** : `{e}`")
         for a in res[n]["accumulations"]:
-            preuves.append(f"  - **accumulation** : `{a[:150]}…`")
+            evidence.append(f"  - **accumulation** : `{a[:150]}…`")
         for w in res[n]["delint"]:
-            preuves.append(f"  - **delint** : {w}")
+            evidence.append(f"  - **delint** : {w}")
         for occ in res[n]["l1_noms_propres"]:
-            preuves.append(f"  - **L1 nom propre** : `{occ}`")
+            evidence.append(f"  - **L1 nom propre** : `{occ}`")
         if res[n]["l2_fuite"]:
-            preuves.append("  - **L2 fuite** : "
+            evidence.append("  - **L2 fuite** : "
                            + ", ".join(f"`{m}`" for m in res[n]["l2_fuite"]))
         if res[n]["l2_fuite_ambigue"]:
-            preuves.append("  - **L2b ambigu** : "
+            evidence.append("  - **L2b ambigu** : "
                            + ", ".join(f"`{m}`" for m in res[n]["l2_fuite_ambigue"]))
         for i, acc in enumerate(res[n]["l3_par_entree"], start=1):
             for a in acc:
-                preuves.append(f"  - **L3 entrée {i}** : `{a[:150]}…`")
+                evidence.append(f"  - **L3 entrée {i}** : `{a[:150]}…`")
         for i, rec in enumerate(res[n]["l3_recopies"], start=1):
             for a in rec:
-                preuves.append(f"  - **L3 entrée {i} ⛔ ÉTALON RECOPIÉ** : `{a[:110]}…`")
-        for i, (_, hors) in enumerate(res[n]["l4_par_entree"], start=1):
-            for h in hors:
-                preuves.append(f"  - **L4 entrée {i}, hors champ du départ** : `{h}`")
-        if preuves:
+                evidence.append(f"  - **L3 entrée {i} ⛔ ÉTALON RECOPIÉ** : `{a[:110]}…`")
+        for i, (_, outside) in enumerate(res[n]["l4_par_entree"], start=1):
+            for h in outside:
+                evidence.append(f"  - **L4 entrée {i}, hors champ du départ** : `{h}`")
+        if evidence:
             out.append(f"- **{n}**")
-            out += preuves
+            out += evidence
         else:
             out.append(f"- **{n}** — aucune croix automatique.")
 

@@ -40,37 +40,37 @@ from factory.settings import settings
 # notification du tout) : `settings.telegram_*`.
 
 # Tout ce qui est cité l'est parce que ça vient du modèle ou de la bible.
-_CITATIONS = re.compile(r"[«\"“][^»\"”]*[»\"”]")
-_LONGUEUR_MAX = 200
+_QUOTATIONS = re.compile(r"[«\"“][^»\"”]*[»\"”]")
+_MAX_LENGTH = 200
 
-_dernier_envoi = 0.0
-_verrou = threading.Lock()
+_last_sent = 0.0
+_lock = threading.Lock()
 
 
-def actif() -> bool:
+def active() -> bool:
     return bool(settings.telegram_token and settings.telegram_chat_id)
 
 
-def _assainir(texte: str) -> str:
+def _sanitize(text: str) -> str:
     """Retire les citations et borne la longueur — second rideau.
 
     Le premier rideau est de ne composer les messages qu'à partir de champs
     structurés ; celui-ci protège le cas où une exception inattendue porterait
     du contenu dans son message.
     """
-    sans_citation = _CITATIONS.sub("[…]", texte)
-    sans_citation = " ".join(sans_citation.split())
-    return sans_citation[:_LONGUEUR_MAX]
+    without_quotation = _QUOTATIONS.sub("[…]", text)
+    without_quotation = " ".join(without_quotation.split())
+    return without_quotation[:_MAX_LENGTH]
 
 
-def _poster(texte: str) -> None:
+def _post(text: str) -> None:
     """Envoi réel, en tâche de fond. N'échoue jamais vers l'appelant."""
-    charge = json.dumps({
-        "chat_id": settings.telegram_chat_id, "text": texte, "disable_notification": False,
+    payload_dict = json.dumps({
+        "chat_id": settings.telegram_chat_id, "text": text, "disable_notification": False,
     }).encode()
     req = urllib.request.Request(
         f"https://api.telegram.org/bot{settings.telegram_token}/sendMessage",
-        data=charge, headers={"Content-Type": "application/json"},
+        data=payload_dict, headers={"Content-Type": "application/json"},
     )
     try:
         urllib.request.urlopen(req, timeout=settings.telegram_timeout_s).read()
@@ -80,21 +80,21 @@ def _poster(texte: str) -> None:
         pass
 
 
-def _envoyer(texte: str, *, prioritaire: bool = False) -> None:
+def _send(text: str, *, priority: bool = False) -> None:
     """Poste un message, sauf si le débit est déjà atteint (hors priorité).
 
     L'envoi part dans un THREAD : une génération ne doit pas attendre cinq
     secondes de timeout réseau parce qu'un opérateur veut être prévenu.
     """
-    global _dernier_envoi
-    if not actif():
+    global _last_sent
+    if not active():
         return
-    with _verrou:
-        maintenant = time.time()
-        if not prioritaire and maintenant - _dernier_envoi < settings.telegram_period_s:
+    with _lock:
+        now = time.time()
+        if not priority and now - _last_sent < settings.telegram_period_s:
             return
-        _dernier_envoi = maintenant
-    threading.Thread(target=_poster, args=(_assainir(texte),),
+        _last_sent = now
+    threading.Thread(target=_post, args=(_sanitize(text),),
                      daemon=True).start()
 
 
@@ -104,31 +104,31 @@ def _envoyer(texte: str, *, prioritaire: bool = False) -> None:
 # volontairement PAS de `notify.texte(...)` générique : ce serait la porte par
 # laquelle le contenu finirait par sortir.
 
-def demarrage(scenes_prevues: str = "") -> None:
-    _envoyer(f"▶️ Génération lancée{f' ({scenes_prevues})' if scenes_prevues else ''}",
-             prioritaire=True)
+def startup(planned_scenes: str = "") -> None:
+    _send(f"▶️ Génération lancée{f' ({planned_scenes})' if planned_scenes else ''}",
+             priority=True)
 
 
-def avancement(label: str, pourcentage: float, ecoule_s: int) -> None:
+def advancement(label: str, percent: float, elapsed_s: int) -> None:
     """Battement de progression. `label` vient de nos PHASES, pas du modèle."""
-    _envoyer(f"⏳ {int(pourcentage * 100)} % — {label} — {ecoule_s // 60} min écoulées")
+    _send(f"⏳ {int(percent * 100)} % — {label} — {elapsed_s // 60} min écoulées")
 
 
-def alerte(code: str) -> None:
+def alert(code: str) -> None:
     """Événement notable. `code` est un libellé COURT et fixe, pas une citation."""
-    _envoyer(f"⚠️ {code}", prioritaire=True)
+    _send(f"⚠️ {code}", priority=True)
 
 
-def pret(duree_s: int, scenes: int, audio_s: float | None) -> None:
+def ready(duration_s: int, scenes: int, audio_s: float | None) -> None:
     audio = f", audio {audio_s / 60:.1f} min" if audio_s else ", sans audio"
-    _envoyer(f"✅ Chapitre prêt en {duree_s // 60} min {duree_s % 60} s "
-             f"({scenes} scènes{audio})", prioritaire=True)
+    _send(f"✅ Chapitre prêt en {duration_s // 60} min {duration_s % 60} s "
+             f"({scenes} scènes{audio})", priority=True)
 
 
-def echec(classe: str, raison: str) -> None:
+def failure(kind: str, reason: str) -> None:
     """Échec. `raison` passe par l'assainisseur : elle peut venir d'ailleurs."""
-    _envoyer(f"❌ ÉCHEC ({classe}) — {raison} — PLAN B", prioritaire=True)
+    _send(f"❌ ÉCHEC ({kind}) — {reason} — PLAN B", priority=True)
 
 
-def annule() -> None:
-    _envoyer("⏹️ Génération annulée par l'opérateur", prioritaire=True)
+def cancelled() -> None:
+    _send("⏹️ Génération annulée par l'opérateur", priority=True)

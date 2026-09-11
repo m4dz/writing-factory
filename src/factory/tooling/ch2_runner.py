@@ -36,7 +36,7 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from factory.eval.lint import analyse
+from factory.eval.lint import analyze
 from factory.paths import EXPERIMENTS_DIR
 from factory.settings import settings
 from factory.text import ends_mid_sentence
@@ -60,26 +60,26 @@ SECTION_BRIEF = re.compile(
 # Les lignes de beats : l'énumération numérotée, plus son en-tête. Ce sont
 # elles que le run C retire — pas les interdits ni le matériau imposé, qui
 # appartiennent au cadre et non à la dramaturgie.
-LIGNE_BEAT = re.compile(r"^\s*\d+\.\s+\*\*.+$", re.MULTILINE)
-ENTETE_BEATS = re.compile(r"^\s*\*\*Beats, dans l'ordre :\*\*\s*$", re.MULTILINE)
+BEAT_LINE = re.compile(r"^\s*\d+\.\s+\*\*.+$", re.MULTILINE)
+BEATS_HEADER = re.compile(r"^\s*\*\*Beats, dans l'ordre :\*\*\s*$", re.MULTILINE)
 
 
-def extraire_brief(protocole: Path) -> str:
+def extract_brief(protocol: Path) -> str:
     """Rend le brief machine du §1, débarrassé du balisage de citation."""
-    texte = protocole.read_text(encoding="utf-8")
-    m = SECTION_BRIEF.search(texte)
+    text = protocol.read_text(encoding="utf-8")
+    m = SECTION_BRIEF.search(text)
     if not m:
-        sys.exit(f"ERREUR : section '## 1. Brief machine' introuvable dans {protocole}")
-    lignes = [re.sub(r"^\s*>\s?", "", l) for l in m.group(1).splitlines()]
-    return "\n".join(lignes).strip()
+        sys.exit(f"ERREUR : section '## 1. Brief machine' introuvable dans {protocol}")
+    lines = [re.sub(r"^\s*>\s?", "", l) for l in m.group(1).splitlines()]
+    return "\n".join(lines).strip()
 
 
-def sans_beats(brief: str) -> tuple[str, int]:
+def without_beats(brief: str) -> tuple[str, int]:
     """Retire les beats numérotés et leur en-tête (run de contrôle)."""
-    brief, n = LIGNE_BEAT.subn("", brief)
-    brief, n_entete = ENTETE_BEATS.subn("", brief)
+    brief, n = BEAT_LINE.subn("", brief)
+    brief, n_headers = BEATS_HEADER.subn("", brief)
     brief = re.sub(r"\n{3,}", "\n\n", brief)
-    return brief.strip(), n + n_entete
+    return brief.strip(), n + n_headers
 
 
 def chat(model: str, prompt: str, temperature: float, timeout: int) -> dict:
@@ -107,63 +107,63 @@ def main() -> int:
                    help="Identifiants de runs à exécuter (défaut : tous)")
     args = p.parse_args()
 
-    brief_complet = extraire_brief(Path(args.protocole))
-    brief_controle, retires = sans_beats(brief_complet)
-    print(f"Brief machine : {len(brief_complet)} caractères")
-    print(f"Brief de contrôle : {retires} lignes de beats retirées, "
-          f"{len(brief_controle)} caractères")
-    if retires == 0:
+    full_brief = extract_brief(Path(args.protocole))
+    control_brief, removed_count = without_beats(full_brief)
+    print(f"Brief machine : {len(full_brief)} caractères")
+    print(f"Brief de contrôle : {removed_count} lignes de beats retirées, "
+          f"{len(control_brief)} caractères")
+    if removed_count == 0:
         print("ATTENTION : aucune ligne de beat retirée — le run C serait "
               "identique aux runs de score.", file=sys.stderr)
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(exist_ok=True)
 
-    consigne = ("Rédige le chapitre décrit dans le brief ci-dessous. Rends "
+    instruction = ("Rédige le chapitre décrit dans le brief ci-dessous. Rends "
                 "uniquement le texte du chapitre, sans titre ni commentaire.\n\n")
 
     plan = [r for r in PLAN
             if args.seulement is None or r[0] in args.seulement]
-    for ident, temp, avec_beats, role in plan:
-        brief = brief_complet if avec_beats else brief_controle
+    for ident, temp, with_beats, role in plan:
+        brief = full_brief if with_beats else control_brief
         print(f"[run-{ident}] T={temp} ({role})…", flush=True)
-        res = chat(args.model, consigne + brief, temp, args.timeout)
-        texte = res["message"]["content"].strip()
-        duree = res.get("total_duration", 0) / 1e9
+        res = chat(args.model, instruction + brief, temp, args.timeout)
+        text = res["message"]["content"].strip()
+        duration = res.get("total_duration", 0) / 1e9
         done = res.get("done_reason", "?")
-        n_mots = len(texte.split())
+        n_words = len(text.split())
 
-        lint = analyse(texte)
-        alertes = []
+        lint = analyze(text)
+        alerts = []
         if done == "length":
-            alertes.append("TRONQUÉ par num_predict")
-        if ends_mid_sentence(texte):
-            alertes.append("fin pendante")
+            alerts.append("TRONQUÉ par num_predict")
+        if ends_mid_sentence(text):
+            alerts.append("fin pendante")
 
-        chemin = out_dir / f"run-{ident}.md"
-        chemin.write_text(
+        path = out_dir / f"run-{ident}.md"
+        path.write_text(
             "---\n"
             f"run: {ident}\n"
             f"role: {role}\n"
             f"model: {args.model}\n"
             f"fiche: style-auteur v3\n"
             f"brief: protocole-calibration-ch2.md §1"
-            f"{'' if avec_beats else ' (sans lignes de beats)'}\n"
+            f"{'' if with_beats else ' (sans lignes de beats)'}\n"
             f"rag: aucun (frappe directe)\n"
             f"temperature: {temp}\n"
             f"date: {datetime.now().isoformat(timespec='seconds')}\n"
-            f"mots: {n_mots}\n"
-            f"duree_s: {duree:.0f}\n"
+            f"mots: {n_words}\n"
+            f"duree_s: {duration:.0f}\n"
             f"done_reason: {done}\n"
             f"entrees: {lint['entrees']}\n"
-            f"alertes: {alertes if alertes else '[]'}\n"
-            "---\n\n" + texte + "\n",
+            f"alertes: {alerts if alerts else '[]'}\n"
+            "---\n\n" + text + "\n",
             encoding="utf-8",
         )
-        cible = "OK" if 450 <= n_mots <= 600 else "HORS CIBLE (450-600)"
-        print(f"[run-{ident}] {n_mots} mots [{cible}], {duree:.0f}s, "
-              f"done={done} → {chemin}")
-        for a in alertes:
+        target = "OK" if 450 <= n_words <= 600 else "HORS CIBLE (450-600)"
+        print(f"[run-{ident}] {n_words} mots [{target}], {duration:.0f}s, "
+              f"done={done} → {path}")
+        for a in alerts:
             print(f"  ⚠ {a}", file=sys.stderr)
 
     print(f"\nGrille : python3 outillage/grille_session.py {args.out_dir} "

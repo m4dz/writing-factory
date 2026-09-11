@@ -49,7 +49,7 @@ def main() -> None:
         # même la contrainte dure du projet. Un swap saturé ne casserait pas la
         # machine, mais rendrait la durée obtenue ininterprétable, et c'est
         # précisément ce chiffre qu'on vient chercher ici.
-        for w in preflight(strict=not args.skip_preflight, chrono=True):
+        for w in preflight(strict=not args.skip_preflight, timer=True):
             print(f"  ⚠ {w}")
     except PreflightError as exc:
         raise SystemExit(f"\n{exc}\n\n  (--skip-preflight pour outrepasser)")
@@ -57,8 +57,8 @@ def main() -> None:
     # Le compte à rebours est actif par DÉFAUT : c'est le mode de scène, et un
     # écran figé pendant dix-sept minutes se lit comme une panne. `--muet` sert
     # à mesurer sans le coût du streaming (quelques écritures par seconde).
-    suivi = progress.Progress(actif=not args.muet, budget_min=args.budget)
-    progress.install(suivi)
+    tracking = progress.Progress(active=not args.muet, budget_min=args.budget)
+    progress.install(tracking)
 
     graph = build_graph()
     t0 = time.time()
@@ -68,7 +68,7 @@ def main() -> None:
             config={"recursion_limit": 50},  # la boucle d'écriture peut itérer
         )
     finally:
-        suivi.fin()
+        tracking.end()
     total = time.time() - t0
 
     print("\n" + "#" * 78)
@@ -102,22 +102,22 @@ def main() -> None:
     # réparation par Qwen. Les afficher pêle-mêle fait passer un défaut corrigé
     # pour un défaut vivant — sur scène, c'est un faux aveu de panne.
     warns = final.get("warnings", [])
-    def _residuel(w: str) -> bool:
+    def _residual(w: str) -> bool:
         # « réparation … » = relevé APRÈS la passe Qwen, donc encore présent.
         # « à reprendre à la main » = la continuation et la coupe propre ont
         # toutes deux échoué : c'est le seul cas où du texte sort amputé.
         return w.startswith("réparation ") or "à reprendre à la main" in w
-    residuel = [w for w in warns if _residuel(w)]
-    amont = [w for w in warns if not _residuel(w)]
+    residuel = [w for w in warns if _residual(w)]
+    upstream = [w for w in warns if not _residual(w)]
     if residuel:
         print("  SUBSISTE dans le texte final :")
         for w in residuel:
             print(f"    ⚠ {w}")
     else:
         print("  texte final : aucune alerte")
-    if amont:
+    if upstream:
         print("\n  détecté puis corrigé en amont (état avant réparation) :")
-        for w in amont:
+        for w in upstream:
             print(f"    · {w}")
 
     print("\n" + "#" * 78)
@@ -133,15 +133,15 @@ def main() -> None:
     # tokens qu'il a réellement évalués, après troncature) : il ne peut PAS
     # servir d'alarme. Les deux signaux utiles sont l'estimation avant envoi
     # (`ctx_need`) et l'écart envoyé/lu (`ctx_truncated`).
-    ampute = [i for i, m in enumerate(final["metrics"]) if m.get("ctx_truncated")]
-    serre = [i for i, m in enumerate(final["metrics"]) if m.get("ctx_need", 0) > 0.9]
-    if ampute:
-        print(f"\n  ⚠ PROMPT AMPUTÉ sur les appels {ampute} : Ollama dit avoir "
+    truncated = [i for i, m in enumerate(final["metrics"]) if m.get("ctx_truncated")]
+    tight = [i for i, m in enumerate(final["metrics"]) if m.get("ctx_need", 0) > 0.9]
+    if truncated:
+        print(f"\n  ⚠ PROMPT AMPUTÉ sur les appels {truncated} : Ollama dit avoir "
               "lu bien moins que ce qui a été envoyé. Le début du prompt "
               "système (garde française, faits de la bible) est parti. "
               "Augmenter NUM_CTX.")
-    if serre:
-        print(f"\n  ⚠ Fenêtre serrée (> 90 %) sur les appels {serre} : "
+    if tight:
+        print(f"\n  ⚠ Fenêtre serrée (> 90 %) sur les appels {tight} : "
               "prompt estimé + num_predict frôle NUM_CTX.")
 
     print("\n  détail par appel (« length » = génération coupée — une "

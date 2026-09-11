@@ -1,7 +1,7 @@
 """In-memory stand-in for the Chroma HTTP client, built from the indexer.
 
 ``retrieval`` fetches character chunks by deterministic id. The indexer's
-chunker (``indexer/index.py``) is a pure function of the bible files, so the
+chunker (``indexer/indexer.py``) is a pure function of the bible files, so the
 fake runs it over ``bible/`` and serves exactly the documents a real index
 would hold, firewall included. No embedding is computed: ``query`` answers
 from ``embeddings`` when a test stored some, otherwise returns nothing, which
@@ -69,14 +69,14 @@ class FakeChromaClient:
     @classmethod
     def from_bible(cls, bible_dir: Path, collection: str = "auteur") -> "FakeChromaClient":
         """Index ``bible/`` with the real chunker, firewall rules included."""
-        from factory.retrieval import indexer as index
+        from factory.retrieval import indexer
 
         client = cls()
         col = client.get_or_create_collection(collection)
         for path in sorted(bible_dir.rglob("*.md")):
-            if path.name.startswith("_") or index.exclu(path):
+            if path.name.startswith("_") or indexer.excluded(path):
                 continue
-            ids, docs, metas = index.index_file(path, None)
+            ids, docs, metas = indexer.index_file(path, None)
             if ids:
                 col.upsert(ids=ids, documents=docs, metadatas=metas)
         return client

@@ -53,8 +53,8 @@ EXCLUSIONS = (
 # des tableaux. Ils restent dans la fiche, où ils sont la SOURCE du générateur
 # `build_etat_narratif.py` ; c'est sa traduction diégétique, en [SURFACE], qui
 # est désormais indexée à leur place.
-COUCHES_ADMISES = ("SURFACE",)
-BLOC_COUCHE = re.compile(r"^###\s*\[([A-ZÉ]+)[^\]]*\]\s*$", re.MULTILINE)
+ALLOWED_LAYERS = ("SURFACE",)
+LAYER_BLOCK = re.compile(r"^###\s*\[([A-ZÉ]+)[^\]]*\]\s*$", re.MULTILINE)
 
 # La même convention à crochets sert AU NIVEAU SECTION : `objets.md` marque
 # ainsi `## [RÉSERVÉS — chapitre 7, ne jamais mentionner…]`, qui liste le
@@ -64,19 +64,19 @@ BLOC_COUCHE = re.compile(r"^###\s*\[([A-ZÉ]+)[^\]]*\]\s*$", re.MULTILINE)
 # qu'elle n'a pas le droit d'écrire, et la session 3 a mesuré qu'un modèle à
 # qui l'on montre une matière s'en sert. On réutilise la règle des couches
 # plutôt que d'entretenir une liste de titres interdits.
-SECTION_COUCHE = re.compile(r"^\s*\[([A-ZÉ]+)[^\]]*\]\s*$")
+LAYER_SECTION = re.compile(r"^\s*\[([A-ZÉ]+)[^\]]*\]\s*$")
 
 # Une fiche de personnage annonce ses chunks par une section NUMÉROTÉE
 # (« ## 1. Voix »). Les sections non numérotées sont des notes de travail —
 # celle de la fiche Judith cite la chronologie firewallée. Règle déterministe :
 # elle ne dépend d'aucune liste de titres à maintenir.
-SECTION_NUMEROTEE = re.compile(r"^\s*(\d+)\.\s+(.+)$")
+NUMBERED_SECTION = re.compile(r"^\s*(\d+)\.\s+(.+)$")
 
 # Clés de métadonnées recopiées dans Chroma. LISTE BLANCHE, et non liste noire :
 # le frontmatter de `verite-de-surface.md` porte un `depends_on` qui NOMME la
 # chronologie firewallée. Une liste noire laisserait passer la prochaine clé
 # qu'on ajoutera sans y penser.
-METADONNEES_ADMISES = ("doc_id", "type", "layer", "version", "section",
+ALLOWED_METADATA = ("doc_id", "type", "layer", "version", "section",
                        "source_file", "nom")
 
 # TRADUCTION DES NOMS À L'INDEXATION (item 8, session 5). Le prénom reste dans
@@ -88,18 +88,18 @@ METADONNEES_ADMISES = ("doc_id", "type", "layer", "version", "section",
 # L'ordre des règles compte : le LABEL de chunk (`[fiche-judith / Voix]`) est
 # servi au modèle au même titre que le corps. Le traduire d'abord évite qu'il
 # ne devienne « fiche-la narratrice ».
-TRADUCTION_NOMS = (
+NAME_TRANSLATION = (
     (re.compile(r"\bfiche-judith\b", re.IGNORECASE), "fiche-narratrice"),
     (re.compile(r"\bJudith\b"), "la narratrice"),
     (re.compile(r"\bjudith\b"), "la narratrice"),
 )
 
 
-def traduire_noms(texte: str) -> str:
+def translate_names(text: str) -> str:
     """Remplace les prénoms canoniques par leur désignation neutre."""
-    for motif, remplacement in TRADUCTION_NOMS:
-        texte = motif.sub(remplacement, texte)
-    return texte
+    for pattern, replacement in NAME_TRANSLATION:
+        text = pattern.sub(replacement, text)
+    return text
 
 # --- Utilitaires -------------------------------------------------------------
 
@@ -136,13 +136,13 @@ def split_sections(body: str) -> list[tuple[str, str]]:
     return sections
 
 
-def exclu(path: Path) -> bool:
+def excluded(path: Path) -> bool:
     """Vrai si le fichier ne doit jamais atteindre la collection auteur."""
-    relatif = str(path.relative_to(BIBLE_DIR))
-    return any(motif in relatif for motif in EXCLUSIONS)
+    relative = str(path.relative_to(BIBLE_DIR))
+    return any(pattern in relative for pattern in EXCLUSIONS)
 
 
-def filtrer_couches(contenu: str) -> str:
+def filter_layers(content: str) -> str:
     """Ne garde que le CORPS des blocs de couche autorisés.
 
     Deux détails qui ont l'air cosmétiques et ne le sont pas :
@@ -155,20 +155,20 @@ def filtrer_couches(contenu: str) -> str:
       surface ne sont pas mixtes, et exiger le balisage partout ferait
       disparaître `objets.md` de l'index sans que personne ne s'en aperçoive.
     """
-    marques = list(BLOC_COUCHE.finditer(contenu))
-    if not marques:
-        return contenu
+    marks = list(LAYER_BLOCK.finditer(content))
+    if not marks:
+        return content
 
-    morceaux = []
-    bornes = [m.start() for m in marques] + [len(contenu)]
+    pieces = []
+    bounds = [m.start() for m in marks] + [len(content)]
     # Ce qui précède le premier marqueur appartient à la section, pas à une
     # couche : on le garde (chapeau de section, le cas échéant).
-    if marques[0].start() > 0:
-        morceaux.append(contenu[: marques[0].start()])
-    for marque, fin in zip(marques, bornes[1:]):
-        if marque.group(1) in COUCHES_ADMISES:
-            morceaux.append(contenu[marque.end():fin])
-    return "\n".join(morceaux)
+    if marks[0].start() > 0:
+        pieces.append(content[: marks[0].start()])
+    for mark, end in zip(marks, bounds[1:]):
+        if mark.group(1) in ALLOWED_LAYERS:
+            pieces.append(content[mark.end():end])
+    return "\n".join(pieces)
 
 
 def clean_for_embedding(text: str) -> str:
@@ -199,7 +199,7 @@ def scalar_metadata(meta: dict) -> dict:
     """
     out = {}
     for key, value in meta.items():
-        if key not in METADONNEES_ADMISES:
+        if key not in ALLOWED_METADATA:
             continue
         if isinstance(value, list):
             out[key] = ",".join(str(v) for v in value)
@@ -230,19 +230,19 @@ def index_file(path: Path, ollama: httpx.Client) -> tuple[list[str], list[str], 
     # firewallée). Un fichier sans aucune section numérotée n'est pas une fiche :
     # tout y est indexable, et `verite-de-surface.md` en dépend.
     sections = split_sections(post.content)
-    numerotees = [(t, c) for t, c in sections if SECTION_NUMEROTEE.match(t)]
-    if numerotees:
-        sections = numerotees
+    numbered = [(t, c) for t, c in sections if NUMBERED_SECTION.match(t)]
+    if numbered:
+        sections = numbered
     # Une section entière peut porter une couche, comme un sous-bloc.
     sections = [
         (t, c) for t, c in sections
-        if not (SECTION_COUCHE.match(t)
-                and SECTION_COUCHE.match(t).group(1) not in COUCHES_ADMISES)
+        if not (LAYER_SECTION.match(t)
+                and LAYER_SECTION.match(t).group(1) not in ALLOWED_LAYERS)
     ]
 
     ids, documents, metadatas = [], [], []
     for title, content in sections:
-        content = filtrer_couches(content)
+        content = filter_layers(content)
         cleaned = clean_for_embedding(content)
         if title == "_preambule":
             # Ne garder le préambule que s'il contient autre chose
@@ -256,15 +256,15 @@ def index_file(path: Path, ollama: httpx.Client) -> tuple[list[str], list[str], 
         # `## 1. Voix` donne `voix`, pas `1_voix`. Un id qui porte un rang se
         # casse au premier réordonnancement de la fiche, et le retrieval
         # déterministe demande des noms (`WRITING_SECTIONS`), pas des rangs.
-        numero = SECTION_NUMEROTEE.match(title)
-        if numero:
-            title = numero.group(2).strip()
+        number = NUMBERED_SECTION.match(title)
+        if number:
+            title = number.group(2).strip()
         section = slugify(title)
         # Préfixer le chunk avec son identité améliore nettement le retrieval :
         # l'embedding "sait" de qui et de quoi il parle.
         # La traduction s'applique au document COMPLET, label compris : le
         # préfixe `[fiche-judith / …]` est servi au modèle comme le reste.
-        document = traduire_noms(f"[{doc_id} / {title}]\n{cleaned}")
+        document = translate_names(f"[{doc_id} / {title}]\n{cleaned}")
         ids.append(f"{doc_id}::{section}")
         documents.append(document)
         metadatas.append({**doc_meta, "section": section})
@@ -279,7 +279,7 @@ def main() -> int:
     files = sorted(
         p for p in BIBLE_DIR.rglob("*.md")
         if not p.name.startswith("_")  # _template.md et consorts sont ignorés
-        and not exclu(p)               # firewall : profond, fiche de style
+        and not excluded(p)               # firewall : profond, fiche de style
     )
     if not files:
         print(f"Aucune fiche à indexer dans {BIBLE_DIR} (les _template.md sont ignorés).")

@@ -28,101 +28,101 @@ from factory.paths import REPO_ROOT as RACINE
 
 from factory.infra.ollama import chat                                  
 from factory.text import FRENCH_GUARD                        
-from factory.pipeline.graph import _BEAT_RESOUT, _BEAT_DOUTE           
+from factory.pipeline.graph import _BEAT_RESOLVES, _BEAT_DOUBT           
 
 from factory.settings import settings
 
-TIRAGES = settings.xp_draws
-TEMP = settings.xp_temperature
+DRAWS = settings.xp_draws
+TEMPERATURE = settings.xp_temperature
 NUM_PREDICT = settings.xp_num_predict  # assez pour laisser le modèle résoudre
 #                                        s'il va le faire
 
 # --- La tâche, IDENTIQUE aux sujets (seules l'identité et l'instance varient) --
-_TACHE = (
+_TASK = (
     "Tu écris à la première personne, au présent, en français. Ce soir, tu "
     "relis ce que tu as consigné hier. Tu tombes sur une ligne : {instance}. "
     "Écris ce moment où tu relis cette ligne et remarques l'écart entre ce qui "
     "est écrit et ce dont tu te souviens. Trois à quatre phrases, prose seule, "
     "sans titre."
 )
-_INST_PORTE = ("hier, tu as noté avoir fermé la porte à clé avant de te "
+_INST_DOOR = ("hier, tu as noté avoir fermé la porte à clé avant de te "
                "coucher ; tu ne te souviens pas de l'avoir fait")
-_INST_COUVERTS = ("hier, tu as noté avoir mis deux couverts sur la table ; tu "
+_INST_PLACE_SETTINGS = ("hier, tu as noté avoir mis deux couverts sur la table ; tu "
                   "ne te souviens pas de l'avoir fait")
 
 # --- Les identités (le RÉFLEXE de métier, pas un ordre sur la tâche) ----------
-_ID_CORRECTRICE = (
+_ID_PROOFREADER = (
     "Tu es correctrice de métier. Ton réflexe, devant tout écart entre un texte "
     "et ce que tu croyais savoir, est de le relever comme une faute — c'est ton "
     "geste de tous les jours.")
-_ID_NEUTRE = (
+_ID_NEUTRAL = (
     "Tu tiens un carnet, où tu notes le soir ce que tu as fait dans la journée.")
-_ID_THERAPEUTE = (
+_ID_THERAPIST = (
     "Tu es thérapeute. Ton réflexe, devant ce qui ne se range pas, est de le "
     "laisser ouvert — accueillir la question plutôt que la clore est ton geste "
     "de tous les jours.")
 
 # (nom, identité, instance)
 CONDITIONS = [
-    ("correctrice·porte",   _ID_CORRECTRICE, _INST_PORTE),
-    ("neutre·porte",        _ID_NEUTRE,      _INST_PORTE),
-    ("thérapeute·porte",    _ID_THERAPEUTE,  _INST_PORTE),
-    ("correctrice·couverts", _ID_CORRECTRICE, _INST_COUVERTS),  # add-on canon
+    ("correctrice·porte",   _ID_PROOFREADER, _INST_DOOR),
+    ("neutre·porte",        _ID_NEUTRAL,      _INST_DOOR),
+    ("thérapeute·porte",    _ID_THERAPIST,  _INST_DOOR),
+    ("correctrice·couverts", _ID_PROOFREADER, _INST_PLACE_SETTINGS),  # add-on canon
 ]
 
 
-def _verdict(texte: str) -> tuple[str, str]:
+def _verdict(text: str) -> tuple[str, str]:
     """RÉSOUT (le modèle lève le doute) / TENU (doute ouvert) / — (ni l'un ni
     l'autre). Rend aussi la phrase de résolution repérée, pour la slide."""
-    mr = _BEAT_RESOUT.search(texte)
+    mr = _BEAT_RESOLVES.search(text)
     if mr:
-        return "RÉSOUT", texte[max(0, mr.start() - 10):mr.end() + 30].strip()
-    if _BEAT_DOUTE.search(texte):
+        return "RÉSOUT", text[max(0, mr.start() - 10):mr.end() + 30].strip()
+    if _BEAT_DOUBT.search(text):
         return "TENU", ""
     return "—", ""
 
 
 def main() -> int:
-    horodatage = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
-    lignes_md = [
-        f"# XP résolution — C5 complet, modèle nu — {horodatage}", "",
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+    md_lines = [
+        f"# XP résolution — C5 complet, modèle nu — {timestamp}", "",
         f"Modèle : `{settings.author_model}` · "
-        f"T={TEMP} · num_predict={NUM_PREDICT} · BEATS_N=1 · "
-        f"{TIRAGES} tirages/condition.", "",
+        f"T={TEMPERATURE} · num_predict={NUM_PREDICT} · BEATS_N=1 · "
+        f"{DRAWS} tirages/condition.", "",
         "C5 complet : aucune consigne de verdict, aucun squelette de voix, "
         "aucune chute posée. Seule l'identité servie varie.", "",
         "| condition | tirage | verdict | phrase de résolution |",
         "|---|---|---|---|",
     ]
     verbatims = ["", "## Verbatims", ""]
-    resume: dict[str, int] = {}
+    summary: dict[str, int] = {}
 
-    for nom, identite, instance in CONDITIONS:
-        systeme = f"{FRENCH_GUARD}\n\n{identite}"
-        user = _TACHE.format(instance=instance)
-        resout = 0
-        for t in range(1, TIRAGES + 1):
-            texte, _ = chat(systeme, user, temperature=TEMP,
+    for name, identity, instance in CONDITIONS:
+        system = f"{FRENCH_GUARD}\n\n{identity}"
+        user = _TASK.format(instance=instance)
+        resolves = 0
+        for t in range(1, DRAWS + 1):
+            text, _ = chat(system, user, temperature=TEMPERATURE,
                             num_predict=NUM_PREDICT)
-            texte = " ".join(texte.split())
-            v, phrase = _verdict(texte)
+            text = " ".join(text.split())
+            v, sentence = _verdict(text)
             if v == "RÉSOUT":
-                resout += 1
-            lignes_md.append(f"| {nom} | {t} | **{v}** | {phrase[:80]} |")
-            verbatims += [f"**{nom} · tirage {t} · {v}**", "", f"> {texte}", ""]
-            print(f"[{nom}] tirage {t} : {v}"
-                  + (f" — « {phrase[:60]} »" if phrase else ""))
-        resume[nom] = resout
-        print(f"  → {nom} : {resout}/{TIRAGES} résolvent")
+                resolves += 1
+            md_lines.append(f"| {name} | {t} | **{v}** | {sentence[:80]} |")
+            verbatims += [f"**{name} · tirage {t} · {v}**", "", f"> {text}", ""]
+            print(f"[{name}] tirage {t} : {v}"
+                  + (f" — « {sentence[:60]} »" if sentence else ""))
+        summary[name] = resolves
+        print(f"  → {name} : {resolves}/{DRAWS} résolvent")
 
-    lignes_md += ["", "## Résumé (règle 2/3)", ""]
-    for nom, r in resume.items():
-        regle = "RÉSOUT" if r >= 2 else ("tient" if r == 0 else "partagé")
-        lignes_md.append(f"- **{nom}** : {r}/{TIRAGES} → {regle}")
+    md_lines += ["", "## Résumé (règle 2/3)", ""]
+    for name, r in summary.items():
+        rule = "RÉSOUT" if r >= 2 else ("tient" if r == 0 else "partagé")
+        md_lines.append(f"- **{name}** : {r}/{DRAWS} → {rule}")
 
-    sortie = RACINE / "journal-des-murs" / f"{horodatage}-xp-resolution-C5.md"
-    sortie.write_text("\n".join(lignes_md + verbatims) + "\n", encoding="utf-8")
-    print(f"\nÉcrit : {sortie.relative_to(RACINE)}")
+    output = RACINE / "journal-des-murs" / f"{timestamp}-xp-resolution-C5.md"
+    output.write_text("\n".join(md_lines + verbatims) + "\n", encoding="utf-8")
+    print(f"\nÉcrit : {output.relative_to(RACINE)}")
     return 0
 
 

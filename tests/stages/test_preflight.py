@@ -12,7 +12,7 @@ from factory.infra import preflight
 HEALTHY = {
     "_disk_free_gb": lambda *a, **k: 120.0,
     "_swap_gb": lambda: {"total": 0.0, "used": 0.0, "free": 0.0},
-    "_swap_froid": lambda *a, **k: False,
+    "_swap_cold": lambda *a, **k: False,
     "_pressure_level": lambda: 1,
     "_busy_daemons": lambda: [],
     "_probe_generation": lambda *a, **k: None,
@@ -29,7 +29,7 @@ def healthy(monkeypatch):
 
 def test_healthy_machine_passes_without_warnings(healthy):
     assert preflight.preflight() == []
-    assert preflight.preflight(chrono=True) == []
+    assert preflight.preflight(timer=True) == []
 
 
 def test_low_disk_blocks(healthy):
@@ -43,9 +43,9 @@ def test_low_swap_blocks_only_when_timing_and_only_if_hot(healthy):
     warns = preflight.preflight()                       # not timing: warning only
     assert len(warns) == 1 and "Swap" in warns[0] and "DÉCHARGER" in warns[0]
     with pytest.raises(preflight.PreflightError, match="ininterprétables"):
-        preflight.preflight(chrono=True)
-    healthy.setattr(preflight, "_swap_froid", lambda *a, **k: True)
-    warns = preflight.preflight(chrono=True)            # cold swap: interpretable
+        preflight.preflight(timer=True)
+    healthy.setattr(preflight, "_swap_cold", lambda *a, **k: True)
+    warns = preflight.preflight(timer=True)            # cold swap: interpretable
     assert len(warns) == 1 and "FROID" in warns[0]
 
 

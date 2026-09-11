@@ -114,6 +114,64 @@ One venv: LangGraph, the Chroma client AND the TTS. About 1 min, ~700 MB.
 make venv && make check      # ruff + pytest, no model, no Chroma, no macOS needed
 ```
 
+### 1.6 Configuration
+
+Every knob is a field of `factory.settings.Settings`, overridden by the
+environment variable in the first column (paths may be relative to the
+repository). Defaults are the values below.
+
+| Variable | Field | Default |
+|---|---|---|
+| `OLLAMA_URL` | `ollama_url` | `http://localhost:11434` |
+| `AUTHOR_MODEL` | `author_model` | `mistral-nemo:12b-instruct-2407-q8_0` |
+| `QA_MODEL` | `qa_model` | `qwen2.5:7b-instruct` |
+| `EMBED_MODEL` | `embed_model` | `nomic-embed-text` |
+| `NUM_CTX` | `num_ctx` | `8192` |
+| `GESTURE_MODEL` | `gesture_model` | empty: the author model |
+| `GESTURE_TEMPERATURE` | `gesture_temperature` | `0.3` |
+| `BEATS_N` | `beats_n` | `3` |
+| `PRUNING` | `pruning_enabled` | `1` (`0` disables the assemble pass) |
+| `CHROMA_HOST` / `CHROMA_PORT` | `chroma_host` / `chroma_port` | `localhost` / `8000` |
+| `CHROMA_COLLECTION` | `author_collection` | `auteur` |
+| `CHROMA_SESSIONS` | `sessions_collection` | `sessions` |
+| `BIBLE_DIR` | `bible_dir` | `bible/` |
+| `STYLE_PATH` | `style_path` | `bible/style-auteur.md` |
+| `API_HOST` / `API_PORT` | `api_host` / `api_port` | `0.0.0.0` / `8420` |
+| `API_CORS_ORIGIN` | `cors_origin` | `*` |
+| `API_OUTPUT_DIR` | `output_dir` | `output/` |
+| `API_SLIDES_DIR` | `slides_dir` | `../talk/slides/dist` |
+| `CHAT_TTL_S` | `chat_ttl_s` | `7200` |
+| `STAGE_BUDGET_MIN` | `stage_budget_min` | `25` |
+| `SWITCH_AFTER_SENTENCES` | `switch_after_sentences` | `2` |
+| `AUDIO_SECONDS` | `audio_seconds` | `165` |
+| `AUDIO_WORDS_PER_MINUTE` | `audio_words_per_minute` | `177` (measured on the clone) |
+| `AUDIO_TOLERANCE_S` | `audio_tolerance_s` | `15` |
+| `AUDIO_MAX_WORDS` | `audio_max_words` | `0`: derived from seconds × rate |
+| `TTS_MODEL` | `tts_model` | `mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit` |
+| `TTS_VOICE_DIR` | `voice_dir` | `../TTS/voix` |
+| `TTS_MAX_CHARS` | `tts_max_chars` | `400` |
+| `TTS_PAUSE_S` | `tts_pause_s` | `0.6` |
+| `ROLEPLAY_KEEP_TURNS` | `keep_turns` | `6` |
+| `SESSIONS_DIR` | `sessions_dir` | `sessions/` |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | `telegram_token` / `telegram_chat_id` | empty: no byte leaves |
+| `TELEGRAM_TIMEOUT_S` | `telegram_timeout_s` | `5` |
+| `TELEGRAM_PERIOD_S` | `telegram_period_s` | `300` |
+| `PREFLIGHT_MIN_DISK_GB` | `min_disk_gb` | `20` |
+| `PREFLIGHT_MIN_SWAP_FREE_GB` | `min_swap_free_gb` | `2` |
+| `PREFLIGHT_PAGEOUT_KB_S` | `pageout_block_kb_s` | `1024` |
+| `PREFLIGHT_DAEMON_WARN_CPU` / `PREFLIGHT_DAEMON_BLOCK_CPU` | `daemon_warn_cpu` / `daemon_block_cpu` | `30` / `80` |
+| `PREFLIGHT_PROBE_MODEL` | `probe_model` | `qwen2.5:7b-instruct` (empty: no probe) |
+| `XP_DRAWS` / `XP_TEMPERATURE` / `XP_NUM_PREDICT` | `xp_draws` / `xp_temperature` / `xp_num_predict` | `3` / `0.7` / `300` |
+
+Renamed at step 4 (former French names no longer read): `AUDIO_SECONDES` →
+`AUDIO_SECONDS`, `AUDIO_DEBIT_MOTS_MIN` → `AUDIO_WORDS_PER_MINUTE`,
+`AUDIO_MOTS_MAX` → `AUDIO_MAX_WORDS`, `BASCULE_APRES_PHRASES` →
+`SWITCH_AFTER_SENTENCES`, `MODELE_GESTES` → `GESTURE_MODEL`, `TEMP_GESTES` →
+`GESTURE_TEMPERATURE`, `ASSEMBLAGE` → `PRUNING`, `TELEGRAM_PERIODE_S` →
+`TELEGRAM_PERIOD_S`, `TTS_MAX_CAR` → `TTS_MAX_CHARS`, `RP_KEEP_TURNS` →
+`ROLEPLAY_KEEP_TURNS`, `DEMO_BUDGET_MIN` → `STAGE_BUDGET_MIN`, `XP_TIRAGES` /
+`XP_TEMP` → `XP_DRAWS` / `XP_TEMPERATURE`.
+
 ## 2. Phone notifications (optional)
 
 The operator's pager: phase, percentage, failures. Never any content of the

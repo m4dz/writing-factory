@@ -29,16 +29,16 @@ import time
 from pathlib import Path
 
 from factory.infra import progress
-from factory.pipeline.assembly import extrait_audio
+from factory.pipeline.assembly import audio_excerpt
 from factory.settings import settings
 
 # Modèle, référence vocale (asset du dépôt TTS voisin : la SEULE dépendance
 # inter-dépôts, en lecture seule), taille des segments (courts = prosodie
 # stable, pas de dérive du clone) et pause : `settings.tts_*`, `settings.voice_dir`.
-SAMPLE_RATE_DEFAUT = 24_000
+DEFAULT_SAMPLE_RATE = 24_000
 
 
-class TTSIndisponible(RuntimeError):
+class TTSUnavailable(RuntimeError):
     """Rendu impossible (référence vocale absente, mlx-audio non installé…).
 
     Exception ORDINAIRE, pas un `sys.exit` : l'appelant est un serveur, il doit
@@ -46,33 +46,33 @@ class TTSIndisponible(RuntimeError):
     """
 
 
-def segmenter(texte: str, *, max_car: int | None = None) -> list[str]:
+def split_segments(text: str, *, max_chars: int | None = None) -> list[str]:
     """Découpe en segments courts, jamais au milieu d'une phrase."""
     from factory.text import sentence_ends
 
-    if max_car is None:
-        max_car = settings.tts_max_chars
+    if max_chars is None:
+        max_chars = settings.tts_max_chars
     segments: list[str] = []
-    for para in texte.split("\n\n"):
+    for para in text.split("\n\n"):
         para = " ".join(para.split())
         if not para:
             continue
-        if len(para) <= max_car:
+        if len(para) <= max_chars:
             segments.append(para)
             continue
-        bloc, debut = "", 0
-        for fin in sentence_ends(para) + [len(para)]:
-            phrase = para[debut:fin].strip()
-            debut = fin
-            if not phrase:
+        block, start = "", 0
+        for end in sentence_ends(para) + [len(para)]:
+            sentence = para[start:end].strip()
+            start = end
+            if not sentence:
                 continue
-            if bloc and len(bloc) + len(phrase) + 1 > max_car:
-                segments.append(bloc)
-                bloc = phrase
+            if block and len(block) + len(sentence) + 1 > max_chars:
+                segments.append(block)
+                block = sentence
             else:
-                bloc = f"{bloc} {phrase}".strip()
-        if bloc:
-            segments.append(bloc)
+                block = f"{block} {sentence}".strip()
+        if block:
+            segments.append(block)
     return segments
 
 
@@ -81,14 +81,14 @@ def _reference() -> tuple[str, str]:
     voice_dir = settings.voice_dir
     wav, txt = voice_dir / "ma-voix.wav", voice_dir / "ma-voix.txt"
     if not wav.exists() or not txt.exists():
-        raise TTSIndisponible(
+        raise TTSUnavailable(
             f"référence vocale manquante dans {voice_dir} "
             "(ma-voix.wav + ma-voix.txt attendus)"
         )
     return str(wav), txt.read_text(encoding="utf-8").strip()
 
 
-def rendre(texte: str, sortie: Path, *, model_id: str | None = None,
+def render(text: str, output: Path, *, model_id: str | None = None,
            pause_s: float | None = None) -> dict:
     """Synthétise `texte` dans la voix de référence, écrit un WAV, rend les
     métriques (durée d'audio, durée de calcul, facteur temps réel).
@@ -100,43 +100,43 @@ def rendre(texte: str, sortie: Path, *, model_id: str | None = None,
     model_id = model_id or settings.tts_model
     pause_s = settings.tts_pause_s if pause_s is None else pause_s
     ref_audio, ref_text = _reference()
-    segments = segmenter(texte)
+    segments = split_segments(text)
     if not segments:
-        raise TTSIndisponible("aucun texte à lire après la bascule")
+        raise TTSUnavailable("aucun texte à lire après la bascule")
 
     try:
         import numpy as np
         import soundfile as sf
         from mlx_audio.tts.utils import load_model
     except ImportError as exc:
-        raise TTSIndisponible(
+        raise TTSUnavailable(
             f"dépendances TTS absentes du venv ({exc}). "
             "pip install mlx-audio soundfile numpy"
         ) from exc
 
     progress.phase("Restitution", "préparation")
-    modele = load_model(model_id)
+    model = load_model(model_id)
 
-    sr = SAMPLE_RATE_DEFAUT
-    pistes = []
+    sr = DEFAULT_SAMPLE_RATE
+    tracks = []
     t0 = time.time()
     for i, segment in enumerate(segments, 1):
         progress.phase("Restitution",
                        f"segment {i}/{len(segments)}", i=i, n=len(segments))
-        for resultat in modele.generate(
+        for result in model.generate(
             text=segment, ref_audio=ref_audio, ref_text=ref_text,
             lang_code="french",
         ):
-            pistes.append(np.asarray(resultat.audio))
-            sr = getattr(resultat, "sample_rate", sr)
-        pistes.append(np.zeros(int(sr * pause_s), dtype=np.float32))
+            tracks.append(np.asarray(result.audio))
+            sr = getattr(result, "sample_rate", sr)
+        tracks.append(np.zeros(int(sr * pause_s), dtype=np.float32))
 
-    audio = np.concatenate(pistes)
-    sortie.parent.mkdir(parents=True, exist_ok=True)
-    sf.write(sortie, audio, sr)
+    audio = np.concatenate(tracks)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    sf.write(output, audio, sr)
 
-    calcul = time.time() - t0
-    duree = len(audio) / sr
+    compute_s = time.time() - t0
+    duration = len(audio) / sr
     # Rendre la mémoire du GPU : ce processus vit encore des heures après, et la
     # pression mémoire est l'ennemi numéro un de cette machine.
     try:
@@ -151,27 +151,27 @@ def rendre(texte: str, sortie: Path, *, model_id: str | None = None,
     # mots. Si elle est fausse, l'extrait sort trop court ou trop long, et
     # personne ne s'en aperçoit avant la scène — sauf si on le dit ici.
     cible_s = settings.audio_seconds
-    ecart = duree - cible_s
-    if abs(ecart) > settings.audio_tolerance_s:
+    gap = duration - cible_s
+    if abs(gap) > settings.audio_tolerance_s:
         progress.note(
-            f"durée de lecture hors cible : {duree:.0f} s au lieu de "
-            f"{cible_s:.0f} s ({ecart:+.0f} s). Recalibrer "
+            f"durée de lecture hors cible : {duration:.0f} s au lieu de "
+            f"{cible_s:.0f} s ({gap:+.0f} s). Recalibrer "
             f"AUDIO_WORDS_PER_MINUTE (actuel {settings.audio_words_per_minute:.0f} mots/min, "
-            f"réel {len(texte.split()) / (duree / 60):.0f})."
+            f"réel {len(text.split()) / (duration / 60):.0f})."
         )
 
     return {
         "segments": len(segments),
-        "audio_s": round(duree, 1),
+        "audio_s": round(duration, 1),
         "cible_s": cible_s,
-        "debit_mots_min": round(len(texte.split()) / (duree / 60), 1),
-        "calcul_s": round(calcul, 1),
-        "facteur_temps_reel": round(duree / calcul, 2) if calcul else 0.0,
+        "debit_mots_min": round(len(text.split()) / (duration / 60), 1),
+        "calcul_s": round(compute_s, 1),
+        "facteur_temps_reel": round(duration / compute_s, 2) if compute_s else 0.0,
         "sample_rate": sr,
-        "sortie": str(sortie),
+        "sortie": str(output),
     }
 
 
-def rendre_chapitre(markdown: str, sortie: Path, **kwargs) -> dict:
+def render_chapter(markdown: str, output: Path, **kwargs) -> dict:
     """Rend la portion post-bascule et bornée d'un chapitre Markdown."""
-    return rendre(extrait_audio(markdown), sortie, **kwargs)
+    return render(audio_excerpt(markdown), output, **kwargs)

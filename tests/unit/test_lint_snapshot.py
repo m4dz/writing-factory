@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from factory.eval.lint import analyse, rapport
+from factory.eval.lint import analyze, report
 
 REPO = Path(__file__).resolve().parents[2]
 GOLDEN = REPO / "tests" / "snapshots" / "lint"
@@ -23,7 +23,7 @@ SOURCES = (sorted(p for p in REPO.glob("experiments/journal/*.md") if p.name != 
 @pytest.mark.snapshot
 @pytest.mark.parametrize("source", SOURCES, ids=lambda p: p.name)
 def test_lint_report_is_frozen(source, request):
-    produced = rapport(analyse(source.read_text(encoding="utf-8")), titre=source.name)
+    produced = report(analyze(source.read_text(encoding="utf-8")), title=source.name)
     golden = GOLDEN / (source.name + ".txt")
     if request.config.getoption("--update-snapshots"):
         golden.parent.mkdir(parents=True, exist_ok=True)

@@ -6,13 +6,13 @@ Three scenarios cover every writing strategy and both plan paths:
   imposed by the brief, entry 1 single call with best-of-3, entry 2 in three
   bounded beats with best-of-3, gestures on entry 2 only, drift passage from
   the brief, fall posed by code.
-- ``ch2-s7-score``: chapter 2, stage S7 scored run (``run_s4.py --etage S7``,
+- ``ch2-s7-score``: chapter 2, stage S7 scored run (``stage_runner.py --etage S7``,
   run S7-1): single entry, plan short-circuited, three segments with stations,
   accumulation and drift from the bank.
 - ``ch2-s7-chapter``: same stage, the full chapter (run S7-C): three entries,
   plan node with fact derivation and plan check, coherence on three scenes.
 
-The chapter 2 state reproduces the dict built in ``outillage/run_s4.py``
+The chapter 2 state reproduces the dict built in ``outillage/stage_runner.py``
 (``main``). Step 5 replaces both constructions with the chapter spec loader
 and must reproduce these golden files byte for byte.
 """
@@ -22,7 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from factory.chapter_spec import chapter7 as ch7
-from factory.tooling import stage_runner as run_s4
+from factory.tooling import stage_runner
 
 
 @dataclass(frozen=True)
@@ -33,40 +33,40 @@ class Scenario:
 
     @property
     def seed(self) -> int:
-        return self.state["graine"]
+        return self.state["seed"]
 
 
 SEED = 424242
 
 
 def _etat_s7(brief: str, *, mono: bool) -> dict:
-    """The ``graph.invoke`` state of ``run_s4.py`` for stage S7."""
+    """The ``graph.invoke`` state of ``stage_runner.py`` for stage S7."""
     return {
         "brief": brief,
-        "characters": ch7.NARRATRICE, "rag": True,
-        "entrees_attendues": 1 if mono else 3,
-        "entrees_spec": [],
-        "plan_impose": [],
-        "prefixe": run_s4.ANCRE_CH2,
-        "micro_noeuds": True,
+        "characters": ch7.NARRATOR, "rag": True,
+        "expected_entries": 1 if mono else 3,
+        "entry_specs": [],
+        "imposed_plan": [],
+        "prefix": stage_runner.ANCHOR_CH2,
+        "micro_nodes": True,
         "segments": True,
-        "graine": SEED,
-        "chapitre": 2,
-        "approches_tirees": [],
-        "jour_depart": run_s4.JOUR_DEPART,
-        "numero_depart": run_s4.NUMERO_DEPART,
-        "verdict": run_s4.VERDICT_CH2,
-        "objets_actifs": run_s4.OBJETS_CH2,
-        "meteo_depart": run_s4.METEO_DEPART,
+        "seed": SEED,
+        "chapter": 2,
+        "drawn_approaches": [],
+        "start_day": stage_runner.START_DAY,
+        "start_number": stage_runner.START_NUMBER,
+        "verdict": stage_runner.VERDICT_CH2,
+        "active_objects": stage_runner.OBJECTS_CH2,
+        "start_weather": stage_runner.START_WEATHER,
         "accumulation": "",
     }
 
 
 def all_scenarios() -> list[Scenario]:
     return [
-        Scenario("ch7", ch7.etat_ch7(graine=SEED), dict(ch7.MARQUEURS_CH7)),
-        Scenario("ch2-s7-score", _etat_s7(run_s4.BRIEF_V4, mono=True), {}),
-        Scenario("ch2-s7-chapter", _etat_s7(run_s4.OBJECTIF_CHAPITRE_V4, mono=False), {}),
+        Scenario("ch7", ch7.ch7_state(seed=SEED), dict(ch7.MARKERS_CH7)),
+        Scenario("ch2-s7-score", _etat_s7(stage_runner.BRIEF_V4, mono=True), {}),
+        Scenario("ch2-s7-chapter", _etat_s7(stage_runner.CHAPTER_GOAL_V4, mono=False), {}),
     ]
 
 

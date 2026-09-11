@@ -68,24 +68,24 @@ class OllamaClient:
         métriques en aval soit identique dans les deux modes — sans quoi le
         streaming aurait ses propres chiffres, donc ses propres bugs.
         """
-        morceaux: list[str] = []
+        pieces: list[str] = []
         final: dict = {}
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            for ligne in resp:
-                ligne = ligne.strip()
-                if not ligne:
+            for line in resp:
+                line = line.strip()
+                if not line:
                     continue
                 try:
-                    bloc = json.loads(ligne)
+                    block = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                fragment = (bloc.get("message") or {}).get("content", "")
+                fragment = (block.get("message") or {}).get("content", "")
                 if fragment:
-                    morceaux.append(fragment)
-                    on_token(fragment, len(morceaux))
-                if bloc.get("done"):
-                    final = bloc
-        final["message"] = {"content": "".join(morceaux)}
+                    pieces.append(fragment)
+                    on_token(fragment, len(pieces))
+                if block.get("done"):
+                    final = block
+        final["message"] = {"content": "".join(pieces)}
         return final
 
     def chat(
@@ -187,8 +187,8 @@ class OllamaClient:
         # prompt français de 4065 tokens (chars/3.5 le sous-estimait de 6 %, et
         # une estimation basse est le mauvais sens de l'erreur pour une alarme).
         # ~8 caractères de balisage de rôle par message (`<|im_start|>user\n`…).
-        corps = sum(len(t.get("content", "")) + 8 for t in turns)
-        est = int((len(FRENCH_GUARD) + len(system) + corps + 8) / 3.3)
+        body = sum(len(t.get("content", "")) + 8 for t in turns)
+        est = int((len(FRENCH_GUARD) + len(system) + body + 8) / 3.3)
         metrics = {
             "wall_s": round(wall, 1),
             "gen_toks": ec,

@@ -1,7 +1,7 @@
 
 import pytest
 
-from factory.retrieval import indexer as index
+from factory.retrieval import indexer
 
 SHEET = """---
 doc_id: x
@@ -49,7 +49,7 @@ photos, playlist, plat, couverts.
 
 @pytest.fixture
 def bible(tmp_path, monkeypatch):
-    monkeypatch.setattr(index, "BIBLE_DIR", tmp_path)
+    monkeypatch.setattr(indexer, "BIBLE_DIR", tmp_path)
     (tmp_path / "characters").mkdir()
     (tmp_path / "profond").mkdir()
     (tmp_path / "characters" / "x.md").write_text(SHEET, encoding="utf-8")
@@ -61,7 +61,7 @@ def bible(tmp_path, monkeypatch):
 
 
 def test_character_sheet_keeps_numbered_sections_and_surface_blocks_only(bible):
-    ids, docs, metas = index.index_file(bible / "characters" / "x.md", None)
+    ids, docs, metas = indexer.index_file(bible / "characters" / "x.md", None)
     assert ids == ["x::voix", "x::histoire"]
     voice, history = docs
     assert voice.startswith("[x / Voix]") and "consigne humaine" not in voice
@@ -72,29 +72,30 @@ def test_character_sheet_keeps_numbered_sections_and_surface_blocks_only(bible):
 
 
 def test_metadata_is_whitelisted(bible):
-    _, _, metas = index.index_file(bible / "characters" / "x.md", None)
+    _, _, metas = indexer.index_file(bible / "characters" / "x.md", None)
     assert metas[0] == {"doc_id": "x", "type": "character", "version": 3,
                         "source_file": "characters/x.md", "section": "voix"}
     assert "depends_on" not in metas[0]
 
 
 def test_reserved_section_is_dropped_by_the_layer_convention(bible):
-    ids, _, _ = index.index_file(bible / "objets.md", None)
+    ids, _, _ = indexer.index_file(bible / "objets.md", None)
     assert ids == ["objets::le_cahier"]
 
 
 def test_firewall_excludes_deep_directory_and_style_sheet(bible):
-    assert index.exclu(bible / "profond" / "secret.md")
-    assert index.exclu(bible / "style-auteur.md")
-    assert not index.exclu(bible / "objets.md")
-    files = [p for p in bible.rglob("*.md") if not p.name.startswith("_") and not index.exclu(p)]
+    assert indexer.excluded(bible / "profond" / "secret.md")
+    assert indexer.excluded(bible / "style-auteur.md")
+    assert not indexer.excluded(bible / "objets.md")
+    files = [p for p in bible.rglob("*.md")
+             if not p.name.startswith("_") and not indexer.excluded(p)]
     assert sorted(p.name for p in files) == ["objets.md", "x.md"]
 
 
 def test_slug_and_name_translation():
-    assert index.slugify("Voix et expression") == "voix_et_expression"
-    assert index.slugify("État narratif courant") == "etat_narratif_courant"
-    assert index.traduire_noms("[fiche-judith / Voix]\nJudith et judith") == \
+    assert indexer.slugify("Voix et expression") == "voix_et_expression"
+    assert indexer.slugify("État narratif courant") == "etat_narratif_courant"
+    assert indexer.translate_names("[fiche-judith / Voix]\nJudith et judith") == \
         "[fiche-narratrice / Voix]\nla narratrice et la narratrice"
 
 

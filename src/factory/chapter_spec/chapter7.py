@@ -30,7 +30,7 @@ from factory.paths import REPO_ROOT as RACINE
 
 # doc_id de la fiche narratrice (cf. bible/fiche-judith.md, `doc_id: judith`).
 # Partagé : run_s4.py l'importe pour TOUS ses étages, pas seulement le ch. 7.
-NARRATRICE = ["judith"]
+NARRATOR = ["judith"]
 
 
 # --- CHAPITRE 7 — la répétition en conditions réelles ------------------------
@@ -39,11 +39,11 @@ NARRATRICE = ["judith"]
 # ici : un brief modifié ne doit pas avoir deux vérités. C'est la règle posée en
 # tête de ce fichier pour les briefs de session, et elle vaut d'autant plus pour
 # celui qui part sur scène.
-BRIEF_CH7_FICHIER = RACINE / "chapters" / "07-anniversaire" / "brief.md"
+BRIEF_CH7_FILE = RACINE / "chapters" / "07-anniversaire" / "brief.md"
 
 # La traduction en langue du monde du §5 du brief v2. Le contenu est le même,
 # le destinataire change : le modèle, pas l'implémenteur.
-VETOS_SERVIS = (
+SERVED_VETOS = (
     "Aucun nom propre, aucune marque. Aucun objet qui ne soit dans la maison. "
     "Les objets sont là, dans l'état de la fête — mais rien ne bouge de "
     "soi-même sous ses yeux : aucune présence, aucun autre dans la maison, "
@@ -61,11 +61,11 @@ VETOS_SERVIS = (
     "déclarative, tenue, pas de cri."
 )
 
-MOUVEMENTS = RACINE / "bible" / "profond" / "mouvements-chapitres.md"
+MOVEMENTS = RACINE / "bible" / "profond" / "mouvements-chapitres.md"
 BRIEF_CH7_E2 = RACINE / "chapters" / "07-anniversaire" / "brief-entree-2.md"
 
 
-def mouvement(chapitre: int, entree: int | None = None) -> str:
+def movement(chapter: int, entry: int | None = None) -> str:
     """La ligne « mouvement » d'UN chapitre — jamais le fichier.
 
     ⚠ `mouvements-chapitres.md` est PROFOND : ses lignes 9 à 11 énoncent la
@@ -76,17 +76,17 @@ def mouvement(chapitre: int, entree: int | None = None) -> str:
     discipline que `build_etat_narratif.lire_table()`, qui saute délibérément la
     colonne réelle. Le chapitre 7 a deux lignes, une par entrée.
     """
-    if not MOUVEMENTS.is_file():
+    if not MOVEMENTS.is_file():
         return ""
-    cible = f"{chapitre} — entrée {entree}" if entree else str(chapitre)
-    for ligne in MOUVEMENTS.read_text(encoding="utf-8").splitlines():
-        cells = [c.strip() for c in ligne.split("|")]
-        if len(cells) > 2 and cells[1] == cible:
+    target = f"{chapter} — entrée {entry}" if entry else str(chapter)
+    for line in MOVEMENTS.read_text(encoding="utf-8").splitlines():
+        cells = [c.strip() for c in line.split("|")]
+        if len(cells) > 2 and cells[1] == target:
             return cells[2]
     return ""
 
 
-def brief_entree2_v2() -> dict:
+def brief_entry2_v2() -> dict:
     """Le brief v2 de l'entrée 2, découpé en ses quatre blocs de service.
 
     Le fichier est la vérité : on le LIT, on ne le recopie pas. Un brief
@@ -95,18 +95,18 @@ def brief_entree2_v2() -> dict:
     """
     txt = BRIEF_CH7_E2.read_text(encoding="utf-8")
 
-    def section(titre: str, suivant: str) -> str:
-        corps = txt.split(titre, 1)[1].split(suivant, 1)[0]
-        return corps.strip()
+    def section(title: str, next_one: str) -> str:
+        body = txt.split(title, 1)[1].split(next_one, 1)[0]
+        return body.strip()
 
-    def puces(bloc: str) -> list[str]:
-        return [l.lstrip("- ").strip() for l in bloc.splitlines()
+    def bullets(block: str) -> list[str]:
+        return [l.lstrip("- ").strip() for l in block.splitlines()
                 if l.strip().startswith("-")]
 
-    glis = section("## 4. Glissement", "## 5.")
-    texte_glis = next((l.lstrip("> ").strip() for l in glis.splitlines()
+    drift = section("## 4. Glissement", "## 5.")
+    drift_text = next((l.lstrip("> ").strip() for l in drift.splitlines()
                        if l.strip().startswith(">")), "")
-    position = next((l.split(":", 1)[1].strip() for l in glis.splitlines()
+    position = next((l.split(":", 1)[1].strip() for l in drift.splitlines()
                      if l.startswith("Position")), "")
 
     def beats() -> list[str]:
@@ -117,23 +117,23 @@ def brief_entree2_v2() -> dict:
             return []
         seg7 = txt.split("## 7.", 1)[1]
 
-        def corps(bloc: str) -> str:
-            lignes = [l for l in bloc.strip().splitlines() if l.strip()]
+        def body(block: str) -> str:
+            lines = [l for l in block.strip().splitlines() if l.strip()]
             # La première ligne non vide est le reste du titre (« — la relève »).
-            return " ".join(lignes[1:]).strip() if len(lignes) > 1 else ""
+            return " ".join(lines[1:]).strip() if len(lines) > 1 else ""
 
         a = (seg7.split("### Beat A", 1)[1].split("### Beat B", 1)[0]
              if "### Beat A" in seg7 else "")
         b = (seg7.split("### Beat B", 1)[1].split("### Beat C", 1)[0]
              if "### Beat B" in seg7 else "")
         c = seg7.split("### Beat C", 1)[1] if "### Beat C" in seg7 else ""
-        return [corps(a), corps(b), corps(c)]
+        return [body(a), body(b), body(c)]
 
     return {
         "beats": beats(),
         "intention": section("## 1. Intention", "## 2."),
-        "trajectoire": puces(section("## 2. Trajectoire", "## 3.")),
-        "matiere": puces(section("## 3. Matière disponible", "## 4.")),
+        "trajectoire": bullets(section("## 2. Trajectoire", "## 3.")),
+        "matiere": bullets(section("## 3. Matière disponible", "## 4.")),
         # LES VÉTOS NE SONT PAS SERVIS TELS QUELS. Le §5 est écrit pour
         # l'implémenteur : il nomme L1, L2, L3, la table, le code, les lints.
         # Servi verbatim, il apprend au modèle l'existence de nos contrôles —
@@ -142,32 +142,32 @@ def brief_entree2_v2() -> dict:
         #
         # Ce qui est servi est ce que le TEXTE ne doit pas faire, en langue du
         # monde. Le reste — quel lint, quel seuil, qui possède quoi — reste ici.
-        "vetos": VETOS_SERVIS,
-        "glissement": {"texte": texte_glis, "position": position},
+        "vetos": SERVED_VETOS,
+        "glissement": {"texte": drift_text, "position": position},
     }
 
 
 # [CIT-2] — l'ancre de l'entrée 2, verbatim du brief. Elle est POSÉE par le code
 # en tête de l'entrée 2 seulement : l'entrée 1 ne cite pas, c'est la première
 # entorse au rituel et le premier signal du chapitre.
-CIT_2 = ("« Neuf ans aujourd'hui que je t'ai dit oui. J'ai mis deux couverts, "
+QUOTE_2 = ("« Neuf ans aujourd'hui que je t'ai dit oui. J'ai mis deux couverts, "
          "exprès cette fois, et j'ai redit oui tout haut dans la cuisine. "
          "Je t'aime toujours. »")
 
 # DEUX ENTRÉES DU MÊME JOUR. Le code dérive les dates par défaut (elles sont
 # consécutives par construction depuis la session 5) ; ici le brief les impose
 # identiques, et c'est le SECOND en-tête qui porte la bascule audio.
-_B2 = brief_entree2_v2()
+_B2 = brief_entry2_v2()
 
 # Bornes CODE des beats d'entrée 2 (cap-code v5). num_predict et phrases_max
 # sont du RÉGLAGE, pas du canon — les libellés vivent dans le brief §7. La
 # borne en phrases est le vrai cap : v5 a prouvé que le budget de tokens seul
 # n'arrête pas la litanie. (nom, num_predict, phrases_max)
 _BEATS_CAPS = (("relève", 150, 4), ("découverte", 240, 5), ("doute", 150, 4))
-CH7_E2_BEATS = [(nom, npd, pmax, txt)
-                for (nom, npd, pmax), txt in zip(_BEATS_CAPS, _B2["beats"])]
+CH7_E2_BEATS = [(name, npd, pmax, txt)
+                for (name, npd, pmax), txt in zip(_BEATS_CAPS, _B2["beats"])]
 
-ENTREES_CH7 = [
+ENTRIES_CH7 = [
     # L'après-midi : deux phrases, sans citation, sans découpage. Servir trois
     # segments à une entrée de deux phrases n'a aucun sens — et c'est l'entrée
     # que le locuteur lit à voix nue.
@@ -176,8 +176,8 @@ ENTREES_CH7 = [
      # Ni accumulation ni glissement : deux phrases n'ont pas la place. Au
      # tirage précédent l'accumulation y a été épissée quand même, et l'entrée
      # est passée de deux phrases à 471 mots.
-     "gestes": False,
-     "mouvement": mouvement(7, 1),
+     "gestures": False,
+     "mouvement": movement(7, 1),
      # MATIÈRE D'ENTRÉE 1 (v5). Servie seule, sans matière, l'entrée lue à voix
      # nue a rempli son vide par une voix spectrale (« j'ai entendu la voix de
      # ma compagne »). On lui donne sa matière : la résolution d'effacement.
@@ -230,8 +230,8 @@ ENTREES_CH7 = [
      # « bruit dans le salon / j'ai trouvé »). Entrée courte et dense qui TIENT
      # bat une longue qui boucle. L'entrée 2 n'est PAS lue à voix nue (c'est
      # l'entrée 1), sa longueur est donc libre côté keynote.
-     "mots": (300, 400), "segments": False, "citation": CIT_2,
-     "gestes": True,
+     "mots": (300, 400), "segments": False, "citation": QUOTE_2,
+     "gestures": True,
      # La capitulation lexicale, au mot près : le jour gagne en entrant dans
      # son vocabulaire. Manquée 3/3 par le modèle — le code la pose.
      "chute": "Constat : anniversaire.",
@@ -243,7 +243,7 @@ ENTREES_CH7 = [
      # write, mais le glissement, la chute et la ligne de mouvement en aval.
      "beats": CH7_E2_BEATS,
      # LA MÉTHODE DU MOUVEMENT — tout vient du brief, lu, jamais recopié.
-     "mouvement": mouvement(7, 2),
+     "mouvement": movement(7, 2),
      "trajectoire": _B2["trajectoire"],
      "matiere": _B2["matiere"],
      "vetos": _B2["vetos"],
@@ -253,11 +253,11 @@ ENTREES_CH7 = [
 ]
 
 VERDICT_CH7 = "anniversaire"
-OBJETS_CH7 = ("les photos, la playlist, le plat des anniversaires, "
+OBJECTS_CH7 = ("les photos, la playlist, le plat des anniversaires, "
               "les deux couverts, le cahier")
 
 
-def beats_chapitre_7() -> list[str]:
+def beats_chapter_7() -> list[str]:
     """Un beat PAR ENTRÉE, découpé dans le brief — jamais demandé au modèle.
 
     Le premier tirage a montré pourquoi : le nœud de plan n'a produit AUCUNE
@@ -272,33 +272,33 @@ def beats_chapitre_7() -> list[str]:
     redemander : planifier ce qui est déjà écrit, c'est offrir au modèle
     l'occasion de le défaire.
     """
-    brief = brief_chapitre_7()
+    brief = brief_chapter_7()
     parts = re.split(r"(?=\*\*Entrée \d)", brief)
-    commun = parts[0].strip()
+    common = parts[0].strip()
     # La matière partagée (matériau, progression, chute, interdits) est collée à
     # la fin du dernier bloc d'entrée : elle vaut pour les deux.
-    entrees, queue = [], ""
-    for bloc in parts[1:]:
-        m = re.search(r"\n\*\*(?:Matériau|Progression|Chute|Interdits)", bloc)
+    entries, queue = [], ""
+    for block in parts[1:]:
+        m = re.search(r"\n\*\*(?:Matériau|Progression|Chute|Interdits)", block)
         if m:
-            queue = bloc[m.start():].strip()
-            bloc = bloc[:m.start()]
-        entrees.append(bloc.strip())
-    return [f"{commun}\n\n{e}\n\n{queue}".strip() for e in entrees]
+            queue = block[m.start():].strip()
+            block = block[:m.start()]
+        entries.append(block.strip())
+    return [f"{common}\n\n{e}\n\n{queue}".strip() for e in entries]
 
 
-def brief_chapitre_7() -> str:
+def brief_chapter_7() -> str:
     """Le brief machine du chapitre 7, extrait du §3 du fichier de brief.
 
     On prend la citation en bloc (les lignes préfixées « > ») : c'est ce qui est
     projeté sur scène pendant la génération, et l'honnêteté du dispositif veut
     que le prompt servi SOIT le brief affiché.
     """
-    txt = BRIEF_CH7_FICHIER.read_text(encoding="utf-8")
-    corps = txt.split("## 3. Brief machine", 1)[1].split("## 4.", 1)[0]
-    lignes = [l.lstrip("> ").rstrip() for l in corps.splitlines()
+    txt = BRIEF_CH7_FILE.read_text(encoding="utf-8")
+    body = txt.split("## 3. Brief machine", 1)[1].split("## 4.", 1)[0]
+    lines = [l.lstrip("> ").rstrip() for l in body.splitlines()
               if l.startswith(">")]
-    brief = "\n".join(l for l in lignes if l).strip()
+    brief = "\n".join(l for l in lines if l).strip()
 
     # LE BRIEF NE NOMME AUCUNE SOURCE FIREWALLÉE. Trouvé au lint de l'archive :
     # le §3 dit « pré-écrite selon `fiche-romane.md` §1 » — une note de
@@ -312,8 +312,8 @@ def brief_chapitre_7() -> str:
     brief = re.sub(r",?\s*pré-écrite selon\s*`[^`]+`\s*§?\d*\s*:", " :", brief)
     brief = re.sub(r"\s*\(?\s*(?:cf\.|voir)\s*`?[\w-]+\.md`?[^)\n]*\)?", "",
                    brief)
-    fuites = re.findall(r"`?\b[\w-]+\.md\b`?", brief)
-    assert not fuites, (f"le brief servi nomme des fichiers de bible : {fuites} "
+    leaks = re.findall(r"`?\b[\w-]+\.md\b`?", brief)
+    assert not leaks, (f"le brief servi nomme des fichiers de bible : {leaks} "
                         "— le modèle auteur ne doit pas savoir qu'ils existent")
     return brief
 
@@ -322,10 +322,10 @@ def brief_chapitre_7() -> str:
 # la bascule audio se pose sur le SECOND en-tête daté (les deux entrées portent
 # le même jour), et l'extrait audio est borné sur la chute imposée pour se
 # terminer sur « Constat : anniversaire. » plutôt que sur un plafond de mots.
-MARQUEURS_CH7 = {"sur_second_entete": True, "chute": "Constat : anniversaire."}
+MARKERS_CH7 = {"on_second_header": True, "fall": "Constat : anniversaire."}
 
 
-def etat_ch7(graine: int | None = None) -> dict:
+def ch7_state(seed: int | None = None) -> dict:
     """État complet passé à `graph.invoke` pour générer le chapitre 7.
 
     Reproduit VERBATIM la branche CH7 de `run_s4.py` (le dict d'état), pour que
@@ -336,26 +336,26 @@ def etat_ch7(graine: int | None = None) -> dict:
     import random
 
     return {
-        "brief": brief_chapitre_7(),
-        "characters": NARRATRICE,
+        "brief": brief_chapter_7(),
+        "characters": NARRATOR,
         "rag": True,
-        "entrees_attendues": len(ENTREES_CH7),
-        "entrees_spec": ENTREES_CH7,
-        "plan_impose": beats_chapitre_7(),
+        "expected_entries": len(ENTRIES_CH7),
+        "entry_specs": ENTRIES_CH7,
+        "imposed_plan": beats_chapter_7(),
         # L'ancre du ch. 7 est PAR ENTRÉE (l'entrée 1 ne cite pas) : elle vit
         # dans `entrees_spec`, pas dans le préfixe global.
-        "prefixe": "",
-        "micro_noeuds": True,
+        "prefix": "",
+        "micro_nodes": True,
         "segments": True,
-        "graine": graine if graine is not None else random.randrange(1, 10**6),
+        "seed": seed if seed is not None else random.randrange(1, 10**6),
         # Le numéro de chapitre commande le SCOPE des interdits matériels et la
         # chute imposée de l'accumulation.
-        "chapitre": 7,
-        "approches_tirees": [],
-        "jour_depart": "Samedi",
-        "numero_depart": 14,
+        "chapter": 7,
+        "drawn_approaches": [],
+        "start_day": "Samedi",
+        "start_number": 14,
         "verdict": VERDICT_CH7,
-        "objets_actifs": OBJETS_CH7,
-        "meteo_depart": "Beau temps",
+        "active_objects": OBJECTS_CH7,
+        "start_weather": "Beau temps",
         "accumulation": "",
     }

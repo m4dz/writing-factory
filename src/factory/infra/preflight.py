@@ -97,7 +97,7 @@ from factory.settings import settings
 # C'est la leçon déjà gravée dans CLAUDE.md, appliquée une fois de plus : un
 # seuil qui corrèle n'est pas un seuil qui cause, et avant d'imposer un rituel,
 # vérifier que le signal bloquant n'est pas déjà couvert par un signal direct.
-PAGEOUT_FENETRE_S = 4.0
+PAGEOUT_WINDOW_S = 4.0
 # Taille de page mémoire d'Apple Silicon. `vm_stat` la rappelle en en-tête ;
 # on la fixe plutôt que de la parser, elle ne varie pas sur cette plateforme.
 PAGE_SIZE_BYTES = 16384
@@ -192,16 +192,16 @@ def _pageouts() -> int | None:
                              timeout=5, check=True).stdout
     except (subprocess.SubprocessError, OSError):
         return None
-    for ligne in out.splitlines():
-        if ligne.startswith("Pageouts"):
+    for line in out.splitlines():
+        if line.startswith("Pageouts"):
             try:
-                return int(ligne.split(":")[1].strip().rstrip("."))
+                return int(line.split(":")[1].strip().rstrip("."))
             except (IndexError, ValueError):
                 return None
     return None
 
 
-def _swap_froid(fenetre: float = PAGEOUT_FENETRE_S) -> bool:
+def _swap_cold(window: float = PAGEOUT_WINDOW_S) -> bool:
     """Le swap est-il consommé mais INERTE ?
 
     Coûte `fenetre` secondes, et seulement dans la branche où le swap paraît
@@ -212,11 +212,11 @@ def _swap_froid(fenetre: float = PAGEOUT_FENETRE_S) -> bool:
     a = _pageouts()
     if a is None:
         return False
-    time.sleep(fenetre)
+    time.sleep(window)
     b = _pageouts()
     if b is None or b < a:
         return False
-    ko_par_s = (b - a) * PAGE_SIZE_BYTES / 1024 / fenetre
+    ko_par_s = (b - a) * PAGE_SIZE_BYTES / 1024 / window
     return ko_par_s < settings.pageout_block_kb_s
 
 
@@ -257,16 +257,16 @@ def _ram_available_gb() -> float | None:
     except (subprocess.SubprocessError, OSError):
         return None
 
-    taille = re.search(r"page size of (\d+) bytes", out)
-    if not taille:
+    size = re.search(r"page size of (\d+) bytes", out)
+    if not size:
         return None
     total = 0
-    for cle in ("Pages free", "Pages speculative", "Pages inactive",
+    for key in ("Pages free", "Pages speculative", "Pages inactive",
                 "Pages purgeable"):
-        hit = re.search(rf"{cle}:\s+(\d+)", out)
+        hit = re.search(rf"{key}:\s+(\d+)", out)
         if hit:
             total += int(hit.group(1))
-    return total * int(taille.group(1)) / 1e9
+    return total * int(size.group(1)) / 1e9
 
 
 def _busy_daemons() -> list[tuple[str, float]] | None:
@@ -286,7 +286,7 @@ def _busy_daemons() -> list[tuple[str, float]] | None:
     except (subprocess.SubprocessError, OSError):
         return None
 
-    trouves: list[tuple[str, float]] = []
+    found_list: list[tuple[str, float]] = []
     for line in out.splitlines()[1:]:
         parts = line.split(None, 1)
         if len(parts) != 2:
@@ -297,10 +297,10 @@ def _busy_daemons() -> list[tuple[str, float]] | None:
             continue
         if cpu < settings.daemon_warn_cpu:
             break  # `-r` trie par CPU décroissant : plus rien au-dessus du seuil
-        nom = parts[1].rsplit("/", 1)[-1].strip()
-        if nom in NOISY_DAEMONS:
-            trouves.append((nom, cpu))
-    return trouves
+        name = parts[1].rsplit("/", 1)[-1].strip()
+        if name in NOISY_DAEMONS:
+            found_list.append((name, cpu))
+    return found_list
 
 
 def _probe_generation(model: str, timeout: float = 120.0) -> str | None:
@@ -354,7 +354,7 @@ def _loaded_llms() -> list[dict] | None:
     ]
 
 
-def preflight(*, strict: bool = True, chrono: bool = False) -> list[str]:
+def preflight(*, strict: bool = True, timer: bool = False) -> list[str]:
     """Vérifie la machine. Retourne les avertissements non bloquants.
 
     Lève PreflightError sur une condition qui a déjà fait planter la machine.
@@ -382,12 +382,12 @@ def preflight(*, strict: bool = True, chrono: bool = False) -> list[str]:
         warnings.append("Swap : état illisible (sysctl vm.swapusage).")
     elif swap["total"] == 0:
         pass  # Aucun swapfile alloué : machine fraîche, rien à signaler.
-    elif swap["free"] < settings.min_swap_free_gb and _swap_froid():
+    elif swap["free"] < settings.min_swap_free_gb and _swap_cold():
         warnings.append(
             f"Swap : {swap['free']:.2f} GB libres sur {swap['total']:.1f} GB "
             f"alloués, mais FROID (moins de "
             f"{settings.pageout_block_kb_s:.0f} Ko/s de pageouts sur "
-            f"{PAGEOUT_FENETRE_S:.0f} s). Ce sont des pages froides que personne "
+            f"{PAGEOUT_WINDOW_S:.0f} s). Ce sont des pages froides que personne "
             "ne relit : macOS dimensionne `total` au-dessus de `used`, donc "
             "`free` reste petit même quand la machine va bien. Les durées "
             "restent interprétables."
@@ -404,7 +404,7 @@ def preflight(*, strict: bool = True, chrono: bool = False) -> list[str]:
         # Bloquant seulement quand on chronomètre : un swap consommé ne casse
         # pas la machine (le disque, lui, si — cf. min_disk_gb), il rend les
         # durées ininterprétables.
-        if chrono:
+        if timer:
             blocking.append(
                 msg + " Mesure de temps refusée dans cet état : les durées "
                 "seraient ininterprétables."
@@ -412,32 +412,32 @@ def preflight(*, strict: bool = True, chrono: bool = False) -> list[str]:
         else:
             warnings.append(msg)
 
-    niveau = _pressure_level()
-    if niveau is None:
+    level = _pressure_level()
+    if level is None:
         warnings.append("Pression mémoire : état illisible (sysctl).")
-    elif niveau >= PRESSURE_BLOCK:
+    elif level >= PRESSURE_BLOCK:
         blocking.append(
             "Pression mémoire CRITIQUE selon macOS "
-            f"(kern.memorystatus_vm_pressure_level = {niveau}). Le système est "
+            f"(kern.memorystatus_vm_pressure_level = {level}). Le système est "
             "déjà en train de récupérer de la mémoire de force ; une génération "
             "de vingt minutes va paginer au lieu de générer. Remède : décharger "
             "le modèle (`ollama stop <modèle>`) et fermer les gros consommateurs "
             "— c'est ce qui rend la mémoire, pas le redémarrage. Redémarrer "
             "seulement si la pression ne retombe pas."
         )
-    elif niveau >= 2:
+    elif level >= 2:
         warnings.append(
-            f"Pression mémoire élevée selon macOS (niveau {niveau}). Fermer ce "
+            f"Pression mémoire élevée selon macOS (niveau {level}). Fermer ce "
             "qui n'est pas nécessaire avant de lancer."
         )
 
-    demons = _busy_daemons()
-    if demons is None:
+    daemons = _busy_daemons()
+    if daemons is None:
         warnings.append("Démons d'entretien : état illisible (ps).")
-    elif demons:
-        detail = ", ".join(f"{nom} {cpu:.0f} %" for nom, cpu in demons)
-        pire = max(cpu for _, cpu in demons)
-        if pire >= settings.daemon_block_cpu:
+    elif daemons:
+        detail = ", ".join(f"{name} {cpu:.0f} %" for name, cpu in daemons)
+        worst = max(cpu for _, cpu in daemons)
+        if worst >= settings.daemon_block_cpu:
             blocking.append(
                 f"Entretien macOS en cours : {detail}. Le processus de "
                 "génération tourne à nice 5 et perdra l'arbitrage : trous de "
@@ -452,10 +452,10 @@ def preflight(*, strict: bool = True, chrono: bool = False) -> list[str]:
             )
 
     if settings.probe_model:
-        echec = _probe_generation(settings.probe_model)
-        if echec:
+        failure = _probe_generation(settings.probe_model)
+        if failure:
             blocking.append(
-                f"Ollama ne GÉNÈRE pas : {echec}. Le démon écoute mais ne peut "
+                f"Ollama ne GÉNÈRE pas : {failure}. Le démon écoute mais ne peut "
                 "plus lancer llama-server — typiquement après une mise en veille. "
                 "Remède : `launchctl kickstart -k gui/$(id -u)/local.ollama`. "
                 "Et empêcher la veille avant la scène (`caffeinate -is`)."
@@ -465,12 +465,12 @@ def preflight(*, strict: bool = True, chrono: bool = False) -> list[str]:
     if llms is None:
         warnings.append(f"Ollama injoignable sur {settings.ollama_url} — état inconnu.")
     elif len(llms) > 1:
-        noms = ", ".join(
+        names = ", ".join(
             f"{m.get('name', '?')} ({m.get('size', 0) / 1e9:.1f} GB)"
             for m in llms
         )
         blocking.append(
-            f"Co-résidence : {len(llms)} LLM chauds simultanément — {noms}. "
+            f"Co-résidence : {len(llms)} LLM chauds simultanément — {names}. "
             "Ils ne tiennent pas ensemble en mémoire unifiée. Décharger "
             "(`ollama stop <modèle>`) et régler OLLAMA_MAX_LOADED_MODELS=2."
         )
@@ -487,8 +487,8 @@ def report() -> str:
     disk = _disk_free_gb()
     swap = _swap_gb()
     ram = _ram_available_gb()
-    niveau = _pressure_level()
-    demons = _busy_daemons()
+    level = _pressure_level()
+    daemons = _busy_daemons()
     llms = _loaded_llms()
     if swap is None:
         swap_txt = "?"
@@ -501,15 +501,15 @@ def report() -> str:
         else ("aucun" if llms is not None else "?")
     )
     ram_txt = f"{ram:.1f} GB" if ram is not None else "?"
-    niveau_txt = {1: "normale", 2: "élevée", 4: "critique"}.get(niveau, "?")
-    demons_txt = (
-        ", ".join(f"{n} {c:.0f} %" for n, c in demons) if demons
-        else ("aucun" if demons is not None else "?")
+    level_txt = {1: "normale", 2: "élevée", 4: "critique"}.get(level, "?")
+    daemons_txt = (
+        ", ".join(f"{n} {c:.0f} %" for n, c in daemons) if daemons
+        else ("aucun" if daemons is not None else "?")
     )
     return (
         f"disque {disk:.1f} GB libres | swap {swap_txt} | "
-        f"mémoire récupérable {ram_txt}, pression {niveau_txt} | "
-        f"entretien macOS : {demons_txt} | LLM chauds : {llm_txt}"
+        f"mémoire récupérable {ram_txt}, pression {level_txt} | "
+        f"entretien macOS : {daemons_txt} | LLM chauds : {llm_txt}"
     )
 
 

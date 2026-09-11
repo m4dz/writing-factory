@@ -9,18 +9,18 @@ import numpy as np
 import pytest
 
 from factory.infra import tts
-from factory.pipeline import assembly as chapitre
+from factory.pipeline import assembly
 from factory.settings import settings
 
 
 def test_segmenter_splits_paragraphs_on_sentence_ends_under_the_cap():
     text = "Une phrase courte. " * 30 + "\n\nDeuxième paragraphe."
-    segs = tts.segmenter(text, max_car=100)
+    segs = tts.split_segments(text, max_chars=100)
     assert all(len(s) <= 100 for s in segs[:-1]) or True
     assert all(s.endswith(".") for s in segs)
     assert segs[-1] == "Deuxième paragraphe."
-    assert tts.segmenter("") == []
-    assert tts.segmenter("Court.") == ["Court."]
+    assert tts.split_segments("") == []
+    assert tts.split_segments("Court.") == ["Court."]
 
 
 @pytest.fixture
@@ -63,7 +63,7 @@ def test_render_assembles_segments_with_pauses_and_reports_the_rate(
         voice, fake_mlx, tmp_path, quiet_progress):
     synth, written = fake_mlx
     text = "Première phrase du texte lu. Deuxième phrase du texte lu.\n\nTroisième."
-    out = tts.rendre(text, tmp_path / "out.wav", pause_s=0.5)
+    out = tts.render(text, tmp_path / "out.wav", pause_s=0.5)
     assert out["segments"] == 2 and synth.calls[0][3] == "french"
     assert out["audio_s"] == pytest.approx(2 * (1.0 + 0.5), abs=0.05)
     assert written["sr"] == 24_000 and written["n"] == int(out["audio_s"] * 24_000)
@@ -75,26 +75,26 @@ def test_render_assembles_segments_with_pauses_and_reports_the_rate(
 def test_render_chapter_reads_only_the_post_switch_excerpt(voice, fake_mlx, tmp_path,
                                                           quiet_progress):
     synth, _ = fake_mlx
-    md = (f"Lu à voix nue.\n\n{chapitre.BASCULE}\n\nLu par le clone.\n\n"
-          f"{chapitre.FIN_AUDIO}\n\nSuite.")
-    tts.rendre_chapitre(md, tmp_path / "c.wav")
+    md = (f"Lu à voix nue.\n\n{assembly.SWITCH}\n\nLu par le clone.\n\n"
+          f"{assembly.AUDIO_END}\n\nSuite.")
+    tts.render_chapter(md, tmp_path / "c.wav")
     assert [c[0] for c in synth.calls] == ["Lu par le clone."]
 
 
 def test_missing_voice_is_an_ordinary_exception(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "voice_dir", tmp_path)
-    with pytest.raises(tts.TTSIndisponible, match="référence vocale"):
-        tts.rendre("Texte.", tmp_path / "x.wav")
+    with pytest.raises(tts.TTSUnavailable, match="référence vocale"):
+        tts.render("Texte.", tmp_path / "x.wav")
 
 
 def test_missing_mlx_is_an_ordinary_exception(voice, tmp_path, monkeypatch):
     monkeypatch.setitem(sys.modules, "mlx_audio", None)
-    with pytest.raises(tts.TTSIndisponible, match="dépendances TTS"):
-        tts.rendre("Texte.", tmp_path / "x.wav")
-    assert not issubclass(tts.TTSIndisponible, BaseException) or \
-        issubclass(tts.TTSIndisponible, Exception)
+    with pytest.raises(tts.TTSUnavailable, match="dépendances TTS"):
+        tts.render("Texte.", tmp_path / "x.wav")
+    assert not issubclass(tts.TTSUnavailable, BaseException) or \
+        issubclass(tts.TTSUnavailable, Exception)
 
 
 def test_empty_excerpt_is_refused(voice, tmp_path):
-    with pytest.raises(tts.TTSIndisponible, match="aucun texte"):
-        tts.rendre("   ", tmp_path / "x.wav")
+    with pytest.raises(tts.TTSUnavailable, match="aucun texte"):
+        tts.render("   ", tmp_path / "x.wav")

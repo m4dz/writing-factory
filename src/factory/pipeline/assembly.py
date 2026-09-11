@@ -25,8 +25,8 @@ import re
 from factory.settings import settings
 from factory.text import sentence_ends
 
-BASCULE = "<!-- BASCULE -->"
-FIN_AUDIO = "<!-- FIN AUDIO -->"
+SWITCH = "<!-- BASCULE -->"
+AUDIO_END = "<!-- FIN AUDIO -->"
 
 # Phrases lues à voix nue avant la bascule : `settings.switch_after_sentences`.
 
@@ -62,19 +62,19 @@ FIN_AUDIO = "<!-- FIN AUDIO -->"
 # `chapitre.py` est servi par l'API et ne doit pas dépendre de l'outillage de
 # calibration. Si le format bouge, il bouge aux deux endroits — c'est le prix,
 # et il est explicite.
-ENTETE_LIGNE = re.compile(
+HEADER_LINE = re.compile(
     r"^(?:Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)\s+\d{1,2}\.\s+"
     r"\S[^\n]{0,40}\.\s*$", re.MULTILINE | re.IGNORECASE)
 
 
-def _fin_de_phrase_n(texte: str, n: int) -> int | None:
+def _nth_sentence_end(text: str, n: int) -> int | None:
     """Position de fin de la n-ième phrase, ou None s'il n'y en a pas tant."""
-    fins = sentence_ends(texte)
-    return fins[n - 1] if len(fins) >= n else None
+    ends = sentence_ends(text)
+    return ends[n - 1] if len(ends) >= n else None
 
 
-def inserer_bascule(texte: str, *, phrases: int | None = None,
-                    sur_second_entete: bool = False) -> str:
+def insert_switch(text: str, *, sentences: int | None = None,
+                    on_second_header: bool = False) -> str:
     """Insère le marqueur de bascule après les `phrases` premières phrases.
 
     Si le texte compte moins de phrases que demandé (scène très courte, ou
@@ -89,28 +89,28 @@ def inserer_bascule(texte: str, *, phrases: int | None = None,
     scénique est exacte au lieu d'être approchée. C'est ce que décrit le §7 du
     brief 7 : « détection déterministe, plus d'heuristique ».
     """
-    if phrases is None:
-        phrases = settings.switch_after_sentences
-    if sur_second_entete:
-        tetes = list(ENTETE_LIGNE.finditer(texte))
-        if len(tetes) >= 2:
-            coupe = tetes[1].start()
-            return (f"{texte[:coupe].rstrip()}\n\n{BASCULE}\n\n"
-                    f"{texte[coupe:].lstrip()}")
+    if sentences is None:
+        sentences = settings.switch_after_sentences
+    if on_second_header:
+        heads = list(HEADER_LINE.finditer(text))
+        if len(heads) >= 2:
+            cut = heads[1].start()
+            return (f"{text[:cut].rstrip()}\n\n{SWITCH}\n\n"
+                    f"{text[cut:].lstrip()}")
         # Un seul en-tête : le chapitre n'a pas la structure attendue. On
         # retombe sur le compte de phrases plutôt que d'omettre le marqueur —
         # un chapitre sans bascule est traité comme non prêt par le deck, donc
         # une structure ratée ferait disparaître la démo au lieu de la dégrader.
         pass
-    coupe = _fin_de_phrase_n(texte, phrases)
-    if coupe is None:
-        return f"{BASCULE}\n\n{texte.lstrip()}"
-    tete, reste = texte[:coupe].rstrip(), texte[coupe:].lstrip()
-    return f"{tete}\n\n{BASCULE}\n\n{reste}" if reste else f"{tete}\n\n{BASCULE}"
+    cut = _nth_sentence_end(text, sentences)
+    if cut is None:
+        return f"{SWITCH}\n\n{text.lstrip()}"
+    head, rest = text[:cut].rstrip(), text[cut:].lstrip()
+    return f"{head}\n\n{SWITCH}\n\n{rest}" if rest else f"{head}\n\n{SWITCH}"
 
 
-def extrait_audio(texte: str, *, mots_max: int | None = None,
-                  jusqu_a: str = "") -> str:
+def audio_excerpt(text: str, *, max_words: int | None = None,
+                  until: str = "") -> str:
     """Texte que la voix clonée doit lire : après la bascule, borné en mots.
 
     La coupe tombe toujours sur une FIN DE PHRASE : un WAV qui s'arrête au
@@ -118,14 +118,14 @@ def extrait_audio(texte: str, *, mots_max: int | None = None,
     pour une fin voulue. On dépasse donc légèrement le budget plutôt que de
     couper net — la phrase en cours est toujours incluse.
     """
-    if mots_max is None:
-        mots_max = settings.effective_audio_max_words
-    apres = texte.split(BASCULE, 1)[1] if BASCULE in texte else texte
-    apres = apres.split(FIN_AUDIO, 1)[0].strip()
+    if max_words is None:
+        max_words = settings.effective_audio_max_words
+    after = text.split(SWITCH, 1)[1] if SWITCH in text else text
+    after = after.split(AUDIO_END, 1)[0].strip()
 
-    fins = sentence_ends(apres)
-    if not fins:
-        return apres
+    ends = sentence_ends(after)
+    if not ends:
+        return after
 
     # LA CHUTE EST TOUJOURS LUE. La borne en mots existe contre un audio trop
     # long ; elle ne doit pas amputer la LIGNE QUI FAIT LA SCÈNE. Au premier
@@ -134,19 +134,19 @@ def extrait_audio(texte: str, *, mots_max: int | None = None,
     # pour laquelle elle parle. La coïncidence scénique veut que le locuteur
     # lise l'entrée où elle résiste et le clone celle où la journée a gagné :
     # sans la chute, le clone ne gagne rien.
-    if jusqu_a and jusqu_a in apres:
-        borne = apres.index(jusqu_a) + len(jusqu_a)
-        return apres[:borne].strip()
+    if until and until in after:
+        bound = after.index(until) + len(until)
+        return after[:bound].strip()
 
-    for fin in fins:
-        if len(apres[:fin].split()) >= mots_max:
-            return apres[:fin].strip()
-    return apres
+    for end in ends:
+        if len(after[:end].split()) >= max_words:
+            return after[:end].strip()
+    return after
 
 
-def assembler(scenes: list[str], *, mots_max: int | None = None,
-              phrases: int | None = None,
-              sur_second_entete: bool = False, chute: str = "") -> str:
+def assemble(scenes: list[str], *, max_words: int | None = None,
+              sentences: int | None = None,
+              on_second_header: bool = False, fall: str = "") -> str:
     """Chapitre complet en Markdown, avec bascule et fin de lecture marquées.
 
     LES DEUX MARQUEURS SONT GARANTIS PRÉSENTS. Exigence du deck (message de la
@@ -160,13 +160,13 @@ def assembler(scenes: list[str], *, mots_max: int | None = None,
     Le chapitre servi reste ENTIER : c'est la pièce à conviction de la démo, on
     ne la tronque pas parce que l'audio, lui, est borné.
     """
-    corps = inserer_bascule("\n\n".join(s.strip() for s in scenes if s.strip()),
-                            phrases=phrases,
-                            sur_second_entete=sur_second_entete)
-    lu = extrait_audio(corps, mots_max=mots_max, jusqu_a=chute)
-    if lu and lu in corps:
-        pos = corps.index(lu) + len(lu)
-        corps = f"{corps[:pos]}\n\n{FIN_AUDIO}\n\n{corps[pos:].lstrip()}".rstrip()
+    body = insert_switch("\n\n".join(s.strip() for s in scenes if s.strip()),
+                            sentences=sentences,
+                            on_second_header=on_second_header)
+    read_part = audio_excerpt(body, max_words=max_words, until=fall)
+    if read_part and read_part in body:
+        pos = body.index(read_part) + len(read_part)
+        body = f"{body[:pos]}\n\n{AUDIO_END}\n\n{body[pos:].lstrip()}".rstrip()
     else:
-        corps = f"{corps.rstrip()}\n\n{FIN_AUDIO}"
-    return corps
+        body = f"{body.rstrip()}\n\n{AUDIO_END}"
+    return body

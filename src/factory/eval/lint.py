@@ -45,11 +45,11 @@ from factory.text import delint
 # juxtaposées par des virgules »). Les deux seuils sont calibrés pour séparer
 # l'étalon 2 (la cible) des trois autres étalons — c'est ce que vérifie
 # `--etalons`. Baisser l'un des deux ferait passer des phrases ordinaires.
-ACC_VIRGULES = 4
-ACC_MOTS = 45
+ACC_COMMAS = 4
+ACC_WORDS = 45
 
 # « Phrase-couperet » : la fiche dit « trois à six mots ».
-COUPERET_MIN, COUPERET_MAX = 3, 6
+CLEAVER_MIN, CLEAVER_MAX = 3, 6
 
 # --- Session 3 : contrôles L1-L4 du protocole de calibration ch. 2 ------------
 
@@ -57,13 +57,13 @@ COUPERET_MIN, COUPERET_MAX = 3, 6
 # plus stricts que ceux calibrés en session 1 (45/4). Les deux coexistent : la
 # ligne historique garde les sessions 1 et 2 comparables, L3 applique la règle
 # écrite dans la fiche. Aligner les deux effacerait la comparaison.
-L3_MOTS, L3_VIRGULES = 60, 6
+L3_WORDS, L3_COMMAS = 60, 6
 
 # L4 : le glissement est le SEUL emploi autorisé des points de suspension. Le
 # marqueur n'est comptable que parce qu'il est univoque — d'où la mesure de
 # proximité avec le champ du départ plutôt qu'un simple comptage.
-L4_FENETRE_MOTS = 15
-CHAMP_DEPART = re.compile(
+L4_WORD_WINDOW = 15
+DEPARTURE_FIELD = re.compile(
     r"\b(partie|parties|départ|departs|départs|absence|absente|quittée|quitté|"
     r"quitter|plus là|s'en est allée)\b",
     re.IGNORECASE,
@@ -76,7 +76,7 @@ SUSPENSION = re.compile(r"…|\.\.\.")
 # tranche. `Je` est écarté : c'est un pronom, jamais un nom propre, et il
 # apparaît capitalisé après une coupe de phrase que le découpage rate parfois.
 L1_EXCEPTIONS = {"Je", "J", "L", "D", "C", "N", "S", "M", "T", "Y"}
-MAJUSCULE = re.compile(r"\b([A-ZÀÂÄÉÈÊËÎÏÔÖÙÛÜÇ][\wàâäéèêëîïôöùûüç'’-]+)")
+UPPERCASE = re.compile(r"\b([A-ZÀÂÄÉÈÊËÎÏÔÖÙÛÜÇ][\wàâäéèêëîïôöùûüç'’-]+)")
 
 # Un en-tête d'entrée de journal : ligne courte portant une date. Sert au
 # re-scope « par entrée » (D1) — sans lui, L3 et L4 compteraient sur le
@@ -90,9 +90,9 @@ MAJUSCULE = re.compile(r"\b([A-ZÀÂÄÉÈÊËÎÏÔÖÙÛÜÇ][\wàâäéèêë
 # L3, la validation de structure en grille, et le point de bascule de
 # `lire_chapitre.py` (le second en-tête du chapitre 7). Un repère déterministe
 # partagé vaut mieux que trois heuristiques qui divergent le jour J.
-JOURS = r"Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche"
-ENTETE_ENTREE = re.compile(
-    rf"^\s*(?:\*{{0,2}})?({JOURS})\s+(\d{{1,2}})\.\s+.{{2,40}}\.\s*(?:\*{{0,2}})?$",
+DAYS = r"Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche"
+ENTRY_HEADER = re.compile(
+    rf"^\s*(?:\*{{0,2}})?({DAYS})\s+(\d{{1,2}})\.\s+.{{2,40}}\.\s*(?:\*{{0,2}})?$",
     re.MULTILINE,
 )
 
@@ -115,7 +115,7 @@ PASTICHE = re.compile(
 # m'empêcher de penser ». Un adverbe de négation entre l'auxiliaire et le verbe
 # suffisait à faire passer le tic — et c'est le deuxième run consécutif qu'il
 # traverse (le run 3 de la session 3 l'avait déjà fait au présent).
-TICS_IA = re.compile(
+AI_TICS = re.compile(
     r"(un m[ée]lange de\b|quelque chose en (?:moi|elle)\b|"
     r"(?:je|elle) ne (?:pouvais|pouvait|peux|peut|pourrais|pourrait)"
     r"(?: pas| plus| jamais)? [sm]'emp[êe]cher de\b|"
@@ -131,7 +131,7 @@ TICS_IA = re.compile(
 # suivant : » — « couperet » traduit en arme blanche pour contourner le lint.
 # C'est la STRUCTURE qu'il faut attraper, pas le mot : annoncer ce qui suit au
 # lieu de l'écrire est le geste du formulaire, quel que soit le nom du champ.
-FORMULAIRE = re.compile(
+FORM = re.compile(
     r"\b\w[^.!?\n]{0,60}\best (?:le|la|les) suivant(?:e|s|es)?\s*:",
     re.IGNORECASE,
 )
@@ -144,7 +144,7 @@ FORMULAIRE = re.compile(
 # réellement, et l'omettre laissait passer l'incise sur un run entier. Le mot
 # intercalé optionnel couvre « ai-je répondu distraitement » (participe entre
 # l'inversion et l'adverbe).
-INCISE_ADVERBIALE = re.compile(
+ADVERBIAL_INCISE = re.compile(
     r"-(?:t-)?(?:il|elle|on|je|ils|elles)\s+(?:\w+\s+)?\w+ment\b",
     re.IGNORECASE,
 )
@@ -159,7 +159,7 @@ INCISE_ADVERBIALE = re.compile(
 # que la fiche n'interdit nulle part. Trouvé sur le run 2 — et l'enjeu n'était pas
 # cosmétique : cette croix de trop faisait passer l'incise de 1 run sur 3 (bruit)
 # à 2 sur 3 (durcir la fiche), donc inversait le verdict.
-INCISE_PREPOSITIONNELLE = re.compile(
+PREPOSITIONAL_INCISE = re.compile(
     r"\b(?:dit|dis|dire|disant|r[ée]pond(?:it|u|re)|r[ée]p[ée]t(?:a|[ée])|"
     r"demand(?:a|[ée])|conclu[ts]?|lan[çc](?:a|[ée])|murmur(?:a|[ée])|"
     r"ajout(?:a|[ée])|repri[ts]|s'exclam(?:a|[ée])|soupir(?:a|[ée])|"
@@ -180,7 +180,7 @@ INCISE_PREPOSITIONNELLE = re.compile(
 # lexique français pour savoir qu'« emballage » est un mot — sans dictionnaire,
 # tout détecteur ici serait du bruit. Mieux vaut une ligne absente qu'une ligne
 # fausse.
-ELISION_MANQUANTE = re.compile(
+MISSING_ELISION = re.compile(
     r"\b(je|me|te|se|le|la|ne|de|que|ce)\s+"
     r"(?!un\b|une\b|onze|huit|oui|yacht|yaourt|hasard|haut|haine|héros|"
     r"hibou|hall|hangar)"
@@ -217,7 +217,7 @@ PRECISION = re.compile(
 # positif enverrait durcir un chunk qui va bien. On écarte donc délibérément
 # `dit`, `vit`, `rit`, `suit`, `fuit` — qui sont AUSSI du présent — et les
 # formes en `-ra` (futur simple).
-PS_IRREGULIERS = re.compile(
+PS_IRREGULARS = re.compile(
     r"\b(fut|furent|eut|eurent|fis|fit|f[îi]mes|firent|"
     r"pris|prit|pr[îi]mes|prirent|reprit|reprirent|comprit|comprirent|"
     r"vins|vint|v[îi]nmes|vinrent|revint|revinrent|"
@@ -240,7 +240,7 @@ PS_ERENT = re.compile(r"\b\w+[èe]rent\b", re.IGNORECASE)
 # « ils admirent » passeraient pour du passé simple. C'est le seul endroit du
 # module où l'exhaustivité d'une liste conditionne la justesse — d'où le rendu
 # en CANDIDATS et non en verdict.
-PS_HOMONYMES_PRESENT = {
+PS_PRESENT_HOMONYMS = {
     "tirent", "attirent", "retirent", "étirent", "soutirent",
     "soupirent", "expirent", "respirent", "inspirent", "aspirent",
     "admirent", "chavirent", "virent", "délirent",
@@ -252,7 +252,7 @@ PS_IRENT_URENT = re.compile(r"\b\w+[iu]rent\b", re.IGNORECASE)
 # Passé simple des verbes en -er, ancré sur un sujet pour éviter le bruit
 # (« la », « déjà », « voilà »). `{3,}` écarte « il a » / « elle va » ;
 # l'exclusion de `-ra` écarte le futur simple (« elle regardera »).
-PS_ANCRE = re.compile(
+PS_ANCHOR = re.compile(
     r"\b(?:il|elle|on|ils|elles)\s+((?!\w*ra\b)\w{3,}a)\b", re.IGNORECASE
 )
 
@@ -261,9 +261,9 @@ PS_ANCRE = re.compile(
 # (« je pris »). Trouvé sur les runs réels — le mot sortait sur 3 tirages sur 4,
 # toujours en passé COMPOSÉ, c'est-à-dire toujours à tort. Un auxiliaire juste
 # devant tranche : c'est un participe, pas du passé simple.
-PS_PARTICIPES_AMBIGUS = {"pris", "mis", "fis", "vins", "pus", "sus", "dus",
+PS_AMBIGUOUS_PARTICIPLES = {"pris", "mis", "fis", "vins", "pus", "sus", "dus",
                          "appris", "compris", "remis", "repris", "promis"}
-AUXILIAIRE = re.compile(
+AUXILIARY = re.compile(
     r"\b(?:ai|as|a|avons|avez|ont|avais|avait|avions|aviez|avaient|"
     r"aurai|aura|aurait|eu|est|es|suis|sommes|êtes|sont|était|étais|"
     r"étaient|étions|serai|serait|soit|été)\s+(?:\w+\s+)?$",
@@ -273,25 +273,25 @@ AUXILIAIRE = re.compile(
 # du passé simple (`je regardai`) ne diffère du futur (`je regarderai`) que par
 # le `r` qui précède, et de l'imparfait (`je regardais`) que par le `s` final :
 # d'où l'exclusion de `-rai` et l'ancrage strict sur `je ` (qui écarte `j'ai`).
-PS_PREMIERE_PERSONNE = re.compile(
+PS_FIRST_PERSON = re.compile(
     r"\bje\s+((?!\w*rai\b)\w{3,}ai)\b", re.IGNORECASE
 )
 # Sujet nom propre + pronom objet élidé : « Élara l'écouta ». L'ancrage sur le
 # PRONOM est ce qui rend le motif sûr — sans lui, « Le cinéma », « La véranda »
 # ou « Un agenda » seraient signalés comme du passé simple, et un faux positif
 # sur l'interdit n°1 enverrait durcir un chunk qui n'a rien fait.
-PS_NOM_PROPRE = re.compile(
+PS_PROPER_NOUN = re.compile(
     r"\b[A-ZÉÈÀÂÎÔÛ]\w{2,}\s+(?:l'|lui\s|me\s|m'|se\s|s'|nous\s|vous\s|leur\s)"
     r"((?!\w*ra\b)\w{3,}a)\b"
 )
 
 # --- Découpage ---------------------------------------------------------------
 
-_FIN_PHRASE = re.compile(r"[.!?…]+(?:\s*[»\"'])?")
-_APOSTROPHES = str.maketrans({"’": "'", "ʼ": "'"})
+_SENTENCE_END = re.compile(r"[.!?…]+(?:\s*[»\"'])?")
+_APOSTROPHES = str.maketrans({"’": "'""'", "ʼ": "'""'"})
 
 
-def normalise(texte: str) -> str:
+def normalize(text: str) -> str:
     """Apostrophes typographiques → ASCII, à longueur CONSTANTE.
 
     Les modèles alternent « l'entrée » et « l'entrée » selon les tirages ; sans
@@ -299,41 +299,41 @@ def normalise(texte: str) -> str:
     substitution est 1:1 en caractères, donc les positions restent valables pour
     citer le texte d'ORIGINE.
     """
-    return texte.translate(_APOSTROPHES)
+    return text.translate(_APOSTROPHES)
 
 
-def strip_frontmatter(texte: str) -> str:
-    lignes = texte.splitlines()
-    if lignes and lignes[0].strip() == "---":
-        for i, ligne in enumerate(lignes[1:], start=1):
-            if ligne.strip() == "---":
-                return "\n".join(lignes[i + 1:]).strip()
-    return texte.strip()
+def strip_frontmatter(text: str) -> str:
+    lines = text.splitlines()
+    if lines and lines[0].strip() == "---":
+        for i, line in enumerate(lines[1:], start=1):
+            if line.strip() == "---":
+                return "\n".join(lines[i + 1:]).strip()
+    return text.strip()
 
 
-def paragraphes(texte: str) -> list[str]:
-    return [p.strip() for p in re.split(r"\n\s*\n", texte) if p.strip()]
+def paragraphs(text: str) -> list[str]:
+    return [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
 
 
-def phrases(texte: str) -> list[str]:
+def sentences(text: str) -> list[str]:
     """Découpe naïve en phrases. Suffit au COMPTAGE (longueur, virgules)."""
-    out, debut = [], 0
-    for m in _FIN_PHRASE.finditer(texte):
-        bout = texte[debut:m.end()].strip()
-        if bout:
-            out.append(bout)
-        debut = m.end()
-    reste = texte[debut:].strip()
-    if reste:
-        out.append(reste)
+    out, start = [], 0
+    for m in _SENTENCE_END.finditer(text):
+        piece = text[start:m.end()].strip()
+        if piece:
+            out.append(piece)
+        start = m.end()
+    rest = text[start:].strip()
+    if rest:
+        out.append(rest)
     return out
 
 
-def mots(phrase: str) -> int:
-    return len([m for m in re.split(r"\s+", phrase.strip()) if m])
+def words(sentence: str) -> int:
+    return len([m for m in re.split(r"\s+", sentence.strip()) if m])
 
 
-def sans_dialogue(texte: str) -> str:
+def without_dialogue(text: str) -> str:
     """Retire les répliques pour isoler la voix narrative.
 
     Trois formes à retirer. Les deux premières sont celles de la fiche : spans
@@ -344,42 +344,42 @@ def sans_dialogue(texte: str) -> str:
     défaut inventé de toutes pièces. Le détecteur doit lire le texte tel qu'il
     sort, pas tel qu'on l'aurait voulu.
     """
-    texte = re.sub(r"«.*?»", " ", texte, flags=re.DOTALL)
-    texte = re.sub(r'"[^"\n]*"', " ", texte)      # guillemets droits, une ligne
-    gardees = [l for l in texte.splitlines()
+    text = re.sub(r"«.*?»", " ", text, flags=re.DOTALL)
+    text = re.sub(r'"[^"\n]*"', " ", text)      # guillemets droits, une ligne
+    kept = [l for l in text.splitlines()
                if not re.match(r"^\s*[—–-]\s", l)]
-    return "\n".join(gardees)
+    return "\n".join(kept)
 
 
-_ETALON_ACC: str | None = None
+_ACC_REFERENCE: str | None = None
 
 
-def etalon_accumulation(fiche: str = str(BIBLE_DIR / "style-auteur.md")) -> str:
+def accumulation_reference(sheet: str = str(BIBLE_DIR / "style-auteur.md")) -> str:
     """L'accumulation de référence, lue dans la fiche (chargée une fois).
 
     Sert à détecter la RECOPIE. Chargée depuis la fiche plutôt que recopiée ici :
     l'étalon bougera avec la fiche, et un détecteur qui compare à une version
     périmée ne détecte plus rien.
     """
-    global _ETALON_ACC
-    if _ETALON_ACC is None:
-        _ETALON_ACC = ""
-        chemin = Path(fiche)
-        if chemin.is_file():
-            texte = normalise(chemin.read_text(encoding="utf-8"))
+    global _ACC_REFERENCE
+    if _ACC_REFERENCE is None:
+        _ACC_REFERENCE = ""
+        path = Path(sheet)
+        if path.is_file():
+            text = normalize(path.read_text(encoding="utf-8"))
             # Retirer le balisage avant de découper : les étalons vivent dans
             # des blocs `> ` sous un titre en gras, et les garder collerait
             # « **Étalon 2 — …** » en tête de la phrase de référence.
-            texte = re.sub(r"^\s*>\s?", "", texte, flags=re.MULTILINE)
-            texte = re.sub(r"^\s*\*\*.*?\*\*\s*$", "", texte, flags=re.MULTILINE)
-            candidats = [p for p in phrases(texte)
-                         if p.count(",") >= ACC_VIRGULES and mots(p) >= ACC_MOTS]
-            if candidats:
-                _ETALON_ACC = max(candidats, key=mots).strip()
-    return _ETALON_ACC
+            text = re.sub(r"^\s*>\s?", "", text, flags=re.MULTILINE)
+            text = re.sub(r"^\s*\*\*.*?\*\*\s*$", "", text, flags=re.MULTILINE)
+            candidates = [p for p in sentences(text)
+                         if p.count(",") >= ACC_COMMAS and words(p) >= ACC_WORDS]
+            if candidates:
+                _ACC_REFERENCE = max(candidates, key=words).strip()
+    return _ACC_REFERENCE
 
 
-def recopie_etalon(phrase: str, seuil: float = 0.6) -> float:
+def reference_copy(sentence: str, threshold: float = 0.6) -> float:
     """Proximité d'une phrase avec l'accumulation étalon, entre 0 et 1.
 
     Née d'un échec de ce module : la boucle de renvoi a produit deux
@@ -388,11 +388,11 @@ def recopie_etalon(phrase: str, seuil: float = 0.6) -> float:
     cafetière). Compter des virgules ne dit rien du sens — un détecteur de forme
     doit savoir dire quand la forme a été obtenue par plagiat.
     """
-    ref = etalon_accumulation()
-    if not ref or not phrase:
+    ref = accumulation_reference()
+    if not ref or not sentence:
         return 0.0
-    r = difflib.SequenceMatcher(None, phrase.lower(), ref.lower()).ratio()
-    return r if r >= seuil else 0.0
+    r = difflib.SequenceMatcher(None, sentence.lower(), ref.lower()).ratio()
+    return r if r >= threshold else 0.0
 
 
 
@@ -403,7 +403,7 @@ def recopie_etalon(phrase: str, seuil: float = 0.6) -> float:
 # écrite. Liste figée par le protocole. « constat » et « verdict » en sont
 # volontairement ABSENTS : ce sont les mots de son métier de correctrice, donc
 # sa langue — les bannir appauvrirait la voix qu'on cherche à obtenir.
-META_TERMES = re.compile(
+META_TERMS = re.compile(
     r"\b(couperets?|squelettes?|beats?|ancres?|notation physiologique|"
     r"mat[ée]riaux?|briefs?)\b", re.IGNORECASE)
 
@@ -417,7 +417,7 @@ META_TERMES = re.compile(
 # pour le modèle — la servir telle quelle lui apprend nos lints.
 #
 # La garde d'entrée existante n'en voyait qu'un seul mot sur dix.
-MACHINERIE = re.compile(
+MACHINERY = re.compile(
     # « la table » seule est un MEUBLE dans ce roman — c'est même l'un des
     # objets du chapitre 7. Seule « la table de pilotage » est de la machinerie.
     r"\bL[1-4]\b|\bla table de pilotage\b|\ble code\b|\bbloquants?\b"
@@ -436,7 +436,7 @@ MACHINERIE = re.compile(
 # NOMMÉMENT par la fiche — l'interdit était servi, il n'a pas tenu, et aucun
 # lint ne le voyait. Un attracteur est une tournure vers laquelle le modèle
 # glisse : c'est la famille qu'il faut nommer, pas l'occurrence qu'on a lue.
-ATTRACTEURS = re.compile(
+ATTRACTORS = re.compile(
     # la folie nommée : « devenir folle », « perdre la tête / la raison »
     r"(devenir folle|devenais? folle|devenue folle|suis folle|"
     r"perdre la t[êe]te|perds? la t[êe]te|perdre la raison|"
@@ -481,7 +481,7 @@ ATTRACTEURS = re.compile(
 
 # « je décide de » : plafonné à UNE occurrence par entrée (arbitrage du
 # 2026-08-18). B1 en portait quatre, chacune suivie de son exécution.
-JE_DECIDE = re.compile(r"\bje d[ée]cide de\b", re.IGNORECASE)
+I_DECIDE = re.compile(r"\bje d[ée]cide de\b", re.IGNORECASE)
 
 # COUPLE DÉCISION-EXÉCUTION, en CANDIDAT non bloquant. La règle M3 dit que
 # l'effet de « décision sans geste » vit dans le VIDE entre la décision notée et
@@ -529,7 +529,7 @@ _DECISION = re.compile(
 # le couple ne pouvait pas se refermer — quelle que soit la forme de la
 # décision. Étendre la décision au participe sans étendre l'exécution au présent
 # aurait fait un détecteur qui ne mord jamais : un lint fantôme de plus.
-_GESTE_1P = re.compile(
+_GESTURE_1P = re.compile(
     r"\b(?:j'ai|je les ai|je l'ai|je la ai|je me suis|je m'[ée]tais)\s+"
     r"(?:\w+\s+){0,2}?([a-zàâçéèêëîïôûùüœ]+(?:[ée]{1,2}s?|is|it|us|ut))\b"
     r"|\bje\s+(?:l[ae]s?\s+|l'|m[e\']\s*|y\s+|en\s+)?"
@@ -548,11 +548,11 @@ _GESTE_1P = re.compile(
 # carnet sur lui-même — et la seconde est la résolution que le brief IMPOSE au
 # chapitre 2. Sans cette exclusion, le détecteur signalait C2, que la lecture
 # humaine a jugé conforme : il aurait reproché au run d'obéir au brief.
-_DECISIONS_DE_CARNET = re.compile(
+_NOTEBOOK_DECISIONS = re.compile(
     r"^(?:reprend|repass|not|point|reli|[ée]cri|consign|marqu|r[ée][ée]cri|"
     r"tenir|d[ée]tail)", re.IGNORECASE)
 
-_PARTICIPES_ETAT = {
+_STATE_PARTICIPLES = {
     "été", "eu", "vu", "vue", "vues", "aperçu", "aperçue", "senti", "sentie",
     "su", "sue", "cru", "crue", "pensé", "pensée", "compris", "comprise",
     "souvenu", "souvenue", "rappelé", "rappelée", "resté", "restée",
@@ -566,19 +566,19 @@ _PARTICIPES_ETAT = {
 }
 
 
-def couples_decision_execution(texte: str) -> list[str]:
+def decision_execution_pairs(text: str) -> list[str]:
     """Décisions suivies de leur exécution apparente — CANDIDATS pour M3.
 
     Deux règles, et la sortie dit LAQUELLE a mordu : sur une ligne non
     bloquante, la lecture humaine tranche, et elle a besoin de savoir si le
     signalement est lexical (sûr) ou par geste narré (élargi).
     """
-    out, phr = [], phrases(texte)
+    out, phr = [], sentences(text)
     for i, p in enumerate(phr):
         m = _DECISION.search(p)
         if not m:
             continue
-        if _DECISIONS_DE_CARNET.match(m.group(1)):
+        if _NOTEBOOK_DECISIONS.match(m.group(1)):
             continue
         radical = m.group(1)[:-2] if len(m.group(1)) > 6 else m.group(1)
         # LA FENÊTRE COMPTE DES PHRASES NARRATIVES, pas des fragments.
@@ -589,26 +589,26 @@ def couples_decision_execution(texte: str) -> list[str]:
         # vérifier » suivi, plus loin, de la vérification racontée) passait à
         # travers. Un dispositif de MASSE a donc aveuglé un détecteur de VOIX —
         # sans la lecture manuelle, on ne l'aurait pas su.
-        suite_txt = [q for q in phr[i + 1:i + 8] if mots(q) >= 6]
-        suite = " ".join(suite_txt)
-        if re.search(rf"\b(?:j'ai |je )\w*{re.escape(radical)}", suite, re.I):
+        continuation_txt = [q for q in phr[i + 1:i + 8] if words(q) >= 6]
+        continuation = " ".join(continuation_txt)
+        if re.search(rf"\b(?:j'ai |je )\w*{re.escape(radical)}", continuation, re.I):
             out.append(f"[lexical] « {p.strip()[:70]}… » puis exécution : "
-                       f"« {suite.strip()[:70]}… »")
+                       f"« {continuation.strip()[:70]}… »")
             continue
         # Règle du geste narré : on ne regarde que DEUX phrases, pas trois. Le
         # vide que le style demande est immédiat ; au-delà, l'entrée a repris
         # son cours et un « j'ai rangé » n'exécute plus la décision.
-        for q in suite_txt[:2]:
+        for q in continuation_txt[:2]:
             # Deux groupes alternatifs (composé / présent) : on prend celui
             # qui a capturé.
-            gestes = [(g.group(1) or g.group(2)).lower()
-                      for g in _GESTE_1P.finditer(q)
+            gestures = [(g.group(1) or g.group(2)).lower()
+                      for g in _GESTURE_1P.finditer(q)
                       if (g.group(1) or g.group(2))
                       and (g.group(1) or g.group(2)).lower()
-                      not in _PARTICIPES_ETAT]
-            if gestes:
+                      not in _STATE_PARTICIPLES]
+            if gestures:
                 out.append(f"[geste narré] « {p.strip()[:70]}… » puis "
-                           f"« {q.strip()[:70]}… » ({', '.join(gestes[:3])})")
+                           f"« {q.strip()[:70]}… » ({', '.join(gestures[:3])})")
                 break
     return out
 
@@ -628,7 +628,7 @@ def couples_decision_execution(texte: str) -> list[str]:
 # position : « Perplexe, je repose le cahier » nomme l'état au lieu de le faire
 # sentir. L'apposition est repérée par la ponctuation qui l'isole, ou par la
 # copule qui l'attribue.
-ETATS_MENTAUX_MOTS = (
+MENTAL_STATE_WORDS = (
     "perplexe", "songeuse", "songeur", "troublée", "troublé", "intriguée",
     "intrigué", "pensive", "pensif", "désemparée", "désemparé", "hébétée",
     "hébété", "incrédule", "abasourdie", "abasourdi", "déconcertée",
@@ -639,10 +639,10 @@ ETATS_MENTAUX_MOTS = (
 # passer « Je fronce les sourcils, intriguée PAR cette différence » — relevé sur
 # S6-1, où c'est exactement le défaut que la ligne existe pour attraper. Un
 # état nommé reste un état nommé quand il traîne un complément.
-ETATS_MENTAUX = re.compile(
-    r"(?:^|[.!?…»\n]\s*|,\s*)(" + "|".join(ETATS_MENTAUX_MOTS) + r")\b"
+MENTAL_STATES = re.compile(
+    r"(?:^|[.!?…»\n]\s*|,\s*)(" + "|".join(MENTAL_STATE_WORDS) + r")\b"
     r"|\bje (?:suis|étais|me sens|me sentais|restai?s?)\s+(?:\w+\s+){0,2}?"
-    r"(" + "|".join(ETATS_MENTAUX_MOTS) + r")\b",
+    r"(" + "|".join(MENTAL_STATE_WORDS) + r")\b",
     re.IGNORECASE)
 
 
@@ -662,7 +662,7 @@ ETATS_MENTAUX = re.compile(
 # Le travail SUR LE MANUSCRIT n'est pas visé : c'est son métier, elle l'exerce
 # chez elle. Ce qui est visé est le travail comme LIEU — en sortir, y aller,
 # en revenir. D'où des motifs de mouvement, pas le mot « travail » seul.
-INTERDITS_MATERIELS: tuple[tuple[str, str, int], ...] = (
+MATERIAL_FORBIDDEN: tuple[tuple[str, str, int], ...] = (
     ("travail hors du domicile",
      r"\b(?:revenue?s?|rentr[ée]e?s?|retour|repartie?s?|partie)\s+"
      r"(?:tard\s+)?(?:du|de mon|au)\s+(?:travail|bureau)\b"
@@ -687,19 +687,19 @@ INTERDITS_MATERIELS: tuple[tuple[str, str, int], ...] = (
 )
 
 
-def interdits_materiels(texte: str, chapitre: int = 2) -> list[str]:
+def material_forbidden(text: str, chapter: int = 2) -> list[str]:
     """Termes de décor génériques présents, pour le chapitre donné.
 
     Rend « famille : extrait » — la famille sert la grille, l'extrait sert la
     lecture. Un signalement sans son extrait oblige à rouvrir la sortie brute.
     """
     out = []
-    for famille, motif, chapitre_min in INTERDITS_MATERIELS:
-        if chapitre >= chapitre_min:
+    for family, pattern, chapter_min in MATERIAL_FORBIDDEN:
+        if chapter >= chapter_min:
             continue
-        for m in re.finditer(motif, texte, re.IGNORECASE):
-            debut = max(0, m.start() - 30)
-            out.append(f"{famille} : …{texte[debut:m.end() + 20].strip()}…")
+        for m in re.finditer(pattern, text, re.IGNORECASE):
+            start = max(0, m.start() - 30)
+            out.append(f"{family} : …{text[start:m.end() + 20].strip()}…")
     return out
 
 
@@ -728,7 +728,7 @@ def interdits_materiels(texte: str, chapitre: int = 2) -> list[str]:
 #
 # Séparation totale, marge énorme : le seuil est à 20 % et n'a pas besoin d'être
 # fin.
-_ITEM_ABSTRAIT = re.compile(
+_ABSTRACT_ITEM = re.compile(
     # suffixes de nominalisation — l'abstraction a une morphologie
     r"\b\w*(?:it[ée]|tion|sion|ance|ence|itude|esse|isme)\b"
     # et les états d'âme et opérations mentales qui n'en portent pas
@@ -737,13 +737,13 @@ _ITEM_ABSTRAIT = re.compile(
     re.IGNORECASE)
 
 # Un item VERBAL raconte un pas de la soirée ; il ne peut pas être du sommaire.
-_ITEM_VERBAL = re.compile(
+_VERBAL_ITEM = re.compile(
     r"\b(?:je|j'|elle|il|on|nous|ils|elles)\b"
     r"|\b(?:ai|as|avons|avez|ont|avais|avait|avions|avaient"
     r"|suis|es|est|sommes|êtes|sont|étais|était|étions|étaient)\b",
     re.IGNORECASE)
 
-ACC_ABSTRAIT_MAX = 0.20
+ACC_ABSTRACT_MAX = 0.20
 
 
 # LA TROISIÈME PERSONNE DANS UN CARNET ÉCRIT À LA PREMIÈRE.
@@ -753,14 +753,14 @@ ACC_ABSTRAIT_MAX = 0.20
 # entièrement à la première. Aucun lint ne le voyait — c'est la lecture debout
 # qui l'a relevé. Défaut mécanique, détection triviale : le carnet n'a qu'un
 # sujet, et ce sujet est « je ».
-_SUJET_3P = re.compile(
+_SUBJECT_3P = re.compile(
     r"\b(?:elle|il|on)\s+(?:[a-zàâçéèêëîïôûùüœ']+\s+){0,2}?"
     r"(?:est|a|était|avait|s'est|se|fut)\b"
     r"|\b(?:elle|il)\s+(?:rentre|revient|repose|referme|compte|note|vérifie)\b",
     re.IGNORECASE)
 
 
-def accumulation_a_la_premiere(phrase: str) -> tuple[bool, str]:
+def accumulation_at_first_person(sentence: str) -> tuple[bool, str]:
     """L'accumulation est-elle écrite à la première personne ?
 
     Rendue vraie si aucun sujet de troisième personne n'apparaît ET qu'un « je »
@@ -768,13 +768,13 @@ def accumulation_a_la_premiere(phrase: str) -> tuple[bool, str]:
     pronom (l'étalon est ainsi, en grande partie nominale) ne doit pas être
     rejetée pour autant.
     """
-    if _SUJET_3P.search(phrase):
-        m = _SUJET_3P.search(phrase)
-        return False, f"troisième personne : « {phrase[max(0, m.start()-20):m.end()+30]} »"
+    if _SUBJECT_3P.search(sentence):
+        m = _SUBJECT_3P.search(sentence)
+        return False, f"troisième personne : « {sentence[max(0, m.start()-20):m.end()+30]} »"
     return True, ""
 
 
-def accumulation_resumante(phrase: str) -> tuple[float, list[str]]:
+def summarizing_accumulation(sentence: str) -> tuple[float, list[str]]:
     """Part d'items abstraits d'une accumulation, et lesquels.
 
     L'unité est l'item entre virgules — la même unité que celle par laquelle la
@@ -785,14 +785,14 @@ def accumulation_resumante(phrase: str) -> tuple[float, list[str]]:
     Les adverbes nus (« calmement », « méthodiquement » de l'étalon) sont
     neutres : ils modifient la phrase-cadre, ils ne sont pas une étape.
     """
-    items = [i.strip() for i in phrase.split(",") if i.strip()]
+    items = [i.strip() for i in sentence.split(",") if i.strip()]
     if not items:
         return 0.0, []
-    candidats = [i for i in items
-                 if not _ITEM_VERBAL.search(i)
+    candidates = [i for i in items
+                 if not _VERBAL_ITEM.search(i)
                  and not re.fullmatch(r"\w+ment", i, re.IGNORECASE)]
-    abstraits = [i for i in candidats if _ITEM_ABSTRAIT.search(i)]
-    return len(abstraits) / len(items), abstraits
+    abstract_items = [i for i in candidates if _ABSTRACT_ITEM.search(i)]
+    return len(abstract_items) / len(items), abstract_items
 
 
 # ---------------------------------------------------------------------------
@@ -821,7 +821,7 @@ def accumulation_resumante(phrase: str) -> tuple[float, list[str]]:
 # vingt mots » le laissait passer, et c'est ce qui m'a fait conclure « aucun
 # doublon dans S6-3 » au premier balayage — le filtre était le bug, pas la
 # mesure.
-REDITE_SEUIL = 0.50
+REPEAT_THRESHOLD = 0.50
 
 # ⚠ LE RATIO SEUL NE SUFFIT PAS — trouvé en falsifiant l'assemblage complet.
 #
@@ -842,7 +842,7 @@ REDITE_SEUIL = 0.50
 #   deux phrases courtes distinctes   ratio 0,67   bloc  6 car.
 #
 # Les deux conditions ensemble, donc. Ni l'une ni l'autre ne tient seule.
-REDITE_BLOC_MIN = 30
+REPEAT_BLOCK_MIN = 30
 
 
 # CE QUE LE CODE COMPOSE N'EST JAMAIS UNE REDITE.
@@ -861,7 +861,7 @@ REDITE_BLOC_MIN = 30
 # Un paragraphe composé par le code se répète parce que c'est sa fonction. La
 # règle n'est donc pas un seuil plus fin : c'est que le détecteur ne juge que ce
 # que le MODÈLE a écrit. Le code sait ce qu'il a posé — il n'a pas à le deviner.
-def _est_protege(para: str, proteges: tuple[str, ...] = ()) -> bool:
+def _is_protected(para: str, protected: tuple[str, ...] = ()) -> bool:
     """Ce paragraphe a-t-il été composé par le code ?
 
     Reconnu SANS rien savoir du run, pour que la grille — qui ne lit que des
@@ -873,16 +873,16 @@ def _est_protege(para: str, proteges: tuple[str, ...] = ()) -> bool:
     `proteges` complète avec ce que l'appelant sait en plus.
     """
     para = para.strip()
-    if ENTETE_ENTREE.match(para) or SUSPENSION.search(para):
+    if ENTRY_HEADER.match(para) or SUSPENSION.search(para):
         return True
     if re.fullmatch(r"[«\"“].{10,}[»\"”]", para, re.DOTALL):
         return True
     return any(p.strip() and (p.strip() in para or para in p.strip())
-               for p in proteges)
+               for p in protected)
 
 
-def paragraphes_redits(texte: str, seuil: float = REDITE_SEUIL,
-                       proteges: tuple[str, ...] = ()
+def repeated_paragraphs(text: str, threshold: float = REPEAT_THRESHOLD,
+                       protected: tuple[str, ...] = ()
                        ) -> list[tuple[int, int, float, str]]:
     """Paires de paragraphes qui racontent la même chose. (i, j, ratio, extrait).
 
@@ -892,27 +892,27 @@ def paragraphes_redits(texte: str, seuil: float = REDITE_SEUIL,
     `proteges` : les fragments composés par le code (ancre, gestes). Les
     en-têtes sont reconnus tout seuls.
     """
-    paras = [p.strip() for p in texte.split("\n\n") if p.strip()]
+    paras = [p.strip() for p in text.split("\n\n") if p.strip()]
     out = []
     for i in range(len(paras)):
-        if _est_protege(paras[i], proteges):
+        if _is_protected(paras[i], protected):
             continue
         for j in range(i + 1, len(paras)):
-            if _est_protege(paras[j], proteges):
+            if _is_protected(paras[j], protected):
                 continue
             m = difflib.SequenceMatcher(None, paras[i], paras[j])
             r = m.ratio()
-            if r < seuil:
+            if r < threshold:
                 continue
-            bloc = m.find_longest_match(0, len(paras[i]), 0, len(paras[j])).size
-            if bloc < REDITE_BLOC_MIN:
+            block = m.find_longest_match(0, len(paras[i]), 0, len(paras[j])).size
+            if block < REPEAT_BLOCK_MIN:
                 continue
             out.append((i, j, round(r, 2), paras[j][:90]))
     return out
 
 
-def phrases_redites(texte: str,
-                    proteges: tuple[str, ...] = ()) -> list[tuple[int, int, str]]:
+def repeated_sentences(text: str,
+                    protected: tuple[str, ...] = ()) -> list[tuple[int, int, str]]:
     """Phrases entières reprises d'un paragraphe à l'autre. (¶i, ¶j, phrase).
 
     Défaut plus net que la redite de paragraphe, et distinct : les ¶2 et ¶3 de
@@ -923,20 +923,20 @@ def phrases_redites(texte: str,
     Les phrases courtes sont écartées : « Rien. » ou « Deux. » peuvent revenir
     sans être une redite — c'est même une figure du style.
     """
-    paras = [p.strip() for p in texte.split("\n\n") if p.strip()]
-    vues: dict[str, int] = {}
+    paras = [p.strip() for p in text.split("\n\n") if p.strip()]
+    seen_counts: dict[str, int] = {}
     out = []
     for i, p in enumerate(paras):
-        if _est_protege(p, proteges):
+        if _is_protected(p, protected):
             continue
-        for ph in phrases(p):
-            cle = re.sub(r"\W+", " ", ph.lower()).strip()
-            if mots(ph) < 8:
+        for ph in sentences(p):
+            key = re.sub(r"\W+", " ", ph.lower()).strip()
+            if words(ph) < 8:
                 continue
-            if cle in vues and vues[cle] != i:
-                out.append((vues[cle], i, ph.strip()[:90]))
+            if key in seen_counts and seen_counts[key] != i:
+                out.append((seen_counts[key], i, ph.strip()[:90]))
             else:
-                vues.setdefault(cle, i)
+                seen_counts.setdefault(key, i)
     return out
 
 
@@ -948,14 +948,14 @@ def phrases_redites(texte: str,
 # Drapeau, pas échec : l'ancre et le verdict final sont légitimement cités, et
 # la falsification par le haut l'exige — un détecteur qui refuserait l'ancre
 # serait le quatrième de la série à viser ce qu'il doit protéger.
-CITATION = re.compile(r"[«\"“]([^«»\"”]{15,400})[»\"”]", re.DOTALL)
+QUOTATION = re.compile(r"[«\"“]([^«»\"”]{15,400})[»\"”]", re.DOTALL)
 
 
-def citations_hors_ancre(texte: str, ancre: str = "",
+def quotations_outside_anchor(text: str, anchor: str = "",
                          verdict: str = "") -> list[str]:
     """Passages cités qui ne sont ni l'ancre servie ni le verdict rendu."""
-    noyau_ancre = re.sub(r"[«»\"“”]", "", ancre).strip().lower()
-    noyau_verdict = re.split(r"\s*\(", verdict or "")[0].strip().lower()
+    anchor_core = re.sub(r"[«»\"“”]", "", anchor).strip().lower()
+    verdict_core = re.split(r"\s*\(", verdict or "")[0].strip().lower()
     # L'ANCRE EST LA PREMIÈRE CITATION ISOLÉE DE CHAQUE ENTRÉE — une seule, en
     # tête, posée par le code et remise là par le tampon après réparation.
     #
@@ -963,28 +963,28 @@ def citations_hors_ancre(texte: str, ancre: str = "",
     # fabriquées de S7-3 sont elles aussi des paragraphes isolés, et exempter
     # par la forme seule les laissait passer toutes les deux. C'est le RANG qui
     # discrimine, parce que le code ne pose l'ancre qu'une fois et en premier.
-    seuls, entree_vue = set(), set()
+    only_ones, entry_seen = set(), set()
     e = 0
-    for b in texte.split("\n\n"):
-        if ENTETE_ENTREE.match(b.strip()):
+    for b in text.split("\n\n"):
+        if ENTRY_HEADER.match(b.strip()):
             e += 1
             continue
-        if re.fullmatch(r'\s*[«"“].{10,}[»"”]\s*', b, re.DOTALL) and e not in entree_vue:
-            entree_vue.add(e)
-            seuls.add(" ".join(b.split()).strip('«»"“” '))
+        if re.fullmatch(r'\s*[«"“].{10,}[»"”]\s*', b, re.DOTALL) and e not in entry_seen:
+            entry_seen.add(e)
+            only_ones.add(" ".join(b.split()).strip('«»"“” '))
     out = []
-    for m in CITATION.finditer(texte):
-        corps = " ".join(m.group(1).split())
-        bas = corps.lower()
-        if corps.strip("«»\"“” ") in seuls:
+    for m in QUOTATION.finditer(text):
+        body = " ".join(m.group(1).split())
+        lowered = body.lower()
+        if body.strip("«»\"“” ") in only_ones:
             continue
-        if noyau_ancre and (bas in noyau_ancre or noyau_ancre in bas
+        if anchor_core and (lowered in anchor_core or anchor_core in lowered
                             or difflib.SequenceMatcher(
-                                None, bas, noyau_ancre).ratio() > 0.75):
+                                None, lowered, anchor_core).ratio() > 0.75):
             continue
-        if noyau_verdict and noyau_verdict in bas:
+        if verdict_core and verdict_core in lowered:
             continue
-        out.append(corps[:100])
+        out.append(body[:100])
     return out
 
 
@@ -993,7 +993,7 @@ def citations_hors_ancre(texte: str, ancre: str = "",
 # sans qu'on sache que c'en était une. Une marque dans ce roman est pire qu'un
 # nom propre ordinaire : elle date le texte et le sort du monde clos de la
 # maison. On la nomme pour pouvoir la retirer.
-MARQUES = re.compile(
+MARKS = re.compile(
     r"\b(Bluetooth|Wi-?Fi|iPhone|iPad|Android|Spotify|Netflix|YouTube|"
     r"Google|Apple|Samsung|Facebook|Instagram|WhatsApp|Tupperware|Post-it|"
     r"Kleenex|Frigidaire|Thermos)\b", re.IGNORECASE)
@@ -1008,44 +1008,44 @@ MARQUES = re.compile(
 #
 # Le seuil est à 0,50 — les runs du chapitre 2, où la consigne décrivait
 # légitimement le sujet, plafonnaient à 0,37.
-RECOPIE_PROMPT_SEUIL = 0.50
+PROMPT_COPY_THRESHOLD = 0.50
 
 
-def recopie_du_prompt(texte: str, prompt: str,
-                      seuil: float = RECOPIE_PROMPT_SEUIL
+def prompt_copy(text: str, prompt: str,
+                      threshold: float = PROMPT_COPY_THRESHOLD
                       ) -> list[tuple[float, str]]:
     """Phrases du texte trop proches d'une ligne du prompt servi.
 
     Compare PHRASE À LIGNE : une consigne se recopie par bloc, et une moyenne
     sur les textes entiers la diluerait au point de la rendre invisible.
     """
-    lignes = [" ".join(l.split()) for l in prompt.splitlines()
+    lines = [" ".join(l.split()) for l in prompt.splitlines()
               if len(l.split()) >= 8]
     out = []
-    for ph in phrases(texte):
+    for ph in sentences(text):
         p = " ".join(ph.split())
         if len(p.split()) < 8:
             continue
-        meilleur = max((difflib.SequenceMatcher(None, p.lower(), l.lower()).ratio()
-                        for l in lignes), default=0.0)
-        if meilleur >= seuil:
-            out.append((round(meilleur, 2), p[:100]))
+        best = max((difflib.SequenceMatcher(None, p.lower(), l.lower()).ratio()
+                        for l in lines), default=0.0)
+        if best >= threshold:
+            out.append((round(best, 2), p[:100]))
     return out
 
 
-def entetes_coherents(entetes: list[tuple[str, str]]) -> list[str]:
+def consistent_headers(headers: list[tuple[str, str]]) -> list[str]:
     """Séquence jour-de-semaine cohérente avec les numéros de jour.
 
     Deux en-têtes à un jour d'écart doivent avancer d'un jour de semaine. BC
     produisait « Vendredi 8 » puis « Jeudi 7 » : des dates qui reculent, dans un
     carnet tenu chaque soir.
     """
-    ordre = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi",
+    order = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi",
              "Dimanche"]
-    fautes = []
-    for (j1, n1), (j2, n2) in zip(entetes, entetes[1:]):
-        ecart_jour = (ordre.index(j2.capitalize()) - ordre.index(j1.capitalize())) % 7
-        ecart_num = int(n2) - int(n1)
+    faults = []
+    for (j1, n1), (j2, n2) in zip(headers, headers[1:]):
+        day_gap = (order.index(j2.capitalize()) - order.index(j1.capitalize())) % 7
+        number_gap = int(n2) - int(n1)
         # DEUX ENTRÉES LE MÊME JOUR sont légitimes (session 7). Le chapitre 7
         # en fait sa structure : l'après-midi et la nuit de l'anniversaire,
         # « Samedi 14. » deux fois, et c'est le SECOND en-tête qui porte la
@@ -1054,36 +1054,36 @@ def entetes_coherents(entetes: list[tuple[str, str]]) -> list[str]:
         #
         # Ce qui reste fautif : une date qui RECULE (B′C produisait
         # [8,7,7,7,7,9,10,7]), et un jour de semaine qui ne suit pas l'écart.
-        if ecart_num == 0 and j1.lower() == j2.lower():
+        if number_gap == 0 and j1.lower() == j2.lower():
             continue
-        if ecart_num < 0:
-            fautes.append(f"{j1} {n1} → {j2} {n2} : la date recule")
-        elif ecart_num == 0:
-            fautes.append(f"{j1} {n1} → {j2} {n2} : même date, jour différent")
-        elif ecart_num % 7 != ecart_jour:
-            fautes.append(f"{j1} {n1} → {j2} {n2} : le jour de semaine ne suit "
+        if number_gap < 0:
+            faults.append(f"{j1} {n1} → {j2} {n2} : la date recule")
+        elif number_gap == 0:
+            faults.append(f"{j1} {n1} → {j2} {n2} : même date, jour différent")
+        elif number_gap % 7 != day_gap:
+            faults.append(f"{j1} {n1} → {j2} {n2} : le jour de semaine ne suit "
                           f"pas l'écart de dates")
-    return fautes
+    return faults
 
 
-def entrees(texte: str) -> list[str]:
+def entries(text: str) -> list[str]:
     """Découpe le texte en entrées de journal, sur les en-têtes datés.
 
     Rend `[texte]` si aucun en-tête n'est trouvé : un chapitre à une seule
     entrée non datée reste une entrée, et rendre une liste vide ferait passer
     tous les contrôles par entrée pour « rien à vérifier ».
     """
-    marques = [m.start() for m in ENTETE_ENTREE.finditer(texte)]
-    if not marques:
-        return [texte]
-    if marques[0] > 0:
-        marques.insert(0, 0)          # matière avant la première date
-    bornes = marques + [len(texte)]
-    out = [texte[a:b].strip() for a, b in zip(bornes, bornes[1:])]
-    return [e for e in out if e] or [texte]
+    marks = [m.start() for m in ENTRY_HEADER.finditer(text)]
+    if not marks:
+        return [text]
+    if marks[0] > 0:
+        marks.insert(0, 0)          # matière avant la première date
+    bounds = marks + [len(text)]
+    out = [text[a:b].strip() for a, b in zip(bounds, bounds[1:])]
+    return [e for e in out if e] or [text]
 
 
-def hors_guillemets(texte: str) -> str:
+def outside_quotes(text: str) -> str:
     """Retire le contenu cité, en gardant la longueur (donc les positions).
 
     Les lints de VOIX (tics d'IA, physiologie, état mental nommé, glissement)
@@ -1097,13 +1097,13 @@ def hors_guillemets(texte: str) -> str:
     les deux couches lisent le même découpage, aux mêmes positions.
     """
     return re.sub(r"«[^»]*»|“[^”]*”",
-                  lambda m: " " * len(m.group(0)), texte)
+                  lambda m: " " * len(m.group(0)), text)
 
 
-def dans_guillemets(texte: str) -> list[str]:
+def in_quotes(text: str) -> list[str]:
     """Les passages cités, pour ce qui doit s'y appliquer quand même."""
     return [m.group(0) for m in
-            re.finditer(r"«[^»]*»|“[^”]*”", texte)]
+            re.finditer(r"«[^»]*»|“[^”]*”", text)]
 
 
 # --- §3 et §4 : contraintes scopées par chapitre ------------------------------
@@ -1114,70 +1114,70 @@ def dans_guillemets(texte: str) -> list[str]:
 # raconte rien, il compare. C'est exactement la dissymétrie qu'on veut : la
 # machine qui juge en sait plus que la machine qui écrit.
 
-TABLE_PILOTAGE = str(BIBLE_DIR / "profond" / "chronologie-partie-double.md")
+PILOT_TABLE = str(BIBLE_DIR / "profond" / "chronologie-partie-double.md")
 
 # Réservés jusqu'au chapitre 9, 10, 11 respectivement : lintés en ABSENCE sur
 # les chapitres 1 à 8 (notes d'outillage §3).
-TERMES_RESERVES = ("la tierce", "l'errata", "le bon à tirer")
+RESERVED_TERMS = ("la tierce", "l'errata", "le bon à tirer")
 
 # Le quatuor du chapitre 7 : interdit partout ailleurs (notes d'outillage §4).
-QUATUOR = ("photos", "playlist", "plat des anniversaires", "couverts")
+QUARTET = ("photos", "playlist", "plat des anniversaires", "couverts")
 
 
-def contraintes_chapitre(n: int, table: str = TABLE_PILOTAGE) -> dict:
+def chapter_constraints(n: int, table: str = PILOT_TABLE) -> dict:
     """Verdict imposé et interdits scopés d'un chapitre, lus dans la table."""
-    verdict, objets = "", ""
+    verdict, objects = "", ""
     p = Path(table)
     if p.is_file():
-        for ligne in p.read_text(encoding="utf-8").splitlines():
-            cells = [c.strip() for c in ligne.split("|")]
+        for line in p.read_text(encoding="utf-8").splitlines():
+            cells = [c.strip() for c in line.split("|")]
             if len(cells) > 11 and cells[1] == str(n):
-                verdict, objets = cells[5], cells[10]
+                verdict, objects = cells[5], cells[10]
                 break
     return {
-        "chapitre": n,
+        "chapter": n,
         "verdict": verdict,
-        "objets_actifs": objets,
+        "active_objects": objects,
         # Le verdict « aucun » du chapitre 1 n'est pas un verdict à trouver.
         "verdict_attendu": verdict and not verdict.startswith("aucun")
                            and "hors échelle" not in verdict,
-        "reserves": TERMES_RESERVES if 1 <= n <= 8 else (),
+        "reserves": RESERVED_TERMS if 1 <= n <= 8 else (),
         "quatuor_interdit": n != 7,
     }
 
 
-def controles_chapitre(texte: str, c: dict) -> dict:
+def chapter_checks(text: str, c: dict) -> dict:
     """Applique les contraintes d'un chapitre. Rend les manquements."""
-    t = normalise(texte)
+    t = normalize(text)
     out: dict[str, list[str]] = {"reserves": [], "quatuor": [], "verdict": [],
                                  # Session 6 : le décor générique, scopé lui
                                  # aussi (les mémos téléphoniques deviennent
                                  # légitimes au chapitre 5).
-                                 "materiels": interdits_materiels(
-                                     t, c["chapitre"])}
+                                 "materiels": material_forbidden(
+                                     t, c["chapter"])}
 
-    for terme in c["reserves"]:
-        for m in re.finditer(re.escape(normalise(terme)), t, re.I):
+    for term in c["reserves"]:
+        for m in re.finditer(re.escape(normalize(term)), t, re.I):
             a, b = max(0, m.start() - 40), min(len(t), m.end() + 40)
-            out["reserves"].append(f"{terme} — …{t[a:b]}…".replace("\n", " "))
+            out["reserves"].append(f"{term} — …{t[a:b]}…".replace("\n", " "))
 
     if c["quatuor_interdit"]:
-        for terme in QUATUOR:
-            for m in re.finditer(rf"\b{re.escape(terme)}\b", t, re.I):
+        for term in QUARTET:
+            for m in re.finditer(rf"\b{re.escape(term)}\b", t, re.I):
                 a, b = max(0, m.start() - 40), min(len(t), m.end() + 40)
-                out["quatuor"].append(f"{terme} — …{t[a:b]}…".replace("\n", " "))
+                out["quatuor"].append(f"{term} — …{t[a:b]}…".replace("\n", " "))
 
     # §3 : le verdict se linte EN PRÉSENCE — il doit apparaître. Les autres
     # termes du lexique ne se lintent jamais en absence : la dérive synonymique
     # est tolérée, et même souhaitable à faible dose.
     if c["verdict_attendu"]:
-        noyau = re.split(r"\s*\(", c["verdict"])[0].strip()
-        if noyau and not re.search(re.escape(normalise(noyau)), t, re.I):
-            out["verdict"].append(f"verdict « {noyau} » ABSENT du texte")
+        core = re.split(r"\s*\(", c["verdict"])[0].strip()
+        if core and not re.search(re.escape(normalize(core)), t, re.I):
+            out["verdict"].append(f"verdict « {core} » ABSENT du texte")
     return out
 
 
-def _lexique_fuite(chemin: str = str(DATA_DIR / "lexique-fuite.txt")) -> list[str]:
+def _leak_lexicon(path: str = str(DATA_DIR / "lexique-fuite.txt")) -> list[str]:
     """Champ lexical interdit, lu sur disque.
 
     Volontairement HORS du code et hors de `bible/` : ces mots ne doivent jamais
@@ -1185,7 +1185,7 @@ def _lexique_fuite(chemin: str = str(DATA_DIR / "lexique-fuite.txt")) -> list[st
     contamineraient le contexte du modèle par le retrieval même censé le
     cadrer.
     """
-    p = Path(chemin)
+    p = Path(path)
     if not p.is_file():
         return []
     return [l.strip() for l in p.read_text(encoding="utf-8").splitlines()
@@ -1197,43 +1197,43 @@ def _lexique_fuite(chemin: str = str(DATA_DIR / "lexique-fuite.txt")) -> list[st
 # run 3 de la session 3 a été mis en échec sur « qu'elle ne glisse et ne tombe
 # par terre » — un faux positif sur un homographe, exactement ce qu'un lint
 # binaire ne doit pas coûter (notes d'outillage §5).
-FUITE_AMBIGUE = {"disparue", "disparu", "tombe", "tombes"}
+AMBIGUOUS_LEAK = {"disparue", "disparu", "tombe", "tombes"}
 
 
-def fuite_lexicale(texte: str) -> tuple[list[str], list[str]]:
+def lexical_leak(text: str) -> tuple[list[str], list[str]]:
     """(matches bloquants, matches ambigus) du champ lexical interdit."""
-    mots_interdits = _lexique_fuite()
-    if not mots_interdits:
+    forbidden_words = _leak_lexicon()
+    if not forbidden_words:
         return [], []
     # Le PLURIEL compte autant que le singulier — et il échappait à tout :
     # « feuilles mortes » dans BpC n'a pas été vu, alors que le brief appelle ce
     # lint « le firewall rendu vérifiable par grep ». Un firewall qui ne voit
     # pas les pluriels affiche vert sur des textes qu'il devrait bloquer, et
     # c'était le cas de toutes les sessions précédentes.
-    motif = re.compile(r"\b(" + "|".join(re.escape(m) for m in mots_interdits)
+    pattern = re.compile(r"\b(" + "|".join(re.escape(m) for m in forbidden_words)
                        + r")s?\b", re.IGNORECASE)
-    durs, ambigus = [], []
-    for m in motif.finditer(texte):
+    hard_ones, ambiguous = [], []
+    for m in pattern.finditer(text):
         # Le CONTEXTE est rendu avec le mot, pas seulement le mot. Plusieurs
         # entrées de la liste sont des homographes (« tombe » est aussi le
         # verbe tomber, « cendres » vaut au figuré) : sans l'extrait, un match
         # se lit comme une fuite avérée alors qu'il faut lire la phrase pour
         # trancher.
-        a, b = max(0, m.start() - 45), min(len(texte), m.end() + 45)
-        occ = f"{m.group(0).lower()} — …{texte[a:b]}…".replace("\n", " ")
-        (ambigus if m.group(0).lower() in FUITE_AMBIGUE else durs).append(occ)
-    return durs, ambigus
+        a, b = max(0, m.start() - 45), min(len(text), m.end() + 45)
+        occ = f"{m.group(0).lower()} — …{text[a:b]}…".replace("\n", " ")
+        (ambiguous if m.group(0).lower() in AMBIGUOUS_LEAK else hard_ones).append(occ)
+    return hard_ones, ambiguous
 
 
-def noms_propres(texte: str) -> list[str]:
+def proper_nouns(text: str) -> list[str]:
     """Candidats noms propres : majuscule qui n'ouvre ni phrase ni ligne."""
-    out, vus = [], set()
-    for m in MAJUSCULE.finditer(texte):
-        mot = m.group(1)
-        if mot in L1_EXCEPTIONS or mot.rstrip("'’") in L1_EXCEPTIONS:
+    out, seen_map = [], set()
+    for m in UPPERCASE.finditer(text):
+        word = m.group(1)
+        if word in L1_EXCEPTIONS or word.rstrip("'’") in L1_EXCEPTIONS:
             continue
-        avant = texte[:m.start()].rstrip()
-        if not avant:                              # tout début du texte
+        before = text[:m.start()].rstrip()
+        if not before:                              # tout début du texte
             continue
         # Ouverture de phrase, de citation — ou de CROCHET. Le crochet est là
         # parce que nemo produit des didascalies (« [Dans la cuisine] ») dont
@@ -1245,15 +1245,15 @@ def noms_propres(texte: str) -> list[str]:
         # vide » faisait sortir « La » en nom propre. Ce n'est pas cosmétique —
         # l'interdit L1 est à zéro toléré, donc chaque faux positif noie la
         # seule occurrence qui compte (ici, un prénom réellement écrit).
-        if avant[-1] in ".!?…:«»\"'—-–[(“":
+        if before[-1] in ".!?…:«»\"'—-–[(“":
             continue
-        if texte[:m.start()].rstrip(" \t").endswith("\n"):   # début de ligne
+        if text[:m.start()].rstrip(" \t").endswith("\n"):   # début de ligne
             continue
-        if mot.lower() in vus:
+        if word.lower() in seen_map:
             continue
-        vus.add(mot.lower())
-        a, b = max(0, m.start() - 35), min(len(texte), m.end() + 35)
-        out.append(f"{mot} — …{texte[a:b]}…".replace("\n", " "))
+        seen_map.add(word.lower())
+        a, b = max(0, m.start() - 35), min(len(text), m.end() + 35)
+        out.append(f"{word} — …{text[a:b]}…".replace("\n", " "))
     return out
 
 
@@ -1269,12 +1269,12 @@ def noms_propres(texte: str) -> list[str]:
 # L4 aurait donc affiché trois croix sur le geste enfin correct, et on en aurait
 # conclu que le glissement ne marchait toujours pas — après trois sessions à
 # chercher pourquoi.
-PIVOT_OUVERT = re.compile(
+OPEN_PIVOT = re.compile(
     r"\b(ce qui|ce que|ce qu'|pourquoi|comment|où|quand|si je|si elle|"
     r"le jour|qui a|quelle|lequel)\b", re.IGNORECASE)
 
 
-def glissements(entree: str) -> tuple[int, list[str]]:
+def drifts(entry: str) -> tuple[int, list[str]]:
     """(nombre d'occurrences, occurrences NON CONFORMES) pour une entrée.
 
     Une occurrence est conforme si, à moins de L4_FENETRE_MOTS mots, on trouve
@@ -1284,159 +1284,159 @@ def glissements(entree: str) -> tuple[int, list[str]]:
     départ ou s'arrêter juste avant, et que la seconde forme est la plus
     caractéristique.
     """
-    occurrences = list(SUSPENSION.finditer(entree))
-    hors_champ = []
+    occurrences = list(SUSPENSION.finditer(entry))
+    out_of_field = []
     for m in occurrences:
-        jetons_avant = entree[:m.start()].split()[-L4_FENETRE_MOTS:]
-        jetons_apres = entree[m.end():].split()[:L4_FENETRE_MOTS]
-        fenetre = " ".join(jetons_avant + jetons_apres)
+        tokens_before = entry[:m.start()].split()[-L4_WORD_WINDOW:]
+        tokens_after = entry[m.end():].split()[:L4_WORD_WINDOW]
+        window = " ".join(tokens_before + tokens_after)
         # Le pivot se cherche AVANT la coupe seulement : après, la phrase est
         # revenue au matériel, et un « où » qui suit ne dit rien du geste.
-        avant = " ".join(jetons_avant)
-        if not (CHAMP_DEPART.search(fenetre) or PIVOT_OUVERT.search(avant)):
-            a, b = max(0, m.start() - 60), min(len(entree), m.end() + 60)
-            hors_champ.append(f"…{entree[a:b]}…".replace("\n", " "))
-    return len(occurrences), hors_champ
+        before = " ".join(tokens_before)
+        if not (DEPARTURE_FIELD.search(window) or OPEN_PIVOT.search(before)):
+            a, b = max(0, m.start() - 60), min(len(entry), m.end() + 60)
+            out_of_field.append(f"…{entry[a:b]}…".replace("\n", " "))
+    return len(occurrences), out_of_field
 
 
-def accumulations_l3(entree: str) -> list[str]:
+def accumulations_l3(entry: str) -> list[str]:
     """Accumulations au sens de la fiche v3 : ≥60 mots, ≥6 virgules, sans point
     ni point-virgule interne. Le découpage en phrases garantit déjà l'absence de
     point ; le point-virgule, lui, doit être vérifié à la main."""
-    return [p for p in phrases(entree)
-            if mots(p) >= L3_MOTS and p.count(",") >= L3_VIRGULES
+    return [p for p in sentences(entry)
+            if words(p) >= L3_WORDS and p.count(",") >= L3_COMMAS
             and ";" not in p]
 
 
-def _extraits(motif: re.Pattern, texte: str, *, marge: int = 40) -> list[str]:
+def _excerpts(pattern: re.Pattern, text: str, *, margin: int = 40) -> list[str]:
     """Occurrences avec leur contexte, dédupliquées, pour justifier une croix."""
-    vus, out = set(), []
-    for m in motif.finditer(texte):
-        cle = m.group(0).lower()
-        if cle in vus:
+    seen_map, out = set(), []
+    for m in pattern.finditer(text):
+        key = m.group(0).lower()
+        if key in seen_map:
             continue
-        vus.add(cle)
-        a, b = max(0, m.start() - marge), min(len(texte), m.end() + marge)
-        bout = texte[a:b].replace("\n", " ")
-        out.append(f"…{bout}…" if a > 0 or b < len(texte) else bout)
+        seen_map.add(key)
+        a, b = max(0, m.start() - margin), min(len(text), m.end() + margin)
+        piece = text[a:b].replace("\n", " ")
+        out.append(f"…{piece}…" if a > 0 or b < len(text) else piece)
     return out
 
 
 # --- Analyse -----------------------------------------------------------------
 
-def analyse(texte_brut: str) -> dict:
+def analyze(raw_text: str) -> dict:
     """Rend les lignes de grille décidables mécaniquement, avec leurs preuves."""
-    texte = normalise(strip_frontmatter(texte_brut))
-    paras = paragraphes(texte)
-    toutes = phrases(texte)
+    text = normalize(strip_frontmatter(raw_text))
+    paras = paragraphs(text)
+    all_sentences = sentences(text)
 
     # --- Structure : accumulation ---
-    brutes = [
-        p for p in toutes
-        if p.count(",") >= ACC_VIRGULES and mots(p) >= ACC_MOTS
+    raw_items = [
+        p for p in all_sentences
+        if p.count(",") >= ACC_COMMAS and words(p) >= ACC_WORDS
     ]
     # Une accumulation recopiée de l'étalon N'EN EST PAS UNE : elle porte les
     # objets de l'exemple (des clés, une coupelle) dans une scène qui parle
     # d'autre chose. Elle est retirée du compte et signalée à part.
-    plagiats = [(p, recopie_etalon(p)) for p in brutes]
-    accumulations = [p for p, r in plagiats if r == 0.0]
-    recopies = [(p, r) for p, r in plagiats if r > 0.0]
+    plagiarisms = [(p, reference_copy(p)) for p in raw_items]
+    accumulations = [p for p, r in plagiarisms if r == 0.0]
+    copies = [(p, r) for p, r in plagiarisms if r > 0.0]
 
     # --- Structure : couperets (3-6 mots), et ceux en FIN de paragraphe ---
-    couperets, couperets_fin = [], []
+    cleavers, closing_cleavers = [], []
     for para in paras:
-        ph = phrases(para)
+        ph = sentences(para)
         for i, p in enumerate(ph):
-            if COUPERET_MIN <= mots(p) <= COUPERET_MAX:
-                couperets.append(p)
+            if CLEAVER_MIN <= words(p) <= CLEAVER_MAX:
+                cleavers.append(p)
                 if i == len(ph) - 1:
-                    couperets_fin.append(p)
+                    closing_cleavers.append(p)
 
     # --- Passé simple : trois détecteurs, tous rendus en CANDIDATS ---
     def _participe(m: re.Match) -> bool:
         """Vrai si l'occurrence est un participe passé, pas un passé simple."""
-        if m.group(0).lower() not in PS_PARTICIPES_AMBIGUS:
+        if m.group(0).lower() not in PS_AMBIGUOUS_PARTICIPLES:
             return False
-        return bool(AUXILIAIRE.search(texte[max(0, m.start() - 30):m.start()]))
+        return bool(AUXILIARY.search(text[max(0, m.start() - 30):m.start()]))
 
     ps = []
-    ps += [m.group(0) for m in PS_IRREGULIERS.finditer(texte)
+    ps += [m.group(0) for m in PS_IRREGULARS.finditer(text)
            if not _participe(m)]
-    ps += [m.group(0) for m in PS_ERENT.finditer(texte)]
-    ps += [m.group(0) for m in PS_IRENT_URENT.finditer(texte)
-           if m.group(0).lower() not in PS_HOMONYMES_PRESENT]
-    ps += [m.group(1) for m in PS_ANCRE.finditer(texte)]
-    ps += [m.group(1) for m in PS_PREMIERE_PERSONNE.finditer(texte)]
-    ps += [m.group(1) for m in PS_NOM_PROPRE.finditer(texte)]
+    ps += [m.group(0) for m in PS_ERENT.finditer(text)]
+    ps += [m.group(0) for m in PS_IRENT_URENT.finditer(text)
+           if m.group(0).lower() not in PS_PRESENT_HOMONYMS]
+    ps += [m.group(1) for m in PS_ANCHOR.finditer(text)]
+    ps += [m.group(1) for m in PS_FIRST_PERSON.finditer(text)]
+    ps += [m.group(1) for m in PS_PROPER_NOUN.finditer(text)]
     ps_uniques = sorted({p.lower() for p in ps})
 
-    hors_dialogue = sans_dialogue(texte)
+    outside_dialogue = without_dialogue(text)
     # Couche VOIX : hors citations (§7). Le cité porte la voix du cahier.
-    voix = hors_guillemets(texte)
+    voice = outside_quotes(text)
 
     # --- Contrôles L1-L4 (protocole ch. 2), comptés PAR ENTRÉE quand la règle
     # le demande (D1 : l'unité de compte est l'entrée de journal, pas la scène).
-    liste_entrees = entrees(texte)
-    l1 = noms_propres(texte)
-    l2_durs, l2_ambigus = fuite_lexicale(texte)
-    l3_par_entree = [accumulations_l3(e) for e in liste_entrees]
-    l4_par_entree = [glissements(e) for e in liste_entrees]
+    list_entries = entries(text)
+    l1 = proper_nouns(text)
+    l2_hard, l2_ambiguous = lexical_leak(text)
+    l3_per_entry = [accumulations_l3(e) for e in list_entries]
+    l4_per_entry = [drifts(e) for e in list_entries]
     # Recopie de l'étalon : elle disqualifie une accumulation L3 comme elle
     # disqualifie une accumulation ordinaire.
-    l3_recopies = [[p for p in acc if recopie_etalon(p)] for acc in l3_par_entree]
-    l3_propres = [[p for p in acc if not recopie_etalon(p)]
-                  for acc in l3_par_entree]
+    l3_copies = [[p for p in acc if reference_copy(p)] for acc in l3_per_entry]
+    l3_clean = [[p for p in acc if not reference_copy(p)]
+                  for acc in l3_per_entry]
 
     # delint() en LECTURE SEULE : on jette le texte corrigé, on ne garde que
     # les avertissements. Mesurer le modèle, pas le post-filtre.
-    _, avert_delint = delint(texte)
+    _, delint_warnings = delint(text)
 
     return {
-        "mots": mots(texte),
+        "mots": words(text),
         "paragraphes": len(paras),
-        "phrases": len(toutes),
+        "phrases": len(all_sentences),
         # EXACT — échec si présent
         # Couche VOIX — hors citations (§7).
-        "pastiche": _extraits(PASTICHE, voix),
-        "tics_ia": _extraits(TICS_IA, voix),
-        "exclamation_hors_dialogue": _extraits(
-            re.compile(r"[^\s]{0,30}!"), hors_dialogue),
-        "incise_adverbiale": (_extraits(INCISE_ADVERBIALE, texte)
-                              + _extraits(INCISE_PREPOSITIONNELLE, texte)),
-        "elision": _extraits(ELISION_MANQUANTE, texte),
+        "pastiche": _excerpts(PASTICHE, voice),
+        "tics_ia": _excerpts(AI_TICS, voice),
+        "exclamation_hors_dialogue": _excerpts(
+            re.compile(r"[^\s]{0,30}!"), outside_dialogue),
+        "incise_adverbiale": (_excerpts(ADVERBIAL_INCISE, text)
+                              + _excerpts(PREPOSITIONAL_INCISE, text)),
+        "elision": _excerpts(MISSING_ELISION, text),
         # EXACT — échec si absent
         "accumulations": accumulations,
-        "accumulations_recopiees": recopies,
-        "couperets_fin_para": couperets_fin,
-        "couperets_tous": couperets,
-        "precision": sorted({m.group(0) for m in PRECISION.finditer(texte)}),
+        "accumulations_recopiees": copies,
+        "couperets_fin_para": closing_cleavers,
+        "couperets_tous": cleavers,
+        "precision": sorted({m.group(0) for m in PRECISION.finditer(text)}),
         # CANDIDAT
         "passe_simple": ps_uniques,
         # Défauts nemo connus, hors grille du protocole
-        "delint": avert_delint,
+        "delint": delint_warnings,
         # --- L1-L4 (session 3) ---
-        "entrees": len(liste_entrees),
+        "entrees": len(list_entries),
         "l1_noms_propres": l1,
-        "l2_fuite": l2_durs,
-        "l2_fuite_ambigue": l2_ambigus,
-        "l3_par_entree": l3_propres,
-        "l3_recopies": l3_recopies,
-        "l4_par_entree": l4_par_entree,
+        "l2_fuite": l2_hard,
+        "l2_fuite_ambigue": l2_ambiguous,
+        "l3_par_entree": l3_clean,
+        "l3_recopies": l3_copies,
+        "l4_par_entree": l4_per_entry,
         # --- session 5, item 7 ---
-        "meta_termes": _extraits(META_TERMES, voix),
-        "formulaire": _extraits(FORMULAIRE, voix),
-        "attracteurs": _extraits(ATTRACTEURS, texte),
-        "je_decide_par_entree": [len(JE_DECIDE.findall(e))
-                                 for e in liste_entrees],
-        "couples_m3": couples_decision_execution(texte),
-        "entetes_incoherents": entetes_coherents(
-            ENTETE_ENTREE.findall(texte)),
+        "meta_termes": _excerpts(META_TERMS, voice),
+        "formulaire": _excerpts(FORM, voice),
+        "attracteurs": _excerpts(ATTRACTORS, text),
+        "je_decide_par_entree": [len(I_DECIDE.findall(e))
+                                 for e in list_entries],
+        "couples_m3": decision_execution_pairs(text),
+        "entetes_incoherents": consistent_headers(
+            ENTRY_HEADER.findall(text)),
         # --- Session 6 -----------------------------------------------------
         # Les instances descendues de la fiche servie vers l'outillage : elles
         # ne sont plus montrées au modèle, elles sont vérifiées en sortie.
-        "marques": _extraits(MARQUES, texte),
+        "marques": _excerpts(MARKS, text),
         "etats_mentaux": sorted({(m.group(1) or m.group(2)).lower()
-                                 for m in ETATS_MENTAUX.finditer(voix)}),
+                                 for m in MENTAL_STATES.finditer(voice)}),
         # L'accumulation qui se résume. On rend le RATIO et non un booléen : le
         # seuil est un arbitrage (0,20), et une ligne de grille qui cache la
         # mesure derrière son seuil interdit de le rediscuter avec des chiffres.
@@ -1445,46 +1445,46 @@ def analyse(texte_brut: str) -> dict:
         # LA REDITE (session 7). `_recoller` attrape la recopie ; ceci attrape
         # la re-narration — S6-3 range les deux assiettes deux fois, en d'autres
         # mots, et ses ¶2/¶3 partagent deux phrases entières.
-        "paragraphes_redits": paragraphes_redits(texte),
+        "paragraphes_redits": repeated_paragraphs(text),
         # Citations fabriquées : l'ancre et le verdict sont exemptés par
         # l'appelant, qui seul les connaît. Sans eux, tout passage cité compte —
         # la grille les fournit.
-        "citations": citations_hors_ancre(texte),
-        "accumulations_3p": [a for a in accumulations_l3(texte)
-                             if not accumulation_a_la_premiere(a)[0]],
-        "phrases_redites": phrases_redites(texte),
+        "citations": quotations_outside_anchor(text),
+        "accumulations_3p": [a for a in accumulations_l3(text)
+                             if not accumulation_at_first_person(a)[0]],
+        "phrases_redites": repeated_sentences(text),
         "accumulations_abstraction": [
-            accumulation_resumante(a)[0]
-            for a in accumulations_l3(texte)],
+            summarizing_accumulation(a)[0]
+            for a in accumulations_l3(text)],
     }
 
 
 # --- Rapport -----------------------------------------------------------------
 
-def _marque(present: bool) -> str:
+def _mark(present: bool) -> str:
     """✗ = défaut, ✓ = tenu."""
     return "✗" if present else "✓"
 
 
-def rapport(res: dict, titre: str = "") -> str:
+def report(res: dict, title: str = "") -> str:
     l = []
-    if titre:
-        l.append(f"### {titre}")
-    cible = "OK" if 400 <= res["mots"] <= 550 else "HORS CIBLE"
-    l.append(f"{res['mots']} mots [{cible}] · {res['paragraphes']} paragraphes "
+    if title:
+        l.append(f"### {title}")
+    target = "OK" if 400 <= res["mots"] <= 550 else "HORS CIBLE"
+    l.append(f"{res['mots']} mots [{target}] · {res['paragraphes']} paragraphes "
              f"· {res['phrases']} phrases")
     l.append("")
 
     l.append("**Mécanique — EXACT (✗ = défaut présent)**")
-    for cle, libelle in [
+    for key, label in [
         ("pastiche", "Lexique pastiche gothique"),
         ("tics_ia", "Tic d'IA"),
         ("exclamation_hors_dialogue", "Point d'exclamation hors dialogue"),
         ("incise_adverbiale", "Incise adverbiale (ou son équivalent prépositionnel)"),
         ("elision", "Élision manquante"),
     ]:
-        occ = res[cle]
-        l.append(f"- {_marque(bool(occ))} {libelle}"
+        occ = res[key]
+        l.append(f"- {_mark(bool(occ))} {label}"
                  + (f" → {len(occ)}" if occ else ""))
         for e in occ[:3]:
             l.append(f"    - `{e}`")
@@ -1492,20 +1492,20 @@ def rapport(res: dict, titre: str = "") -> str:
     l.append("")
     l.append("**Structure — EXACT (✗ = attendu absent)**")
     n_acc = len(res["accumulations"])
-    etat_acc = "✓" if n_acc == 1 else "✗"
+    acc_state = "✓" if n_acc == 1 else "✗"
     detail = {0: "zéro = plat", 1: "exactement une"}.get(n_acc, f"{n_acc} = tic")
-    l.append(f"- {etat_acc} Phrase d'accumulation : {detail}")
+    l.append(f"- {acc_state} Phrase d'accumulation : {detail}")
     for a in res["accumulations"]:
         l.append(f"    - `{a[:120]}…`" if len(a) > 120 else f"    - `{a}`")
     for a, r in res.get("accumulations_recopiees", []):
         l.append(f"    - ⛔ **ÉTALON RECOPIÉ à {r:.0%}** (ne compte pas) : "
                  f"`{a[:90]}…`")
-    n_coup = len(res["couperets_fin_para"])
-    l.append(f"- {_marque(n_coup == 0)} Phrase-couperet en fin de paragraphe "
-             f"→ {n_coup} (dont {len(res['couperets_tous'])} couperets au total)")
+    n_cleavers = len(res["couperets_fin_para"])
+    l.append(f"- {_mark(n_cleavers == 0)} Phrase-couperet en fin de paragraphe "
+             f"→ {n_cleavers} (dont {len(res['couperets_tous'])} couperets au total)")
     for c in res["couperets_fin_para"][:3]:
         l.append(f"    - `{c}`")
-    l.append(f"- {_marque(not res['precision'])} Heure ou quantité exacte "
+    l.append(f"- {_mark(not res['precision'])} Heure ou quantité exacte "
              f"→ {len(res['precision'])}")
     if res["precision"]:
         l.append("    - " + ", ".join(f"`{p}`" for p in res["precision"][:6]))
@@ -1534,78 +1534,78 @@ def rapport(res: dict, titre: str = "") -> str:
 
 # --- Auto-test sur les étalons de la fiche ------------------------------------
 
-def _etalons(fiche: Path) -> list[tuple[str, str]]:
+def _references(sheet: Path) -> list[tuple[str, str]]:
     """Extrait les blocs `> …` de la section `## Extraits étalons`."""
-    texte = fiche.read_text(encoding="utf-8")
-    section = re.search(r"^## Extraits étalons(.*)\Z", texte,
+    text = sheet.read_text(encoding="utf-8")
+    section = re.search(r"^## Extraits étalons(.*)\Z", text,
                         re.MULTILINE | re.DOTALL)
     if not section:
         return []
-    out, titre, bloc = [], None, []
-    for ligne in section.group(1).splitlines():
-        entete = re.match(r"^\*\*(Étalon.*?)\*\*", ligne)
-        if entete:
-            if titre and bloc:
-                out.append((titre, "\n".join(bloc).strip()))
-            titre, bloc = entete.group(1), []
-        elif ligne.startswith(">"):
-            bloc.append(ligne.lstrip("> ").rstrip())
-        elif not ligne.strip() and bloc:
-            bloc.append("")
-    if titre and bloc:
-        out.append((titre, "\n".join(bloc).strip()))
+    out, title, block = [], None, []
+    for line in section.group(1).splitlines():
+        header = re.match(r"^\*\*(Étalon.*?)\*\*", line)
+        if header:
+            if title and block:
+                out.append((title, "\n".join(block).strip()))
+            title, block = header.group(1), []
+        elif line.startswith(">"):
+            block.append(line.lstrip("> ").rstrip())
+        elif not line.strip() and block:
+            block.append("")
+    if title and block:
+        out.append((title, "\n".join(block).strip()))
     return out
 
 
-def autotest(fiche: Path) -> int:
+def autotest(sheet: Path) -> int:
     """Le test du test : un détecteur qui rate sa propre cible ne vaut rien.
 
     Les quatre étalons DÉFINISSENT le style. Ils doivent donc sortir propres sur
     les lignes exactes, et l'étalon 2 — qui existe pour montrer l'accumulation —
     doit être compté comme exactement une.
     """
-    etalons = _etalons(fiche)
-    if not etalons:
+    references = _references(sheet)
+    if not references:
         print("ERREUR : aucun étalon trouvé dans la fiche.", file=sys.stderr)
         return 1
 
-    echecs = []
-    for titre, texte in etalons:
-        r = analyse(texte)
-        print(f"\n{'=' * 70}\n{titre}\n{'=' * 70}")
-        print(rapport(r))
-        for cle, libelle in [("pastiche", "pastiche"), ("tics_ia", "tic d'IA"),
+    failures = []
+    for title, text in references:
+        r = analyze(text)
+        print(f"\n{'=' * 70}\n{title}\n{'=' * 70}")
+        print(report(r))
+        for key, label in [("pastiche", "pastiche"), ("tics_ia", "tic d'IA"),
                              ("incise_adverbiale", "incise adverbiale")]:
-            if r[cle]:
-                echecs.append(f"{titre} : {libelle} détecté à tort → {r[cle]}")
+            if r[key]:
+                failures.append(f"{title} : {label} détecté à tort → {r[key]}")
         if r["passe_simple"]:
-            echecs.append(f"{titre} : passé simple à tort → {r['passe_simple']}")
+            failures.append(f"{title} : passé simple à tort → {r['passe_simple']}")
         # On somme les accumulations et les « recopies » : ici la source EST
         # l'étalon, donc il est trivialement identique à lui-même. Ce qu'on
         # valide dans cet auto-test est le détecteur de FORME, pas celui de
         # plagiat — lequel se teste sur des runs, où la question a un sens.
-        attendu = 1 if titre.startswith("Étalon 2") else 0
-        trouve = len(r["accumulations"]) + len(r["accumulations_recopiees"])
-        if trouve != attendu:
-            echecs.append(f"{titre} : {trouve} accumulation(s), "
-                          f"attendu {attendu}")
+        expected = 1 if title.startswith("Étalon 2") else 0
+        found_item = len(r["accumulations"]) + len(r["accumulations_recopiees"])
+        if found_item != expected:
+            failures.append(f"{title} : {found_item} accumulation(s), "
+                          f"attendu {expected}")
         # --- Session 6 : les détecteurs descendus de la fiche vers l'outillage.
         # Les étalons DÉFINISSENT le style : tout ce qui mord ici est un faux
         # positif, et c'est cette clause qui a rattrapé le critère « propositions
         # verbales » du protocole — il rejetait l'accumulation de l'étalon 2.
-        for cle, libelle in [("etats_mentaux", "état mental en apposition"),
+        for key, label in [("etats_mentaux", "état mental en apposition"),
                              ("attracteurs", "attracteur")]:
-            if r[cle]:
-                echecs.append(f"{titre} : {libelle} détecté à tort → {r[cle]}")
+            if r[key]:
+                failures.append(f"{title} : {label} détecté à tort → {r[key]}")
         if r["couples_m3"]:
-            echecs.append(f"{titre} : couple décision-exécution à tort → "
+            failures.append(f"{title} : couple décision-exécution à tort → "
                           f"{r['couples_m3']}")
-        if interdits_materiels(normalise(texte), chapitre=2):
-            echecs.append(f"{titre} : interdit matériel détecté à tort → "
-                          f"{interdits_materiels(normalise(texte), 2)}")
+        if material_forbidden(normalize(text), chapter=2):
+            failures.append(f"{title} : interdit matériel détecté à tort → "
+                          f"{material_forbidden(normalize(text), 2)}")
         for ratio in r["accumulations_abstraction"]:
-            if ratio > ACC_ABSTRAIT_MAX:
-                echecs.append(f"{titre} : accumulation jugée résumante à tort "
+            if ratio > ACC_ABSTRACT_MAX:
+                failures.append(f"{title} : accumulation jugée résumante à tort "
                               f"({ratio:.0%} d'items abstraits)")
 
     # LES CAS CONNUS, EN NÉGATIF. Un détecteur muet sur les étalons peut être
@@ -1613,7 +1613,7 @@ def autotest(fiche: Path) -> int:
     # « incapable de trouver ». Chaque motif doit donc MORDRE sur le défaut
     # qu'on a lu à la main, et les extraits ci-dessous sortent tous des runs de
     # l'étage C.
-    for attendu_vrai, texte, quoi in [
+    for expected_true, text, what in [
         (True, "J'ai décidé de vérifier par moi-même. Dans la cuisine, "
                "l'égouttoir était là. Incrédule, je les ai comptées à nouveau.",
          "couple M3 au passé composé (C1)"),
@@ -1622,109 +1622,109 @@ def autotest(fiche: Path) -> int:
         (False, "Je décide de reprendre les faits dans l'ordre. J'ai préparé "
                 "le dîner, j'ai mangé.", "décision de carnet — conforme (C2)"),
     ]:
-        trouve = bool(couples_decision_execution(texte))
-        if trouve is not attendu_vrai:
-            echecs.append(f"cas connu « {quoi} » : "
-                          f"{'raté' if attendu_vrai else 'faux positif'}")
-    for motif_attendu, texte, quoi in [
+        found_item = bool(decision_execution_pairs(text))
+        if found_item is not expected_true:
+            failures.append(f"cas connu « {what} » : "
+                          f"{'raté' if expected_true else 'faux positif'}")
+    for expected_pattern, text, what in [
         (True, "L'égouttoir, ce soir : deux assiettes.", "quantité en lettres"),
         (True, "Demain, tout sera clair.", "attracteur du lendemain"),
         (True, "je me demandais si je devenais folle", "attracteur de la folie"),
         (True, "Perplexe, je repose le cahier.", "état mental en apposition"),
     ]:
-        r = analyse(texte)
-        vu = bool(r["precision"] or r["attracteurs"] or r["etats_mentaux"])
-        if vu is not motif_attendu:
-            echecs.append(f"cas connu « {quoi} » : raté")
-    for terme, texte in [("télévision", "j'ai allumé la télévision"),
+        r = analyze(text)
+        seen = bool(r["precision"] or r["attracteurs"] or r["etats_mentaux"])
+        if seen is not expected_pattern:
+            failures.append(f"cas connu « {what} » : raté")
+    for term, text in [("télévision", "j'ai allumé la télévision"),
                          ("travail", "Je suis revenue du travail"),
                          ("sac à main", "j'ai posé mon sac à main"),
                          ("barquette", "j'ai sorti une barquette de lasagnes")]:
-        if not interdits_materiels(texte, chapitre=2):
-            echecs.append(f"cas connu « {terme} » : interdit matériel raté")
+        if not material_forbidden(text, chapter=2):
+            failures.append(f"cas connu « {term} » : interdit matériel raté")
     # Le scope par chapitre doit se RELÂCHER, pas seulement se serrer.
-    if not interdits_materiels("j'ai regardé mon téléphone", chapitre=2):
-        echecs.append("cas connu « téléphone au ch. 2 » : raté")
-    if interdits_materiels("j'ai regardé mon téléphone", chapitre=5):
-        echecs.append("cas connu « téléphone au ch. 5 » : faux positif — les "
+    if not material_forbidden("j'ai regardé mon téléphone", chapter=2):
+        failures.append("cas connu « téléphone au ch. 2 » : raté")
+    if material_forbidden("j'ai regardé mon téléphone", chapter=5):
+        failures.append("cas connu « téléphone au ch. 5 » : faux positif — les "
                       "mémos deviennent légitimes, le scope ne s'ouvre pas")
     # LA REDITE — session 7. Les deux sens, parce que le contrôle est bloquant
     # et qu'il RETIRE du texte : un faux positif coûte un paragraphe de récit.
-    _VRAI = ("Je range les deux assiettes dans le lave-vaisselle, en prenant "
+    _TRUE = ("Je range les deux assiettes dans le lave-vaisselle, en prenant "
              "soin de les placer côte à côte.",
              "En attendant, je décide de ranger les deux assiettes dans le "
              "lave-vaisselle. Je les place côte à côte, en prenant soin de bien "
              "les essuyer avant de les mettre à l'intérieur.")
-    _FAUX = ("Je relis l'entrée d'hier. Ma mémoire dit une assiette.",
+    _FALSE = ("Je relis l'entrée d'hier. Ma mémoire dit une assiette.",
              "Je suis rentrée, j'ai posé le cahier, j'ai préparé le dîner.")
-    if not paragraphes_redits("\n\n".join(_VRAI)):
-        echecs.append("cas connu « la même action rangée deux fois » (S6-3 "
+    if not repeated_paragraphs("\n\n".join(_TRUE)):
+        failures.append("cas connu « la même action rangée deux fois » (S6-3 "
                       "¶10/¶13) : redite non détectée")
-    if paragraphes_redits("\n\n".join(_FAUX)):
-        echecs.append("cas connu « deux constats distincts » : FAUX POSITIF — "
+    if repeated_paragraphs("\n\n".join(_FALSE)):
+        failures.append("cas connu « deux constats distincts » : FAUX POSITIF — "
                       "le contrôle retirerait un paragraphe de récit")
-    if not phrases_redites(
+    if not repeated_sentences(
             "Je me souviens pourtant distinctement d'avoir mangé seule hier "
             "soir.\n\nJe me souviens pourtant distinctement d'avoir mangé "
             "seule hier soir. Et pourtant."):
-        echecs.append("cas connu « phrase reprise d'un ¶ à l'autre » (S6-3 "
+        failures.append("cas connu « phrase reprise d'un ¶ à l'autre » (S6-3 "
                       "¶2/¶3) : non détectée")
     # LES ARTEFACTS DU CODE ne sont jamais une redite — falsifié parce que sans
     # cette protection, les trois plus fortes similarités de S6-C étaient
     # l'en-tête, l'ancre et le glissement : le retrait aurait supprimé la
     # bascule audio et le geste acquis à 4/4.
-    _ARTEFACTS = "\n\n".join([
+    _ARTIFACTS = "\n\n".join([
         "Mardi 12. Ciel couvert.", "Mercredi 13. Pluie fine.",
         "« Deux assiettes mises, sans y penser. »",
         "« Deux assiettes mises, sans y penser. »",
         "Si je savais seulement pourquoi… L'assiette est sèche. Je la range.",
         "Je pourrais me demander ce qui, ce soir-là… L'assiette est sèche. "
         "Je la range."])
-    if paragraphes_redits(_ARTEFACTS) or phrases_redites(_ARTEFACTS):
-        echecs.append("cas connu « artefacts du code » : FAUX POSITIF — "
+    if repeated_paragraphs(_ARTIFACTS) or repeated_sentences(_ARTIFACTS):
+        failures.append("cas connu « artefacts du code » : FAUX POSITIF — "
                       "en-tête, ancre ou glissement comptés comme redite")
 
     # LES ATTRACTEURS de la session 7 : trois runs sur quatre ont fermé sur
     # cette famille sans une croix, à un mot près du motif attrapé.
     for _t in ("demain sera un autre jour", "demain sera une nouvelle journée",
                "demain sera une journée meilleure", "à la lumière du jour"):
-        if not ATTRACTEURS.search(_t):
-            echecs.append(f"cas connu « {_t} » : attracteur raté")
+        if not ATTRACTORS.search(_t):
+            failures.append(f"cas connu « {_t} » : attracteur raté")
     for _t in ("demain je relirai le cahier", "une journée ordinaire",
                "la lumière du couloir"):
-        if ATTRACTEURS.search(_t):
-            echecs.append(f"cas connu « {_t} » : FAUX POSITIF d'attracteur")
+        if ATTRACTORS.search(_t):
+            failures.append(f"cas connu « {_t} » : FAUX POSITIF d'attracteur")
 
     # --- MICRO-LOT PRÉ-RÉPÉTITION (2026-08-26) ------------------------------
     # Les trois cibles nommées par la grille remplie de la session 7.
-    if not couples_decision_execution(
+    if not decision_execution_pairs(
             "Je me lève, décidée à vérifier cette erreur. "
             "Je compte les assiettes sur l'égouttoir."):
-        echecs.append("cas connu « couple M3 au participe » (S7-1) : raté — "
+        failures.append("cas connu « couple M3 au participe » (S7-1) : raté — "
                       "le motif ne borne pas « décidée à »")
-    if accumulation_a_la_premiere(
+    if accumulation_at_first_person(
             "Elle est revenue à vingt heures, a refermé le cahier, "
             "posé la lampe, compté les assiettes")[0]:
-        echecs.append("cas connu « accumulation à la troisième personne » "
+        failures.append("cas connu « accumulation à la troisième personne » "
                       "(S7-3) : raté")
-    if not accumulation_a_la_premiere(
+    if not accumulation_at_first_person(
             "Je suis rentrée, j'ai posé le cahier, j'ai compté les assiettes")[0]:
-        echecs.append("cas connu « accumulation à la première personne » : "
+        failures.append("cas connu « accumulation à la première personne » : "
                       "FAUX POSITIF — une accumulation conforme rejetée")
-    _AVEC_CIT = ('Mardi 12. Ciel couvert.\n\n« Deux assiettes mises. »\n\n'
+    _WITH_QUOTE = ('Mardi 12. Ciel couvert.\n\n« Deux assiettes mises. »\n\n'
                  'Je relis le cahier.\n\n'
                  '"Les deux assiettes étaient bien là, sur l\'égouttoir."\n\n'
                  'Erreur de relevé.')
-    _cits = citations_hors_ancre(_AVEC_CIT, verdict="erreur de relevé")
-    if len(_cits) != 1:
-        echecs.append(f"cas connu « citation inventée » (S7-3) : {len(_cits)} "
+    _quotes = quotations_outside_anchor(_WITH_QUOTE, verdict="erreur de relevé")
+    if len(_quotes) != 1:
+        failures.append(f"cas connu « citation inventée » (S7-3) : {len(_quotes)} "
                       "signalement(s) au lieu d'un — l'ancre est-elle exemptée "
                       "par son rang ?")
     for _t in ("Je referme le carnet. Bonne nuit.",):
-        if not ATTRACTEURS.search(_t):
-            echecs.append("cas connu « Bonne nuit » : attracteur raté")
-    if ATTRACTEURS.search("j'ai passé une bonne nuit de sommeil"):
-        echecs.append("cas connu « une bonne nuit de sommeil » : FAUX POSITIF")
+        if not ATTRACTORS.search(_t):
+            failures.append("cas connu « Bonne nuit » : attracteur raté")
+    if ATTRACTORS.search("j'ai passé une bonne nuit de sommeil"):
+        failures.append("cas connu « une bonne nuit de sommeil » : FAUX POSITIF")
 
     # --- LOT ORTHOGONAL DU CHAPITRE 7 (2026-08-27) --------------------------
     # L'image d'arme : le couperet contourné par la métaphore, relevé deux fois
@@ -1732,20 +1732,20 @@ def autotest(fiche: Path) -> int:
     # voir — ce n'est pas un mot d'atelier.
     for _t in ("le coup de couteau : je n'ai pas rêvé", "comme une lame",
                "comme un couteau", "ce n'était pas un rêve"):
-        if not ATTRACTEURS.search(_t):
-            echecs.append(f"cas connu « {_t} » : attracteur raté")
+        if not ATTRACTORS.search(_t):
+            failures.append(f"cas connu « {_t} » : attracteur raté")
     # Et les objets qui ne sont PAS des images : une lame de parquet, un couteau
     # posé sur la table. Un contrôle bloquant qui confond les deux retire du
     # récit.
     for _t in ("une lame de parquet", "le couteau est sur la table",
                "j'ai rêvé de la maison"):
-        if ATTRACTEURS.search(_t):
-            echecs.append(f"cas connu « {_t} » : FAUX POSITIF d'attracteur")
-    if not MARQUES.search("l'enceinte Bluetooth allumée"):
-        echecs.append("cas connu « Bluetooth » (tirage 6 du ch. 7) : "
+        if ATTRACTORS.search(_t):
+            failures.append(f"cas connu « {_t} » : FAUX POSITIF d'attracteur")
+    if not MARKS.search("l'enceinte Bluetooth allumée"):
+        failures.append("cas connu « Bluetooth » (tirage 6 du ch. 7) : "
                       "marque déposée ratée")
-    if MARQUES.search("l'enceinte du salon, allumée"):
-        echecs.append("cas connu « enceinte sans marque » : FAUX POSITIF")
+    if MARKS.search("l'enceinte du salon, allumée"):
+        failures.append("cas connu « enceinte sans marque » : FAUX POSITIF")
 
     # --- MÉTHODE DU MOUVEMENT (2026-08-27) ----------------------------------
     # LA RECOPIE DU PROMPT, sur son cas connu : le tirage 6 du chapitre 7 a
@@ -1754,23 +1754,23 @@ def autotest(fiche: Path) -> int:
              "qu'elle lit et ce dont elle se souvient, la chaise repoussée.")
     _TXT = ("Le soir, le cahier ouvert : la phrase relue, l'écart entre ce que "
             "je lis et ce dont je me souviens, la chaise repoussée.")
-    if not recopie_du_prompt(_TXT, _CONS):
-        echecs.append("cas connu « consigne recopiée » (tirage 6 du ch. 7) : "
+    if not prompt_copy(_TXT, _CONS):
+        failures.append("cas connu « consigne recopiée » (tirage 6 du ch. 7) : "
                       "la recopie du prompt n'est pas détectée")
-    if recopie_du_prompt("Je relis l'entrée d'hier. Ma mémoire dit une "
+    if prompt_copy("Je relis l'entrée d'hier. Ma mémoire dit une "
                          "assiette, un dîner seule.", _CONS):
-        echecs.append("cas connu « texte propre » : FAUX POSITIF de recopie")
+        failures.append("cas connu « texte propre » : FAUX POSITIF de recopie")
 
     # LA MACHINERIE dans un contexte servi. Le §5 du brief v2 la servait tel
     # quel ; l'ancienne garde n'en voyait qu'un mot sur dix.
     for _t in ("L3 exempté par la table de pilotage", "interdits bloquants",
                "possédés par le code, tamponnés en dernier"):
-        if not MACHINERIE.search(_t):
-            echecs.append(f"cas connu « {_t[:34]} » : machinerie non détectée")
+        if not MACHINERY.search(_t):
+            failures.append(f"cas connu « {_t[:34]} » : machinerie non détectée")
     # « la table » est un MEUBLE dans ce roman — et l'un des objets du ch. 7.
     for _t in ("les photos sont sur la table", "la table du séjour"):
-        if MACHINERIE.search(_t):
-            echecs.append(f"cas connu « {_t} » : FAUX POSITIF de machinerie")
+        if MACHINERY.search(_t):
+            failures.append(f"cas connu « {_t} » : FAUX POSITIF de machinerie")
 
     # L4 CONTRE LA BANQUE. Les trois glissements écrits main sont la définition
     # du geste : L4 doit les compter conformes. La version précédente les
@@ -1779,23 +1779,23 @@ def autotest(fiche: Path) -> int:
     for _appr in ("Je pourrais me demander ce qui, ce soir-là",
                   "Si je savais seulement pourquoi",
                   "Il faudrait que je relise le jour où elle"):
-        _n, _hors = glissements(
+        _n, _outside = drifts(
             f"J'ai mangé seule. {_appr}… L'assiette est sèche. Je la range.")
-        if _n != 1 or _hors:
-            echecs.append(f"cas connu « banque du glissement » : "
-                          f"« {_appr}… » compté {_n} fois, {len(_hors)} hors "
+        if _n != 1 or _outside:
+            failures.append(f"cas connu « banque du glissement » : "
+                          f"« {_appr}… » compté {_n} fois, {len(_outside)} hors "
                           f"champ — L4 refuse la définition du geste")
-    if accumulation_resumante(
+    if summarizing_accumulation(
             "perplexité, concentration sur les détails, rappel des faits, "
             "fatigue, panique, respiration calme, explication rationnelle, "
             "corps qui parle, verdict d'erreur de relevé, épuisement, "
-            "endormissement, vigilance")[0] <= ACC_ABSTRAIT_MAX:
-        echecs.append("cas connu « sommaire nominal de C2 » : raté")
+            "endormissement, vigilance")[0] <= ACC_ABSTRACT_MAX:
+        failures.append("cas connu « sommaire nominal de C2 » : raté")
 
     print(f"\n{'=' * 70}")
-    if echecs:
-        print(f"AUTO-TEST ÉCHOUÉ — {len(echecs)} problème(s) :")
-        for e in echecs:
+    if failures:
+        print(f"AUTO-TEST ÉCHOUÉ — {len(failures)} problème(s) :")
+        for e in failures:
             print(f"  ✗ {e}")
         return 1
     print("AUTO-TEST OK — les 4 étalons sortent propres, "
@@ -1816,9 +1816,9 @@ def main() -> int:
     if not args.fichiers:
         parser.error("donne au moins un fichier, ou --etalons")
 
-    for chemin in args.fichiers:
-        p = Path(chemin)
-        print(rapport(analyse(p.read_text(encoding="utf-8")), titre=p.name))
+    for path in args.fichiers:
+        p = Path(path)
+        print(report(analyze(p.read_text(encoding="utf-8")), title=p.name))
         print()
     return 0
 

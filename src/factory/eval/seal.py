@@ -26,12 +26,12 @@ import sys
 from factory.paths import DATA_DIR, REPO_ROOT as RACINE
 
 from factory.retrieval import context as retrieval
-from factory.eval.lint import fuite_lexicale
+from factory.eval.lint import lexical_leak
 
 COLLECTION = "auteur"
-FICHE_JUDITH = RACINE / "bible" / "fiche-judith.md"
+SHEET_JUDITH = RACINE / "bible" / "fiche-judith.md"
 
-REQUETES = [
+QUERIES = [
     "qui est Romane",
     "pourquoi est-elle partie",
     "que s'est-il passé il y a un an",
@@ -44,8 +44,8 @@ REQUETES = [
     "la véritable explication du phénomène",
 ]
 
-ID_TEMOIN = "TEMOIN::injection-profonde"
-TEXTE_TEMOIN = (
+WITNESS_ID = "TEMOIN::injection-profonde"
+WITNESS_TEXT = (
     "Colonne réelle — vérité profonde de la partie double. Ce chunk est un "
     "témoin injecté volontairement par le test d'étanchéité. S'il remonte, "
     "les requêtes témoins fonctionnent ; s'il ne remonte pas, elles sont "
@@ -64,7 +64,7 @@ TEXTE_TEMOIN = (
 #    liturgie d'AC et BC était la récitation. Leurs fragments restent légitimes
 #    dans `citations-cahier.md` — la vérification porte sur la collection
 #    servie, pas sur la bible.
-INTERDITS_SESSION_5 = [
+FORBIDDEN_SESSION_5 = [
     "Judith",
     "Jeudi 7. Beau temps.",
     "Égouttoir : deux assiettes.",
@@ -72,19 +72,19 @@ INTERDITS_SESSION_5 = [
 ]
 
 
-def marqueurs() -> list[str]:
+def markers() -> list[str]:
     p = DATA_DIR / "marqueurs-profonds.txt"
     return [l.strip() for l in p.read_text(encoding="utf-8").splitlines()
             if l.strip()]
 
 
-def manifeste() -> list[str]:
+def manifesto() -> list[str]:
     p = DATA_DIR / "manifeste-auteur.txt"
     return [l.strip() for l in p.read_text(encoding="utf-8").splitlines()
             if l.strip() and not l.startswith("#")]
 
 
-def aplati(texte: str) -> str:
+def flatten(text: str) -> str:
     """Espaces normalisés avant toute recherche de marqueur.
 
     Un marqueur multi-mots coupé par un retour à la ligne échappait à
@@ -94,7 +94,7 @@ def aplati(texte: str) -> str:
     sur les 26 chunks : aucun marqueur n'était masqué, mais rien ne le
     garantissait.
     """
-    return re.sub(r"\s+", " ", texte)
+    return re.sub(r"\s+", " ", text)
 
 
 def dump() -> dict:
@@ -103,8 +103,8 @@ def dump() -> dict:
 
 
 def main() -> int:
-    MARQ, MANIF = marqueurs(), manifeste()
-    echecs: list[str] = []
+    MARKERS, MANIFESTO = markers(), manifesto()
+    failures: list[str] = []
     out = ["# Rapport d'étanchéité — collection auteur", "",
            "Session 4, §4 du protocole. Cinq contrôles ; tout échec est "
            "bloquant pour l'étage B.", ""]
@@ -116,61 +116,61 @@ def main() -> int:
             "| id | source | statut |", "|---|---|---|"]
     for i, mt in zip(ids, metas):
         src = (mt or {}).get("source_file", "?")
-        ok = src in MANIF
+        ok = src in MANIFESTO
         if not ok:
-            echecs.append(f"inventaire : `{i}` vient de `{src}`, hors manifeste")
+            failures.append(f"inventaire : `{i}` vient de `{src}`, hors manifeste")
         out.append(f"| `{i}` | `{src}` | {'✓' if ok else '⛔ HORS MANIFESTE'} |")
 
     # Clés de métadonnées : une clé imprévue est une porte ouverte.
-    cles = sorted({k for mt in metas for k in (mt or {})})
-    out += ["", f"Clés de métadonnées présentes : {', '.join(f'`{c}`' for c in cles)}", ""]
+    keys = sorted({k for mt in metas for k in (mt or {})})
+    out += ["", f"Clés de métadonnées présentes : {', '.join(f'`{c}`' for c in keys)}", ""]
 
     # --- 2. Lint de contenu --------------------------------------------------
     out += ["## 2. Lint de contenu — lexique de fuite et marqueurs profonds", ""]
-    sales = 0
+    dirty = 0
     for i, d in zip(ids, docs):
-        plat = aplati(d)
-        hm = sorted({x for x in MARQ if re.search(re.escape(x), plat, re.I)})
-        durs, _ = fuite_lexicale(plat)
-        s5 = sorted({x for x in INTERDITS_SESSION_5
-                     if re.search(re.escape(x), plat, re.I)})
-        if hm or durs or s5:
-            sales += 1
-            echecs.append(f"lint : `{i}` → marqueurs {hm} fuite {durs} "
+        flat = flatten(d)
+        hm = sorted({x for x in MARKERS if re.search(re.escape(x), flat, re.I)})
+        hard_ones, _ = lexical_leak(flat)
+        s5 = sorted({x for x in FORBIDDEN_SESSION_5
+                     if re.search(re.escape(x), flat, re.I)})
+        if hm or hard_ones or s5:
+            dirty += 1
+            failures.append(f"lint : `{i}` → marqueurs {hm} fuite {hard_ones} "
                           f"interdits s5 {s5}")
-            out.append(f"- ⛔ `{i}` : marqueurs {hm}, fuite {durs}, "
+            out.append(f"- ⛔ `{i}` : marqueurs {hm}, fuite {hard_ones}, "
                        f"interdits session 5 {s5}")
     out += [("- ✓ aucun match sur les "
              f"{len(ids)} chunks — marqueurs profonds, lexique de fuite, "
              "prénom (item 8) et anciennes instances (item 9)")
-            if not sales else "", ""]
+            if not dirty else "", ""]
 
     # --- 3. Test du splitter -------------------------------------------------
     out += ["## 3. Test du splitter — la fiche Judith seule", ""]
-    brut = FICHE_JUDITH.read_text(encoding="utf-8")
-    profondes = set()
-    for bloc in re.findall(r"^### \[PROFOND\].*?(?=^### |^## |\Z)", brut,
+    raw = SHEET_JUDITH.read_text(encoding="utf-8")
+    deep_lines = set()
+    for block in re.findall(r"^### \[PROFOND\].*?(?=^### |^## |\Z)", raw,
                            re.MULTILINE | re.DOTALL):
-        for ligne in bloc.splitlines()[1:]:
-            if len(ligne.strip()) > 40:
-                profondes.add(ligne.strip())
+        for line in block.splitlines()[1:]:
+            if len(line.strip()) > 40:
+                deep_lines.add(line.strip())
     # Filtrage par SOURCE et non par préfixe d'id : le préfixe dépend du
     # doc_id, et une divergence de doc_id (constatée : `fiche_judith` au lieu
     # de `fiche-judith`) rendait ce contrôle VIDE — donc vert sans rien
     # vérifier. Un test qui passe sur un ensemble vide est pire qu'absent.
     judith = [d for d, mt in zip(docs, metas)
               if (mt or {}).get("source_file") == "fiche-judith.md"]
-    corps = aplati(" ".join(judith))
-    fuites = [l for l in profondes if aplati(l) in corps]
-    out += [f"- {len(profondes)} lignes [PROFOND] significatives dans la fiche",
+    body = flatten(" ".join(judith))
+    leaks = [l for l in deep_lines if flatten(l) in body]
+    out += [f"- {len(deep_lines)} lignes [PROFOND] significatives dans la fiche",
             f"- {len(judith)} chunks indexés depuis `fiche-judith.md`"]
     if not judith:
-        echecs.append("splitter : AUCUN chunk de la fiche Judith dans l'index "
+        failures.append("splitter : AUCUN chunk de la fiche Judith dans l'index "
                       "— le contrôle porterait sur un ensemble vide")
         out.append("- ⛔ aucun chunk à contrôler : ce vert ne prouverait rien")
-    elif fuites:
-        echecs.append(f"splitter : {len(fuites)} ligne(s) [PROFOND] indexée(s)")
-        out.append(f"- ⛔ {len(fuites)} ligne(s) [PROFOND] retrouvée(s) dans l'index")
+    elif leaks:
+        failures.append(f"splitter : {len(leaks)} ligne(s) [PROFOND] indexée(s)")
+        out.append(f"- ⛔ {len(leaks)} ligne(s) [PROFOND] retrouvée(s) dans l'index")
     else:
         out.append("- ✓ aucune ligne [PROFOND] dans les chunks produits")
     out.append("")
@@ -182,37 +182,37 @@ def main() -> int:
             "requêtes sont aveugles et le vert des contrôles 1 à 3 ne vaut "
             "rien.", ""]
     col = retrieval._chroma().get_collection(COLLECTION)
-    col.upsert(ids=[ID_TEMOIN], documents=[TEXTE_TEMOIN],
+    col.upsert(ids=[WITNESS_ID], documents=[WITNESS_TEXT],
                metadatas=[{"doc_id": "TEMOIN", "source_file": "TEMOIN"}],
-               embeddings=[retrieval.embed(TEXTE_TEMOIN)])
-    touche = 0
+               embeddings=[retrieval.embed(WITNESS_TEXT)])
+    touched = 0
     out += ["| requête | témoin remonté ? |", "|---|---|"]
-    for q in REQUETES:
+    for q in QUERIES:
         r = col.query(query_embeddings=[retrieval.embed(q)], n_results=3,
                       include=["documents"])
-        vu = any(TEXTE_TEMOIN[:60] in d for d in (r.get("documents") or [[]])[0])
-        touche += vu
-        out.append(f"| {q} | {'✓ oui' if vu else '— non'} |")
+        seen = any(WITNESS_TEXT[:60] in d for d in (r.get("documents") or [[]])[0])
+        touched += seen
+        out.append(f"| {q} | {'✓ oui' if seen else '— non'} |")
     out.append("")
-    if touche == 0:
-        echecs.append("témoin positif : le chunk injecté n'est remonté sur "
+    if touched == 0:
+        failures.append("témoin positif : le chunk injecté n'est remonté sur "
                       "AUCUNE requête — les requêtes témoins sont aveugles")
         out.append("- ⛔ **le témoin n'est jamais remonté** : les requêtes ne "
                    "prouvent rien.")
     else:
-        out.append(f"- ✓ témoin remonté sur {touche}/{len(REQUETES)} requêtes — "
+        out.append(f"- ✓ témoin remonté sur {touched}/{len(QUERIES)} requêtes — "
                    "les requêtes ont des dents.")
 
     # Retrait, purge, ré-inventaire.
-    col.delete(ids=[ID_TEMOIN])
-    apres = dump()["ids"]
-    reste = ID_TEMOIN in apres
-    if reste:
-        echecs.append("témoin positif : le chunk injecté n'a pas été purgé")
+    col.delete(ids=[WITNESS_ID])
+    after = dump()["ids"]
+    rest = WITNESS_ID in after
+    if rest:
+        failures.append("témoin positif : le chunk injecté n'a pas été purgé")
     out += ["",
-            f"- Après purge : {len(apres)} chunks, témoin présent : "
-            f"{'⛔ OUI' if reste else '✓ non'}",
-            f"- Inventaire re-vérifié : {'⛔ écart' if len(apres) != len(ids) else '✓ identique à l’état initial'}",
+            f"- Après purge : {len(after)} chunks, témoin présent : "
+            f"{'⛔ OUI' if rest else '✓ non'}",
+            f"- Inventaire re-vérifié : {'⛔ écart' if len(after) != len(ids) else '✓ identique à l’état initial'}",
             ""]
 
     # --- 5. Routage ----------------------------------------------------------
@@ -222,19 +222,19 @@ def main() -> int:
             "(`retrieval._collection`), donc le journal ne peut pas être "
             "incomplet sans que le code le soit aussi.",
             f"- Collections vues pendant ce test : "
-            f"{sorted(set(retrieval.routage())) or '(aucune — accès directs)'}",
+            f"{sorted(set(retrieval.routing())) or '(aucune — accès directs)'}",
             ""]
 
     out += ["## Verdict", ""]
-    if echecs:
-        out.append(f"⛔ **{len(echecs)} échec(s)** — l'étage B est bloqué :")
-        out += [f"- {e}" for e in echecs]
+    if failures:
+        out.append(f"⛔ **{len(failures)} échec(s)** — l'étage B est bloqué :")
+        out += [f"- {e}" for e in failures]
     else:
         out.append("✓ **Étanchéité vérifiée** — inventaire conforme au "
                    "manifeste, aucun marqueur profond ni fuite lexicale, "
                    "splitter propre, requêtes témoins prouvées mordantes.")
     print("\n".join(out))
-    return 1 if echecs else 0
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":

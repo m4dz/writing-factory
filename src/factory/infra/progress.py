@@ -29,8 +29,8 @@ from factory.settings import settings
 # Budget de scène, en minutes : `settings.stage_budget_min`. La keynote récolte
 # le chapitre ~25 min après l'avoir lancé (abaissé de 35' à 25' le 2026-08-06).
 
-_ANSI_EFFACE_LIGNE = "\x1b[2K"
-_ANSI_DEBUT_LIGNE = "\r"
+_ANSI_CLEAR_LINE = "\x1b[2K"
+_ANSI_LINE_START = "\r"
 
 # Bandes d'avancement par phase, en fraction du travail total. Les bornes sont
 # grossières et c'est assumé : elles servent à faire progresser une barre pour
@@ -38,7 +38,7 @@ _ANSI_DEBUT_LIGNE = "\r"
 # graphe, pour qu'on puisse les recaler après une répétition sans toucher au
 # pipeline. Mesures du run de référence (17,0 min, 4 scènes) : le plan pèse
 # ~2 min, l'écriture ~7, la relecture ~5, la QA ~3.
-BANDES = {
+BANDS = {
     "Invariants de la bible": (0.00, 0.03),
     # Plan et « Plan d'entrées » sont deux CHEMINS du même nœud (brief imposé vs
     # généré) : même bande, un seul est émis par run.
@@ -62,12 +62,12 @@ BANDES = {
 
 # Phases telles que le deck les connaît (contrat gelé côté talk :
 # `GenStatus`). Notre granularité interne est plus fine ; on la projette.
-PHASES_DECK = {
+DECK_PHASES = {
     "Restitution": "tts",
 }
 
 
-class Annulation(RuntimeError):
+class Cancelled(RuntimeError):
     """Le job en cours a été annulé par l'opérateur.
 
     Levée depuis `phase()`, c'est-à-dire aux FRONTIÈRES DE NŒUD du graphe : on
@@ -77,9 +77,9 @@ class Annulation(RuntimeError):
     """
 
 
-def _mmss(secondes: float) -> str:
-    secondes = max(0, int(secondes))
-    return f"{secondes // 60:d}:{secondes % 60:02d}"
+def _mmss(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    return f"{seconds // 60:d}:{seconds % 60:02d}"
 
 
 class Progress:
@@ -94,32 +94,32 @@ class Progress:
         de log, illisible ; et c'est exactement le cas d'usage `> run.log`.
     """
 
-    def __init__(self, *, actif: bool = False, budget_min: float | None = None,
-                 flux=None):
-        self.actif = actif
+    def __init__(self, *, active: bool = False, budget_min: float | None = None,
+                 stream=None):
+        self.active = active
         if budget_min is None:
             budget_min = settings.stage_budget_min
         self.budget = budget_min * 60
-        self.flux = flux or sys.stdout
-        self.interactif = actif and self.flux.isatty()
+        self.stream = stream or sys.stdout
+        self.interactive = active and self.stream.isatty()
         self.t0 = time.time()
-        self.phase_courante = ""
+        self.current_phase = ""
         self.detail = ""
-        self.phase_deck = "generating"   # projection sur le contrat du deck
-        self.avancement = 0.0            # fraction 0..1, monotone
+        self.deck_phase = "generating"   # projection sur le contrat du deck
+        self.advancement = 0.0            # fraction 0..1, monotone
         self.gen_toks = 0          # tokens du chapitre entier
-        self.annule = False              # demande d'arrêt de l'opérateur
+        self.cancelled = False              # demande d'arrêt de l'opérateur
         # Appelé à chaque changement de phase, avec le puits en argument. Sert
         # aux notifications téléphone sans que ce module connaisse le réseau.
-        self.observateur = None
+        self.observer = None
         self.notes: list[str] = []       # événements marquants, pour /status
-        self._toks_appel = 0       # tokens de l'appel en cours
-        self._dernier_dessin = 0.0
-        self._t_appel = 0.0
+        self._call_toks = 0       # tokens de l'appel en cours
+        self._last_draw = 0.0
+        self._call_t = 0.0
 
     # --- API appelée par le graphe -------------------------------------------
 
-    def phase(self, titre: str, detail: str = "", *,
+    def phase(self, title: str, detail: str = "", *,
               i: int | None = None, n: int | None = None) -> None:
         """Change de phase (plan, écriture scène 2/4, relecture, QA…).
 
@@ -130,29 +130,29 @@ class Progress:
         Ce calcul tourne MÊME si l'affichage est inactif : `/status` doit pouvoir
         rendre un avancement quand le serveur HTTP n'écrit rien sur un terminal.
         """
-        if self.annule:
-            raise Annulation("génération annulée par l'opérateur")
-        debut, fin = BANDES.get(titre, (self.avancement, self.avancement))
+        if self.cancelled:
+            raise Cancelled("génération annulée par l'opérateur")
+        start, end = BANDS.get(title, (self.advancement, self.advancement))
         part = (i / n) if (i is not None and n) else 0.0
         # Monotone : un avancement qui recule (replanification, phase inconnue)
         # se lit comme un bug depuis la salle.
-        self.avancement = max(self.avancement, debut + (fin - debut) * part)
-        self.phase_courante = titre
+        self.advancement = max(self.advancement, start + (end - start) * part)
+        self.current_phase = title
         self.detail = detail
-        self.phase_deck = PHASES_DECK.get(titre, "generating")
-        if self.observateur:
+        self.deck_phase = DECK_PHASES.get(title, "generating")
+        if self.observer:
             try:
-                self.observateur(self)
+                self.observer(self)
             except Exception:                          # noqa: BLE001
                 pass    # un observateur défaillant n'arrête pas une génération
-        if not self.actif:
+        if not self.active:
             return
-        self._toks_appel = 0
-        self._t_appel = time.time()
-        if self.interactif:
-            self._dessiner(force=True)
+        self._call_toks = 0
+        self._call_t = time.time()
+        if self.interactive:
+            self._draw(force=True)
         else:
-            self._ligne(f"{titre}" + (f" — {detail}" if detail else ""))
+            self._line(f"{title}" + (f" — {detail}" if detail else ""))
 
     def note(self, message: str) -> None:
         """Événement ponctuel digne d'être vu (replanification, réparation…)."""
@@ -161,31 +161,31 @@ class Progress:
         # terminal. Bornées, sinon un run long les accumule sans fin.
         self.notes.append(message)
         del self.notes[:-20]
-        if not self.actif:
+        if not self.active:
             return
-        if self.interactif:
-            self.flux.write(_ANSI_EFFACE_LIGNE + _ANSI_DEBUT_LIGNE)
-            self.flux.write(f"  · {message}\n")
-            self._dessiner(force=True)
+        if self.interactive:
+            self.stream.write(_ANSI_CLEAR_LINE + _ANSI_LINE_START)
+            self.stream.write(f"  · {message}\n")
+            self._draw(force=True)
         else:
-            self._ligne(f"  · {message}")
+            self._line(f"  · {message}")
 
-    def on_token(self, fragment: str, cumul: int) -> None:
+    def on_token(self, fragment: str, cumulative: int) -> None:
         """Callback de streaming : un fragment vient d'arriver."""
-        if not self.actif:
+        if not self.active:
             return
-        self._toks_appel = cumul
+        self._call_toks = cumulative
         self.gen_toks += 1
-        if self.interactif:
-            self._dessiner()
+        if self.interactive:
+            self._draw()
 
-    def fin(self) -> None:
+    def end(self) -> None:
         """Rend la ligne au terminal (le panneau ne doit pas rester collé)."""
-        if self.actif and self.interactif:
-            self.flux.write(_ANSI_EFFACE_LIGNE + _ANSI_DEBUT_LIGNE)
-            self.flux.flush()
+        if self.active and self.interactive:
+            self.stream.write(_ANSI_CLEAR_LINE + _ANSI_LINE_START)
+            self.stream.flush()
 
-    def instantane(self) -> dict:
+    def snapshot(self) -> dict:
         """État courant, pour `GET /status` et les notifications.
 
         `phase` est la valeur du CONTRAT GELÉ côté deck
@@ -194,10 +194,10 @@ class Progress:
         c'est la condition pour enrichir l'affichage sans casser le contrat.
         """
         return {
-            "phase": self.phase_deck,
+            "phase": self.deck_phase,
             "ready": False,
-            "progress": round(self.avancement, 3),
-            "label": self.phase_courante,
+            "progress": round(self.advancement, 3),
+            "label": self.current_phase,
             "detail": self.detail,
             "elapsed_s": int(time.time() - self.t0),
             "budget_s": int(self.budget),
@@ -207,41 +207,41 @@ class Progress:
 
     # --- rendu ---------------------------------------------------------------
 
-    def _ligne(self, texte: str) -> None:
-        ecoule = time.time() - self.t0
-        self.flux.write(f"[{_mmss(ecoule)} / {_mmss(self.budget)}] {texte}\n")
-        self.flux.flush()
+    def _line(self, text: str) -> None:
+        elapsed = time.time() - self.t0
+        self.stream.write(f"[{_mmss(elapsed)} / {_mmss(self.budget)}] {text}\n")
+        self.stream.flush()
 
-    def _dessiner(self, *, force: bool = False) -> None:
+    def _draw(self, *, force: bool = False) -> None:
         # Dix tokens par seconde suffiraient à redessiner dix fois par seconde,
         # ce qui ne se voit pas et coûte des écritures : on plafonne à 5 Hz.
-        maintenant = time.time()
-        if not force and maintenant - self._dernier_dessin < 0.2:
+        now = time.time()
+        if not force and now - self._last_draw < 0.2:
             return
-        self._dernier_dessin = maintenant
+        self._last_draw = now
 
-        ecoule = maintenant - self.t0
-        restant = self.budget - ecoule
-        vitesse = self._toks_appel / max(0.1, maintenant - self._t_appel)
+        elapsed = now - self.t0
+        remaining = self.budget - elapsed
+        speed = self._call_toks / max(0.1, now - self._call_t)
         # Le dépassement s'affiche en clair plutôt que de rester à zéro : sur
         # scène, mieux vaut savoir qu'on est à +2:30 que croire qu'il reste 0:00.
-        horloge = (f"reste {_mmss(restant)}" if restant >= 0
-                   else f"DÉPASSÉ de {_mmss(-restant)}")
-        ligne = (
-            f"⏱ {_mmss(ecoule)} / {_mmss(self.budget)} ({horloge})  "
-            f"│ {self.phase_courante}"
+        clock = (f"reste {_mmss(remaining)}" if remaining >= 0
+                   else f"DÉPASSÉ de {_mmss(-remaining)}")
+        line = (
+            f"⏱ {_mmss(elapsed)} / {_mmss(self.budget)} ({clock})  "
+            f"│ {self.current_phase}"
             + (f" {self.detail}" if self.detail else "")
-            + f"  │ {self._toks_appel} tok à {vitesse:.1f} tok/s"
+            + f"  │ {self._call_toks} tok à {speed:.1f} tok/s"
             + f"  │ total {self.gen_toks}"
         )
-        largeur = shutil.get_terminal_size((100, 24)).columns
-        self.flux.write(_ANSI_EFFACE_LIGNE + _ANSI_DEBUT_LIGNE + ligne[:largeur - 1])
-        self.flux.flush()
+        width = shutil.get_terminal_size((100, 24)).columns
+        self.stream.write(_ANSI_CLEAR_LINE + _ANSI_LINE_START + line[:width - 1])
+        self.stream.flush()
 
 
 # Puits global. Le graphe l'utilise sans le connaître : par défaut il est
 # inactif, donc importer le graphe depuis un test n'affiche rien.
-SINK = Progress(actif=False)
+SINK = Progress(active=False)
 
 
 def install(sink: Progress) -> None:
@@ -250,20 +250,20 @@ def install(sink: Progress) -> None:
     SINK = sink
 
 
-def phase(titre: str, detail: str = "", *,
+def phase(title: str, detail: str = "", *,
           i: int | None = None, n: int | None = None) -> None:
-    SINK.phase(titre, detail, i=i, n=n)
+    SINK.phase(title, detail, i=i, n=n)
 
 
 def note(message: str) -> None:
     SINK.note(message)
 
 
-def on_token(fragment: str, cumul: int) -> None:
-    SINK.on_token(fragment, cumul)
+def on_token(fragment: str, cumulative: int) -> None:
+    SINK.on_token(fragment, cumulative)
 
 
 def token_sink():
     """Callback de streaming à passer à `llm`, ou None si l'affichage est
     inactif — pour que le mode non-streamé reste le chemin par défaut."""
-    return on_token if SINK.actif else None
+    return on_token if SINK.active else None

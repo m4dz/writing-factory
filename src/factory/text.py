@@ -50,8 +50,8 @@ _GARBAGE = re.compile(r"\b\w*[a-zà-ÿ][A-Z]\w*\b")
 # APRÈS une espace — c'est la typographie française (« Va-t'en. » et non
 # « Va-t'en.»), et l'oublier faisait classer un dialogue correctement terminé
 # comme une phrase en cours.
-_FIN_PHRASE = re.compile(r"[.!?…](?:\s*[»\"'])?\s*$")
-_PONCTUATION_FINALE = re.compile(r"[.!?…](?:\s*[»\"'])?(?=\s|$)")
+_SENTENCE_END = re.compile(r"[.!?…](?:\s*[»\"'])?\s*$")
+_FINAL_PUNCTUATION = re.compile(r"[.!?…](?:\s*[»\"'])?(?=\s|$)")
 
 
 def sentence_ends(text: str) -> list[int]:
@@ -62,7 +62,7 @@ def sentence_ends(text: str) -> list[int]:
     phrase » dans le projet, sinon le marqueur et la coupe ne tomberaient pas
     aux mêmes endroits.
     """
-    return [m.end() for m in _PONCTUATION_FINALE.finditer(text)]
+    return [m.end() for m in _FINAL_PUNCTUATION.finditer(text)]
 
 
 def ends_mid_sentence(text: str) -> bool:
@@ -71,7 +71,7 @@ def ends_mid_sentence(text: str) -> bool:
     Signature d'une génération coupée par `num_predict` : Ollama rend le texte
     tel quel, sans marqueur autre que `done_reason: "length"`.
     """
-    return not _FIN_PHRASE.search(text.rstrip())
+    return not _SENTENCE_END.search(text.rstrip())
 
 
 def trim_to_sentence(text: str) -> str:
@@ -86,11 +86,11 @@ def trim_to_sentence(text: str) -> str:
     t = text.rstrip()
     if not ends_mid_sentence(t):
         return t
-    fins = list(_PONCTUATION_FINALE.finditer(t))
-    if not fins:
+    ends = list(_FINAL_PUNCTUATION.finditer(t))
+    if not ends:
         return text
-    coupe = t[: fins[-1].end()].rstrip()
-    return coupe if len(coupe) >= 0.75 * len(t) else text
+    cut = t[: ends[-1].end()].rstrip()
+    return cut if len(cut) >= 0.75 * len(t) else text
 
 
 def delint(text: str) -> tuple[str, list[str]]:

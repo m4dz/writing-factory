@@ -33,19 +33,19 @@ Deux règles d'assemblage, explicites parce qu'elles sont faciles à rater :
 import random
 import re
 
-from factory.eval.lint import (ACC_ABSTRAIT_MAX, L3_MOTS,
-                        L3_VIRGULES, accumulation_resumante,
-                        accumulation_a_la_premiere, accumulations_l3,
-                        interdits_materiels, phrases, recopie_etalon)
+from factory.eval.lint import (ACC_ABSTRACT_MAX, L3_WORDS,
+                        L3_COMMAS, summarizing_accumulation,
+                        accumulation_at_first_person, accumulations_l3,
+                        material_forbidden, sentences, reference_copy)
 from factory.text import delint
 
-MAX_TENTATIVES = 2
+MAX_ATTEMPTS = 2
 
 # PLAFOND de l'accumulation. La spec ne posait qu'un plancher (60 mots), et le
 # modèle occupe l'espace offert : 214 mots sur C1, contre 90 pour l'étalon. Le
 # raisonnement est celui qui avait fait écarter la montée de `num_predict` en
 # session 1, pris par l'autre bout — un seuil sans borne haute ne cadre rien.
-ACC_MOTS_MAX = 120
+ACC_WORDS_MAX = 120
 
 # Le terme de verdict est le REPÈRE PRIMAIRE de l'entrée, et ce n'est pas un
 # détail d'implémentation : c'est le seul point garanti, parce qu'un autre
@@ -55,7 +55,7 @@ ACC_MOTS_MAX = 120
 # chapitre : « fatigue » est la marche du chapitre 2, mais la table de pilotage
 # la fait migrer (automatisme, trouble, l'autre). S'appuyer sur eux en primaire
 # aurait cassé EN SILENCE dès le chapitre 3.
-MARQUEURS_RECONSTRUCTION = re.compile(
+RECONSTRUCTION_MARKERS = re.compile(
     r"\b(dans l'ordre|reprends? les faits|repass\w+|reconstitu\w+|"
     r"fatigue|automatisme|trouble|distraction|inattention)\b", re.IGNORECASE)
 
@@ -80,45 +80,45 @@ MARQUEURS_RECONSTRUCTION = re.compile(
 # interrogatif ou relatif après lequel la phrase se coupe.
 # Le champ du départ, INTERDIT dans un passage rédigé : le geste s'arrête avant
 # de nommer. Même liste que le lint L4, employée à l'envers.
-CHAMP_DEPART_INTERDIT = re.compile(
+FORBIDDEN_DEPARTURE_FIELD = re.compile(
     r"\b(partie|départ|absence|absente|quittée|plus là)\b", re.IGNORECASE)
 SUSPENSION_PASSAGE = re.compile(r"…|\.\.\.")
 
-PIVOT_SUSPENDU = re.compile(
+SUSPENDED_PIVOT = re.compile(
     r"\b(ce qui|ce que|pourquoi|comment|où|quand|le jour où|si elle|"
     r"ce qu'|qui a|quelle|lequel)\b", re.IGNORECASE)
 
 
-def paragraphes(texte: str) -> list[tuple[int, int, str]]:
+def paragraphs(text: str) -> list[tuple[int, int, str]]:
     """(début, fin, contenu) de chaque paragraphe, offsets sur le texte donné."""
     out, pos = [], 0
-    for bloc in texte.split("\n\n"):
-        out.append((pos, pos + len(bloc), bloc))
-        pos += len(bloc) + 2
+    for block in text.split("\n\n"):
+        out.append((pos, pos + len(block), block))
+        pos += len(block) + 2
     return [b for b in out if b[2].strip()]
 
 
-def position_accumulation(texte: str, verdict: str) -> int:
+def accumulation_position(text: str, verdict: str) -> int:
     """Offset d'insertion : juste AVANT le paragraphe du verdict.
 
     Repli sur le dernier paragraphe portant des marqueurs de reconstruction,
     puis sur l'avant-dernier paragraphe. Rend toujours une position valide : un
     geste qu'on renonce à placer est un geste perdu.
     """
-    paras = paragraphes(texte)
+    paras = paragraphs(text)
     if verdict:
-        noyau = re.split(r"\s*\(", verdict)[0].strip()
-        for debut, _, contenu in paras:
-            if noyau and noyau.lower() in contenu.lower():
-                return debut
-    for debut, _, contenu in reversed(paras):
-        if MARQUEURS_RECONSTRUCTION.search(contenu):
-            return debut
-    return paras[-1][0] if len(paras) > 1 else len(texte)
+        core = re.split(r"\s*\(", verdict)[0].strip()
+        for start, _, content in paras:
+            if core and core.lower() in content.lower():
+                return start
+    for start, _, content in reversed(paras):
+        if RECONSTRUCTION_MARKERS.search(content):
+            return start
+    return paras[-1][0] if len(paras) > 1 else len(text)
 
 
-def position_glissement(texte: str, position_acc: int,
-                        bornes_reconstruction: tuple[int, int] | None = None
+def drift_position(text: str, acc_position: int,
+                        reconstruction_bounds: tuple[int, int] | None = None
                         ) -> int:
     """Offset d'insertion du glissement, dans la reconstruction.
 
@@ -133,18 +133,18 @@ def position_glissement(texte: str, position_acc: int,
     ce repli aurait cassé EN SILENCE dès le chapitre 3. Le découpage rend la
     reconstruction repérable par construction plutôt que par lexique.
     """
-    paras = paragraphes(texte)
+    paras = paragraphs(text)
     # LE DERNIER TIERS EST INTERDIT AU GLISSEMENT (micro-lot, item 3).
     #
     # Sur S7-2 il s'est posé en DERNIÈRE LIGNE de l'entrée, après le couperet et
     # la physiologie : là, une phrase suspendue ne suspend plus rien, elle
     # console. Le geste vit dans la reconstruction, où il interrompt une pensée
     # en cours ; en clôture, il défait la chute que la fermeture vient de poser.
-    dernier_tiers = int(len(texte) * 2 / 3)
-    if bornes_reconstruction:
-        a, b = bornes_reconstruction
-        b = min(b, dernier_tiers) if a < dernier_tiers else b
-        dedans = [p for p in paras if a <= p[0] < b]
+    last_third = int(len(text) * 2 / 3)
+    if reconstruction_bounds:
+        a, b = reconstruction_bounds
+        b = min(b, last_third) if a < last_third else b
+        inner = [p for p in paras if a <= p[0] < b]
         # NON ADJACENT, et pas seulement « pas dans le même paragraphe ».
         # Le §2 du protocole dit « jamais adjacent à l'accumulation », et la
         # nuance compte : posé en fin du dernier paragraphe de la
@@ -153,19 +153,19 @@ def position_glissement(texte: str, position_acc: int,
         # préfère donc un paragraphe qui ne touche pas le point d'épissure.
         # Mesuré sur un cas de test avant d'être écrit : la reconstruction à
         # deux paragraphes produisait exactement cette collision.
-        eloignes = [p for p in dedans if p[1] + 2 != position_acc]
-        for debut, fin, _ in reversed(eloignes or dedans):
-            if debut != position_acc:
-                return fin
-    candidats = [p for p in paras if MARQUEURS_RECONSTRUCTION.search(p[2])
-                 and p[0] < dernier_tiers]
-    if not candidats:
-        candidats = [p for p in paras[1:-1] if p[0] < dernier_tiers] or paras[1:-1] or paras
-    for debut, fin, _ in reversed(candidats):
-        if debut != position_acc:
-            return fin
-    precedents = [p for p in paras if p[0] < position_acc]
-    return precedents[-1][1] if precedents else paras[0][1]
+        distant = [p for p in inner if p[1] + 2 != acc_position]
+        for start, end, _ in reversed(distant or inner):
+            if start != acc_position:
+                return end
+    candidates = [p for p in paras if RECONSTRUCTION_MARKERS.search(p[2])
+                 and p[0] < last_third]
+    if not candidates:
+        candidates = [p for p in paras[1:-1] if p[0] < last_third] or paras[1:-1] or paras
+    for start, end, _ in reversed(candidates):
+        if start != acc_position:
+            return end
+    previous_ones = [p for p in paras if p[0] < acc_position]
+    return previous_ones[-1][1] if previous_ones else paras[0][1]
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +179,7 @@ def position_glissement(texte: str, position_acc: int,
 # C'est la doctrine des citations du cahier, étendue : la matière la plus intime
 # du roman est écrite main. Le code choisit, coupe et colle ; il n'invente rien.
 # ---------------------------------------------------------------------------
-BANQUE_GLISSEMENT: dict[int, dict] = {
+DRIFT_BANK: dict[int, dict] = {
     2: {
         "approches": (
             "Je pourrais me demander ce qui, ce soir-là",
@@ -211,7 +211,7 @@ BANQUE_GLISSEMENT: dict[int, dict] = {
 }
 
 
-def approche_valide(approche: str) -> tuple[bool, str]:
+def approach_valid(approach: str) -> tuple[bool, str]:
     """Une approche est-elle exploitable ? ASSERTION DE BANQUE.
 
     Depuis que la matière est écrite main, cette fonction ne filtre plus une
@@ -225,13 +225,13 @@ def approche_valide(approche: str) -> tuple[bool, str]:
     approche, et le code en avait composé un faux en-tête au milieu de
     l'entrée), et un pivot resté ouvert.
     """
-    a = approche.strip()
+    a = approach.strip()
     if len(a.split()) < 5:
         return False, f"trop courte ({len(a.split())} mots)"
     if re.match(r"^(?:Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)\s+\d",
                 a, re.IGNORECASE):
         return False, "c'est un en-tête daté, pas une approche"
-    if not PIVOT_SUSPENDU.search(a):
+    if not SUSPENDED_PIVOT.search(a):
         return False, "aucun pivot resté ouvert (ce qui, pourquoi, le jour où…)"
     return True, ""
 
@@ -240,14 +240,14 @@ def approche_valide(approche: str) -> tuple[bool, str]:
 # d'entrée refuse la matière de référence : `CHAMP_DEPART` rejetait ces trois
 # lignes, et l'assertion l'aurait dit au premier import au lieu de le laisser
 # se découvrir en fin de run, dans les warnings.
-for _ch, _banque in BANQUE_GLISSEMENT.items():
-    for _a in _banque["approches"]:
-        _ok, _raison = approche_valide(_a)
+for _ch, _bank in DRIFT_BANK.items():
+    for _a in _bank["approches"]:
+        _ok, _reason = approach_valid(_a)
         assert _ok, (f"banque du chapitre {_ch} : approche refusée par son "
-                     f"propre validateur — « {_a} » ({_raison})")
+                     f"propre validateur — « {_a} » ({_reason})")
 
 
-def passage_valide(passage: str) -> tuple[bool, str]:
+def passage_valid(passage: str) -> tuple[bool, str]:
     """Le glissement RÉDIGÉ, livré entier par le brief. Validation symétrique.
 
     Deux conditions, et la seconde est neuve :
@@ -265,10 +265,10 @@ def passage_valide(passage: str) -> tuple[bool, str]:
     p = passage.strip()
     if len(p.split()) < 8:
         return False, f"trop court ({len(p.split())} mots)"
-    if not PIVOT_SUSPENDU.search(p):
+    if not SUSPENDED_PIVOT.search(p):
         return False, "aucun pivot resté ouvert (ce qui, pourquoi, quand…)"
-    if CHAMP_DEPART_INTERDIT.search(p):
-        m = CHAMP_DEPART_INTERDIT.search(p)
+    if FORBIDDEN_DEPARTURE_FIELD.search(p):
+        m = FORBIDDEN_DEPARTURE_FIELD.search(p)
         return False, (f"nomme le départ (« {m.group(0)} ») — le geste "
                        "s'interrompt AVANT")
     if not SUSPENSION_PASSAGE.search(p):
@@ -278,8 +278,8 @@ def passage_valide(passage: str) -> tuple[bool, str]:
     return True, ""
 
 
-def tirer_approche(chapitre: int, deja_tirees: list[str],
-                   graine: int) -> tuple[str, str]:
+def draw_approach(chapter: int, already_drawn: list[str],
+                   seed: int) -> tuple[str, str]:
     """Tire une approche non encore utilisée dans ce chapitre, et le fait.
 
     Tirage ALÉATOIRE SANS REMISE, graine fournie par l'appelant et consignée au
@@ -291,43 +291,43 @@ def tirer_approche(chapitre: int, deja_tirees: list[str],
     Rend `("", "")` si le chapitre n'a pas de banque : un chapitre sans
     glissement prévu n'est pas une erreur, et M1 le lit comme « non prévu ».
     """
-    banque = BANQUE_GLISSEMENT.get(chapitre)
-    if not banque:
+    bank = DRIFT_BANK.get(chapter)
+    if not bank:
         return "", ""
-    faits = banque["faits"]
+    facts = bank["faits"]
     # Le fait tourne AVEC l'approche, sur son propre index : deux glissements
     # d'un même chapitre ne partagent ni leur tête ni leur queue.
-    fait = faits[len(deja_tirees) % len(faits)]
-    restantes = [a for a in banque["approches"] if a not in deja_tirees]
-    if not restantes:
+    fact = facts[len(already_drawn) % len(facts)]
+    remaining_ones = [a for a in bank["approches"] if a not in already_drawn]
+    if not remaining_ones:
         # Plus d'approche neuve : on rend vide plutôt que de répéter. Deux fois
         # la même phrase dans un chapitre, c'est le tic qu'on cherche à éteindre.
-        return "", fait
-    return random.Random(graine + len(deja_tirees)).choice(restantes), fait
+        return "", fact
+    return random.Random(seed + len(already_drawn)).choice(remaining_ones), fact
 
 
-def composer_glissement(approche: str, fait_materiel: str) -> str:
+def compose_drift(approach: str, material_fact: str) -> str:
     """Coupe l'approche sur « … » et enchaîne le fait matériel.
 
     Le code COMPOSE : c'est ce qui rend le geste conforme par construction —
     au plus une occurrence, la coupe au bon endroit, le retour immédiat au
     matériel. Le modèle n'a fourni qu'une phrase.
     """
-    a = approche.strip().rstrip(" .!?…")
+    a = approach.strip().rstrip(" .!?…")
     # Si le modèle a déjà mis des points de suspension, on coupe là.
     a = re.split(r"\s*(?:…|\.\.\.)", a)[0].rstrip(" ,;")
-    return f"{a}… {fait_materiel.strip()}"
+    return f"{a}… {material_fact.strip()}"
 
 
-def valider_accumulation(phrase: str, dernier_essai: bool = False,
-                         chapitre: int = 2) -> tuple[bool, str]:
+def validate_accumulation(sentence: str, last_attempt: bool = False,
+                         chapter: int = 2) -> tuple[bool, str]:
     """Vérification COMPTABLE, plus une garde anti-recopie.
 
     Une accumulation recopiée de l'étalon n'en est pas une : la session 3 a vu
     deux « réussites » qui étaient l'étalon au caractère près, dans une scène
     qui parlait d'autre chose.
     """
-    if not accumulations_l3(phrase):
+    if not accumulations_l3(sentence):
         # LE MESSAGE DIT CE QUE LA PORTE A MESURÉ, pas ce que le candidat pèse.
         #
         # L'ancienne version comptait la phrase ENTIÈRE (`len(split())`) alors
@@ -340,19 +340,19 @@ def valider_accumulation(phrase: str, dernier_essai: bool = False,
         # protocole de session 7 a diagnostiqué « perdue pour huit mots » et
         # demandé de symétriser les seuils. Un contrôle qui rapporte autre chose
         # que ce qu'il mesure fait corriger la mauvaise pièce.
-        segments = phrases(phrase)
-        plus_longue = max(segments, key=lambda p: len(p.split()), default=phrase)
+        segments = sentences(sentence)
+        longest = max(segments, key=lambda p: len(p.split()), default=sentence)
         cause = []
         if len(segments) > 1:
             cause.append(f"{len(segments)} phrases (un point à l'intérieur)")
-        if ";" in phrase:
+        if ";" in sentence:
             cause.append("un point-virgule")
-        m, v = len(plus_longue.split()), plus_longue.count(",")
-        if m < L3_MOTS:
-            cause.append(f"{m} mots au lieu de {L3_MOTS}")
-        if v < L3_VIRGULES:
-            cause.append(f"{v} virgules au lieu de {L3_VIRGULES}")
-        detail = ", ".join(cause) + f" (candidat entier : {len(phrase.split())} mots)"
+        m, v = len(longest.split()), longest.count(",")
+        if m < L3_WORDS:
+            cause.append(f"{m} mots au lieu de {L3_WORDS}")
+        if v < L3_COMMAS:
+            cause.append(f"{v} virgules au lieu de {L3_COMMAS}")
+        detail = ", ".join(cause) + f" (candidat entier : {len(sentence.split())} mots)"
         # SYMÉTRIE DU SEUIL (session 7). Le plafond était toléré au dernier
         # essai, le plancher non : S6-2 a rendu une accumulation à huit mots du
         # compte et l'a perdue, pendant que S6-1 en gardait une de 215. Une
@@ -362,37 +362,37 @@ def valider_accumulation(phrase: str, dernier_essai: bool = False,
         # La tolérance ne vaut QUE pour le compte. Une phrase coupée en deux ou
         # portant un point-virgule n'est pas une accumulation trop courte, c'est
         # autre chose : la forme reste refusée jusqu'au bout.
-        forme_cassee = len(segments) > 1 or ";" in phrase
-        if not dernier_essai or forme_cassee:
+        broken_form = len(segments) > 1 or ";" in sentence
+        if not last_attempt or broken_form:
             return False, "seuils non atteints — " + detail
         return True, f"ACCEPTÉE malgré des seuils non atteints — {detail} — dernier essai"
-    if recopie_etalon(phrase):
+    if reference_copy(sentence):
         return False, "étalon recopié — ce n'est pas une accumulation"
     # Le plafond est STRICT au premier essai, TOLÉRÉ au dernier : une
     # accumulation trop longue est un défaut de style, une accumulation absente
     # est un échec bloquant. On refuse la démesure quand on peut encore
     # relancer, on l'accepte en la signalant quand c'est le dernier tour.
-    n = len(phrase.split())
+    n = len(sentence.split())
     # PLAFOND DUR (1,4× le plafond souple). La tolérance du dernier essai n'avait
     # PAS de limite : un tirage a rendu 190 mots (~30 étapes), accepté « malgré
     # 190 mots — dernier essai », et coupé en plein mot au service. Au-delà de
     # ~1,5× le plafond, ce n'est plus « un peu longue », c'est un emballement.
     # L'accumulation est optionnelle : mieux vaut aucune qu'une litanie tronquée.
-    if n > int(ACC_MOTS_MAX * 1.4):
+    if n > int(ACC_WORDS_MAX * 1.4):
         return False, (f"emballement ({n} mots ; plafond dur "
-                       f"{int(ACC_MOTS_MAX * 1.4)}) — rejetée même au dernier "
+                       f"{int(ACC_WORDS_MAX * 1.4)}) — rejetée même au dernier "
                        "essai, l'accumulation est droppée")
-    if n > ACC_MOTS_MAX and not dernier_essai:
-        return False, (f"trop longue ({n} mots ; plafond {ACC_MOTS_MAX})")
+    if n > ACC_WORDS_MAX and not last_attempt:
+        return False, (f"trop longue ({n} mots ; plafond {ACC_WORDS_MAX})")
     # LA LANGUE. Au premier run C, `accumulate` a rendu une phrase de 75 mots et
     # 7 virgules — en ANGLAIS (« Despite having dinner alone with one plate… »),
     # et la validation l'a acceptée : elle comptait des mots et des virgules,
     # pas une langue. Compter n'est pas lire. FRENCH_GUARD était pourtant dans
     # le prompt système : la garde ne suffit pas, il faut le contrôle en sortie.
-    _, alertes = delint(phrase)
-    fuites = [a for a in alertes if "anglais" in a]
-    if fuites:
-        return False, f"langue : {fuites[0]}"
+    _, alerts = delint(sentence)
+    leaks = [a for a in alerts if "anglais" in a]
+    if leaks:
+        return False, f"langue : {leaks[0]}"
     # L'ACCUMULATION QUI SE RÉSUME (session 6). C2 a rendu 131 mots de table des
     # matières — « perplexité, concentration sur les détails, rappel des faits,
     # fatigue, panique… » — et les compteurs l'ont acceptée. C'est *compter n'est
@@ -410,13 +410,13 @@ def valider_accumulation(phrase: str, dernier_essai: bool = False,
     # la première personne — un basculement que seule la lecture debout voyait.
     # Rejet à la porte : c'est mécanique, et une accumulation à la mauvaise
     # personne n'est pas réparable en aval.
-    ok_pers, raison_pers = accumulation_a_la_premiere(phrase)
-    if not ok_pers:
-        return False, raison_pers
-    part, abstraits = accumulation_resumante(phrase)
-    if part > ACC_ABSTRAIT_MAX:
+    person_ok, person_reason = accumulation_at_first_person(sentence)
+    if not person_ok:
+        return False, person_reason
+    part, abstract_items = summarizing_accumulation(sentence)
+    if part > ACC_ABSTRACT_MAX:
         return False, (f"elle se résume au lieu de compter : {part:.0%} d'items "
-                       f"abstraits ({', '.join(abstraits[:4])})")
+                       f"abstraits ({', '.join(abstract_items[:4])})")
     # LE DÉCOR GÉNÉRIQUE, bloquant ICI et nulle part ailleurs. `accumulate` est
     # devenu le canal de famine de l'étage C : ne recevant que l'entrée et une
     # consigne de forme, le nœud inventait les étapes manquantes depuis ses
@@ -427,20 +427,20 @@ def valider_accumulation(phrase: str, dernier_essai: bool = False,
     # Bloquant sur ce nœud, simple drapeau sur le texte d'écriture : automatiser
     # un contrôle et le rendre bloquant sont deux décisions distinctes, et le
     # §4.2 exige « zéro terme » dans les accumulations PRODUITES.
-    decor = interdits_materiels(phrase, chapitre)
-    if decor and not dernier_essai:
+    scenery = material_forbidden(sentence, chapter)
+    if scenery and not last_attempt:
         return False, (f"décor hors du monde : "
-                       f"{'; '.join(d.split(' : ')[0] for d in decor[:3])}")
-    if len(phrase.split()) > ACC_MOTS_MAX:
-        return True, (f"ACCEPTÉE malgré {len(phrase.split())} mots (plafond "
-                      f"{ACC_MOTS_MAX}) — dernier essai")
+                       f"{'; '.join(d.split(' : ')[0] for d in scenery[:3])}")
+    if len(sentence.split()) > ACC_WORDS_MAX:
+        return True, (f"ACCEPTÉE malgré {len(sentence.split())} mots (plafond "
+                      f"{ACC_WORDS_MAX}) — dernier essai")
     return True, ""
 
 
 # La frontière déclarée du brief est une phrase en français (« à la frontière
 # entre la découverte de la musique et celle du plat »). Le composeur en tire
 # l'ANCRE d'aval : le passage s'insère juste avant ce qui suit la frontière.
-_ANCRES_FRONTIERE = {
+_FRONTIER_ANCHORS = {
     "plat": re.compile(r"\b(le plat|le four|au four)\b", re.IGNORECASE),
     "musique": re.compile(r"\b(la musique|la playlist|l'enceinte)\b", re.IGNORECASE),
     "photos": re.compile(r"\b(les photos|la boîte)\b", re.IGNORECASE),
@@ -454,7 +454,7 @@ _ANCRES_FRONTIERE = {
 }
 
 
-def position_frontiere(texte: str, position: str) -> int | None:
+def frontier_position(text: str, position: str) -> int | None:
     """Offset d'insertion d'un passage à une frontière déclarée en français.
 
     On cherche l'ancre d'AVAL — « la frontière entre la musique et le plat »
@@ -466,53 +466,53 @@ def position_frontiere(texte: str, position: str) -> int | None:
     Rend None si l'ancre est introuvable — un geste placé au hasard est pire
     qu'un geste absent, et l'appelant doit pouvoir le dire.
     """
-    mots = position.lower()
+    words = position.lower()
     # L'AVAL est le dernier terme nommé DANS LA PHRASE, pas dans le
     # dictionnaire. « entre la découverte de la musique et celle du plat » :
     # l'aval est le plat. La première version itérait sur les clés et retenait
     # « musique » — le passage atterrissait un paragraphe trop tôt, à une
     # frontière qui n'était pas la bonne.
-    nommes = [(mots.rindex(cle), motif)
-              for cle, motif in _ANCRES_FRONTIERE.items() if cle in mots]
-    if not nommes:
+    named = [(words.rindex(key), pattern)
+              for key, pattern in _FRONTIER_ANCHORS.items() if key in words]
+    if not named:
         return None
-    aval = max(nommes)[1]
-    for debut, _, contenu in paragraphes(texte):
-        if aval.search(contenu):
-            return debut
+    downstream = max(named)[1]
+    for start, _, content in paragraphs(text):
+        if downstream.search(content):
+            return start
     return None
 
 
-def assembler(texte: str, accumulation: str, glissement: str, verdict: str,
-              bornes_reconstruction: tuple[int, int] | None = None,
-              frontiere: int | None = None) -> tuple[str, list[str]]:
+def assemble(text: str, accumulation: str, drift: str, verdict: str,
+              reconstruction_bounds: tuple[int, int] | None = None,
+              frontier: int | None = None) -> tuple[str, list[str]]:
     """Insère les deux gestes. RÈGLE 2 : positions sur l'original, de la fin
     vers le début."""
     notes: list[str] = []
-    pos_acc = position_accumulation(texte, verdict) if accumulation else -1
-    pos_gli = (frontiere if frontiere is not None else
-               position_glissement(texte, pos_acc, bornes_reconstruction)
-               ) if glissement else -1
+    pos_acc = accumulation_position(text, verdict) if accumulation else -1
+    pos_gli = (frontier if frontier is not None else
+               drift_position(text, pos_acc, reconstruction_bounds)
+               ) if drift else -1
 
     inserts = []
     if accumulation:
         inserts.append((pos_acc, accumulation.strip() + "\n\n"))
-    if glissement:
+    if drift:
         # LA FORME DU FRAGMENT DÉPEND DU REPÈRE, et c'est facile à rater :
         # `position_glissement` rend une FIN de paragraphe (le geste se colle
         # après, donc « \n\n » devant), `position_frontiere` rend un DÉBUT (le
         # geste se pose avant, donc « \n\n » derrière). Confondre les deux
         # produit une ligne vide en trop d'un côté et un collage de l'autre —
         # exactement ce qu'a rendu le premier essai.
-        inserts.append((pos_gli, glissement.strip() + "\n\n"
-                        if frontiere is not None
-                        else "\n\n" + glissement.strip()))
-    if accumulation and glissement and pos_acc == pos_gli:
+        inserts.append((pos_gli, drift.strip() + "\n\n"
+                        if frontier is not None
+                        else "\n\n" + drift.strip()))
+    if accumulation and drift and pos_acc == pos_gli:
         notes.append("les deux gestes visaient le même point — glissement "
                      "reculé (règle d'assemblage 1)")
 
     # De la FIN vers le DÉBUT : les offsets calculés sur l'original restent
     # valides pour les insertions qui les précèdent.
     for position, fragment in sorted(inserts, key=lambda x: -x[0]):
-        texte = texte[:position] + fragment + texte[position:]
-    return texte, notes
+        text = text[:position] + fragment + text[position:]
+    return text, notes

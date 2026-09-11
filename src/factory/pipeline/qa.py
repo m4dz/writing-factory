@@ -18,7 +18,7 @@ from factory.retrieval.context import world_context
 from factory.settings import settings
 
 # Vocabulaire de PRODUCTION, interdit dans les faits dérivés (item 3).
-VOCAB_PILOTAGE = re.compile(
+PILOT_VOCAB = re.compile(
     r"\b(verdict impos[ée]|relecture blanche|grade|ratio|chapitre\s*\d|"
     r"r[ée]gime\s*\d|marche des explications|objets actifs|chaleur|"
     r"table de pilotage|s[ée]ances)\b", re.IGNORECASE)
@@ -133,7 +133,7 @@ _QUOTE_RE = re.compile(r"[«\"“]\s*(.+?)\s*[»\"”]")
 # devrait pas être. Un fait négatif explicite se convertit, lui, en question
 # d'événement dont le OUI vaut violation — exactement le protocole qui marche
 # depuis la session 1.
-FAITS_NEGATIFS = [
+NEGATIVE_FACTS = [
     "Personne d'autre n'entre dans la maison.",
     "Aucun repas n'est partagé, aucune conversation n'a lieu.",
     "Elle ne sort pas de la maison.",
@@ -152,10 +152,10 @@ def derive_facts(characters: list[str]) -> tuple[list[str], dict]:
     # Filtre de PILOTAGE : un fait qui parle de la fabrication du chapitre
     # n'est pas un fait du monde. Servis au planificateur, ces pseudo-faits
     # l'ont fait raisonner en formulaire (mode constaté sur tout l'étage B).
-    facts = [f for f in facts if f and not VOCAB_PILOTAGE.search(f)]
+    facts = [f for f in facts if f and not PILOT_VOCAB.search(f)]
     # Les faits négatifs sont AJOUTÉS, jamais dérivés : un modèle qui résume des
     # fiches énonce ce qui est, pas ce qui est exclu.
-    return facts + FAITS_NEGATIFS, m
+    return facts + NEGATIVE_FACTS, m
 
 
 def _parse_questions(text: str, questions: list[str], indices: list[int]) -> None:
@@ -186,19 +186,19 @@ def derive_questions(facts: list[str]) -> tuple[list[str], list[dict]]:
     metrics.append(m)
     _parse_questions(text, questions, indices)
 
-    manquants = [i for i, q in enumerate(questions) if not q]
-    if manquants:
-        numbered = "\n".join(f"{k + 1}. {facts[i]}" for k, i in enumerate(manquants))
+    missing = [i for i, q in enumerate(questions) if not q]
+    if missing:
+        numbered = "\n".join(f"{k + 1}. {facts[i]}" for k, i in enumerate(missing))
         text, m = chat(_QUESTIONS_SYS, f"FAITS :\n{numbered}", model=settings.qa_model,
                        temperature=0.1, num_predict=300)
         metrics.append(m)
-        _parse_questions(text, questions, manquants)
+        _parse_questions(text, questions, missing)
     return questions, metrics
 
 
 def _norm(s: str) -> str:
     """Normalise pour comparer une citation au texte source."""
-    return re.sub(r"\s+", " ", s.replace("’", "'")).strip().lower()
+    return re.sub(r"\s+", " ", s.replace("’", "'""'")).strip().lower()
 
 
 def _sourced(detail: str, scene: str) -> str | None:
@@ -216,31 +216,31 @@ def _sourced(detail: str, scene: str) -> str | None:
     return frag if _norm(frag)[:60] in _norm(scene) else None
 
 
-def _ask(questions: list[str], texte: str, system: str, label: str) -> tuple[dict[int, str], dict]:
+def _ask(questions: list[str], excerpt: str, system: str, label: str) -> tuple[dict[int, str], dict]:
     """Pose le questionnaire de violation contre UN texte court.
 
     Retourne {n° de question: citation brute} pour les seuls OUI — dict vide
     si le texte est propre OU si le vérificateur a dérivé (distingué par
     l'appelant via la métrique `repondues`).
     """
-    posees = [(i + 1, q) for i, q in enumerate(questions) if q]
-    qblock = "\n".join(f"Q{n} : {q}" for n, q in posees)
-    user = f"QUESTIONS :\n{qblock}\n\n--- {label} ---\n{texte}"
+    asked = [(i + 1, q) for i, q in enumerate(questions) if q]
+    qblock = "\n".join(f"Q{n} : {q}" for n, q in asked)
+    user = f"QUESTIONS :\n{qblock}\n\n--- {label} ---\n{excerpt}"
     text, m = chat(system, user, model=settings.qa_model, temperature=0.0,
                    num_predict=400)
     hits: dict[int, str] = {}
-    repondues: set[int] = set()
+    answered: set[int] = set()
     for line in text.splitlines():
         hit = _ANSWER_RE.search(line)
         if not hit:
             continue
         n = int(hit.group(1))
-        if n in repondues:
+        if n in answered:
             continue
-        repondues.add(n)
+        answered.add(n)
         if hit.group(2).upper() == "OUI":
             hits[n] = hit.group(3).strip()
-    m["repondues"] = len(repondues)
+    m["repondues"] = len(answered)
     return hits, m
 
 
@@ -249,7 +249,7 @@ def check_scene(questions: list[str], scene: str) -> tuple[dict[int, str], dict]
     return _ask(questions, scene, _ANSWER_SYS, "EXTRAIT")
 
 
-def _confirm(question: str, texte: str,
+def _confirm(question: str, excerpt: str,
              system: str = _CONFIRM_SYS) -> tuple[bool, dict]:
     """Contre-appel sur un OUI : une seule question, réponse en un mot.
 
@@ -258,7 +258,7 @@ def _confirm(question: str, texte: str,
     Reposée seule et en mode sévère, la même question est tranchée nettement.
     Un OUI non confirmé n'est pas une violation.
     """
-    user = f"QUESTION : {question}\n\n--- EXTRAIT ---\n{texte}"
+    user = f"QUESTION : {question}\n\n--- EXTRAIT ---\n{excerpt}"
     text, m = chat(system, user, model=settings.qa_model, temperature=0.0,
                    num_predict=8)
     return bool(re.search(r"\bOUI\b", text, re.I)), m
@@ -279,51 +279,51 @@ def check_facts(facts: list[str], scenes: list[str]) -> tuple[str, list[dict]]:
         return "Aucune question de vérification dérivée des faits.", metrics
 
     violations: dict[int, list[tuple[int, str]]] = {}
-    doutes: list[str] = []
-    muettes: list[int] = []
+    doubts: list[str] = []
+    silent: list[int] = []
 
     for i, scene in enumerate(scenes, 1):
         hits, m = check_scene(questions, scene)
         metrics.append(m)
         if not m.get("repondues"):
-            muettes.append(i)
+            silent.append(i)
             continue
         for n, detail in hits.items():
-            citation = _sourced(detail, scene)
-            if not citation:
-                doutes.append(f"    fait {n}, scène {i} : "
+            quotation = _sourced(detail, scene)
+            if not quotation:
+                doubts.append(f"    fait {n}, scène {i} : "
                               f"{detail or '(OUI sans citation)'} "
                               f"[citation introuvable dans la scène]")
                 continue
-            confirme, mc = _confirm(questions[n - 1], scene)
+            confirmed, mc = _confirm(questions[n - 1], scene)
             metrics.append(mc)
-            if confirme:
-                violations.setdefault(n, []).append((i, citation))
+            if confirmed:
+                violations.setdefault(n, []).append((i, quotation))
             else:
-                doutes.append(f"    fait {n}, scène {i} : « {citation} » "
+                doubts.append(f"    fait {n}, scène {i} : « {quotation} » "
                               f"[non confirmé au contre-appel]")
 
-    lignes: list[str] = []
-    for n, fait in enumerate(facts, 1):
+    lines: list[str] = []
+    for n, fact in enumerate(facts, 1):
         if not questions[n - 1]:
-            lignes.append(f"FAIT {n} : NON VÉRIFIÉ (pas de question) — {fait}")
+            lines.append(f"FAIT {n} : NON VÉRIFIÉ (pas de question) — {fact}")
         elif n in violations:
-            ou = ", ".join(f"scène {i}" for i, _ in violations[n])
-            lignes.append(f"FAIT {n} : CONTREDIT ({ou}) — {fait}")
-            lignes.extend(f"    → scène {i} : « {c} »" for i, c in violations[n])
+            where_txt = ", ".join(f"scène {i}" for i, _ in violations[n])
+            lines.append(f"FAIT {n} : CONTREDIT ({where_txt}) — {fact}")
+            lines.extend(f"    → scène {i} : « {c} »" for i, c in violations[n])
         else:
-            lignes.append(f"FAIT {n} : tenu — {fait}")
+            lines.append(f"FAIT {n} : tenu — {fact}")
 
-    if doutes:
-        lignes.append("")
-        lignes.append("[signalements écartés faute de citation vérifiable :]")
-        lignes.extend(doutes)
-    if muettes:
-        lignes.append("")
-        lignes.append("[scènes sans réponse exploitable (dérive du "
+    if doubts:
+        lines.append("")
+        lines.append("[signalements écartés faute de citation vérifiable :]")
+        lines.extend(doubts)
+    if silent:
+        lines.append("")
+        lines.append("[scènes sans réponse exploitable (dérive du "
                       "vérificateur) : "
-                      + ", ".join(str(i) for i in muettes) + "]")
-    return "\n".join(lignes), metrics
+                      + ", ".join(str(i) for i in silent) + "]")
+    return "\n".join(lines), metrics
 
 
 # --- Vérification du PLAN, AVANT d'écrire -------------------------------------
@@ -393,30 +393,30 @@ def check_plan(facts: list[str],
         return [], "Plan non vérifié (le vérificateur a dérivé).", metrics
 
     violations: list[tuple[int, str, str]] = []
-    doutes: list[str] = []
+    doubts: list[str] = []
     for n, detail in hits.items():
         if not 1 <= n <= len(facts):
             continue
-        citation = _sourced(detail, plan_txt)
-        if not citation:
-            doutes.append(f"    fait {n} : {detail or '(OUI sans citation)'} "
+        quotation = _sourced(detail, plan_txt)
+        if not quotation:
+            doubts.append(f"    fait {n} : {detail or '(OUI sans citation)'} "
                           "[citation introuvable dans le plan]")
             continue
-        confirme, mc = _confirm(questions[n - 1], plan_txt, _CONFIRM_PLAN_SYS)
+        confirmed, mc = _confirm(questions[n - 1], plan_txt, _CONFIRM_PLAN_SYS)
         metrics.append(mc)
-        if confirme:
-            violations.append((n, facts[n - 1], citation))
+        if confirmed:
+            violations.append((n, facts[n - 1], quotation))
         else:
-            doutes.append(f"    fait {n} : « {citation} » "
+            doubts.append(f"    fait {n} : « {quotation} » "
                           "[non confirmé au contre-appel]")
 
-    lignes = [f"{len(facts)} faits confrontés au plan."]
-    for n, fait, citation in violations:
-        lignes.append(f"  PLAN CONTREDIT le fait {n} — {fait}")
-        lignes.append(f"    → « {citation} »")
+    lines = [f"{len(facts)} faits confrontés au plan."]
+    for n, fact, quotation in violations:
+        lines.append(f"  PLAN CONTREDIT le fait {n} — {fact}")
+        lines.append(f"    → « {quotation} »")
     if not violations:
-        lignes.append("  aucune contradiction : le plan respecte la bible.")
-    if doutes:
-        lignes.append("  [signalements écartés :]")
-        lignes.extend(doutes)
-    return violations, "\n".join(lignes), metrics
+        lines.append("  aucune contradiction : le plan respecte la bible.")
+    if doubts:
+        lines.append("  [signalements écartés :]")
+        lines.extend(doubts)
+    return violations, "\n".join(lines), metrics

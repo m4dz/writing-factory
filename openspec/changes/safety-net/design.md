@@ -2,9 +2,11 @@
 
 ## The boundary that is frozen
 
-The model boundary is `llm.chat` / `llm.chat_turns`. Every module binds the
-function by name at import (`from llm import chat`), so the fake is installed
-in each binding (`graph`, `qa`, `roleplay`, `llm`), plus `unload`. The fake
+The model boundary is `llm.chat` / `llm.chat_turns`. At step 2 every module
+bound the function by name at import (`from llm import chat`), so the fake was
+installed in each binding (`graph`, `qa`, `roleplay`, `llm`), plus `unload`;
+since step 4 part 2 the functions delegate to one `ollama.client` and the fake
+replaces its three methods. The fake
 records `(role, system, user, model, num_predict, temperature, reply)` for
 every call. The snapshot renders the ordered list of `(system, user)` pairs.
 

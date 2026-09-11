@@ -51,7 +51,7 @@ def fake_chroma(monkeypatch, bible_chroma):
     monkeypatch.setattr(retrieval, "embed", lambda text: [0.0] * 768)
     # `from retrieval import embed` bound the name in roleplay at import time.
     monkeypatch.setattr(roleplay, "embed", lambda text: [0.0] * 768)
-    retrieval.vider_routage()
+    retrieval.clear_routing()
     bible_chroma.reset_sessions()
     return bible_chroma
 
@@ -78,6 +78,6 @@ def quiet_progress(monkeypatch):
     """A fresh, inactive progress sink whose notes the test can read."""
     from factory.infra import progress
 
-    sink = progress.Progress(actif=False)
+    sink = progress.Progress(active=False)
     monkeypatch.setattr(progress, "SINK", sink)
     return sink

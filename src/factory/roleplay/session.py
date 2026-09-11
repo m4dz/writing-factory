@@ -51,7 +51,7 @@ from factory.retrieval.context import (
 # Le prompt système du mode acteur. Les interdits sont explicites et NOMMÉS :
 # un modèle de 12B respecte mieux « ne dis jamais que tu es un modèle » qu'une
 # consigne générale de rester dans le personnage.
-_ACTOR_SYS = """Tu ES {nom}. Tu n'es pas un assistant, tu n'es pas un modèle de
+_ACTOR_SYS = """Tu ES {name}. Tu n'es pas un assistant, tu n'es pas un modèle de
 langue, tu n'es pas un narrateur : tu es cette personne, et tu parles à la
 première personne.
 
@@ -59,19 +59,19 @@ RÈGLES ABSOLUES, sans exception :
 - Tu ne sors JAMAIS du personnage. Tu ne mentionnes jamais l'intelligence
   artificielle, un modèle, un prompt, une consigne, ni le fait d'incarner
   quelqu'un.
-- Tu réponds UNIQUEMENT ce que {nom} dirait, avec sa voix, son vocabulaire, ses
+- Tu réponds UNIQUEMENT ce que {name} dirait, avec sa voix, son vocabulaire, ses
   tics de langage. La fiche ci-dessous contient des répliques typiques ET des
-  choses que {nom} ne dirait jamais : respecte les deux.
+  choses que {name} ne dirait jamais : respecte les deux.
 - Tu ne racontes pas la scène à la troisième personne et tu n'écris pas de
   didascalies longues. Un geste bref entre tirets est permis quand il porte
   quelque chose — « — Je n'ai pas dit ça. » Il se détourna. — mais la parole
   domine.
 - Si on t'interroge sur un fait que ta fiche ne contient pas, tu réagis comme
-  {nom} le ferait : tu esquives, tu coupes court, tu réponds à côté. Tu
+  {name} le ferait : tu esquives, tu coupes court, tu réponds à côté. Tu
   n'INVENTES pas d'élément de monde (nom, lieu, événement) absent de ta fiche.
 - Tu n'emploies JAMAIS les tournures « je ne comprends pas cette question »,
   « je suis désolé, mais », « en tant que… » : ce sont des formules d'assistant,
-  et {nom} n'est pas un assistant. Tu réagis, tu rétorques, tu te méfies.
+  et {name} n'est pas un assistant. Tu réagis, tu rétorques, tu te méfies.
 - Tu réponds court : deux à six phrases. C'est une conversation, pas un
   monologue.
 - Tu écris SEULEMENT tes paroles. Tu ne préfixes jamais ta réplique de ton nom,
@@ -100,7 +100,7 @@ ton humeur du moment.
 
 Ce que tu sais de toi, et qui te contraint entièrement :
 
-{fiche}
+{sheet}
 """
 
 _SUMMARY_SYS = (
@@ -118,7 +118,7 @@ _SUMMARY_SYS = (
 # conversations » à trois questions de provocation, malgré des interdits
 # explicites. Même philosophie que partout ailleurs dans ce projet : le modèle
 # est faillible, c'est le CODE qui tient la ligne.
-_HORS_ROLE = re.compile(
+_OUT_OF_ROLE = re.compile(
     r"intelligence artificielle|\bIA\b|modèle de langue|modèle linguistique|"
     r"programme informatique|assistant virtuel|en tant qu'(?:une? )?(?:IA|"
     r"intelligence|assistant|programme|modèle)|je suis (?:un |une )?(?:programme|"
@@ -130,15 +130,15 @@ _HORS_ROLE = re.compile(
 
 # Artefact d'imitation du prompt : le modèle recopie le tiret de dialogue de nos
 # exemples EN PLUS du sien (« — — Non, je ne peux pas »).
-_TIRETS_DOUBLES = re.compile(r"^\s*[—–-]\s*[—–-]\s*")
+_DOUBLE_DASHES = re.compile(r"^\s*[—–-]\s*[—–-]\s*")
 
 
-def hors_role(texte: str) -> list[str]:
+def out_of_role(text: str) -> list[str]:
     """Marqueurs de sortie de personnage trouvés dans une réplique."""
-    return sorted({m.group(0).lower() for m in _HORS_ROLE.finditer(texte)})
+    return sorted({m.group(0).lower() for m in _OUT_OF_ROLE.finditer(text)})
 
 
-def _nettoyer(texte: str, nom: str = "") -> str:
+def _clean(text: str, name: str = "") -> str:
     """Retire les artefacts de forme d'une réplique.
 
     Deux constatés à l'usage : le tiret de dialogue doublé (le modèle recopie
@@ -147,21 +147,21 @@ def _nettoyer(texte: str, nom: str = "") -> str:
     dialogue. Ce préfixe est invisible dans un chat, mais il ressort dans la
     transcription rejouée sur scène, où le nom apparaît alors deux fois.
     """
-    texte = _TIRETS_DOUBLES.sub("— ", texte.strip())
-    if nom:
-        texte = re.sub(rf"^\s*{re.escape(nom)}\s*[:—–-]\s*", "", texte,
+    text = _DOUBLE_DASHES.sub("— ", text.strip())
+    if name:
+        text = re.sub(rf"^\s*{re.escape(name)}\s*[:—–-]\s*", "", text,
                        flags=re.I)
-    return texte.strip()
+    return text.strip()
 
 
-def _slug(texte: str) -> str:
+def _slug(text: str) -> str:
     """Slug ASCII pour un nom de fichier ou un id de chunk."""
-    plat = unicodedata.normalize("NFKD", texte).encode("ascii", "ignore").decode()
-    return re.sub(r"[^a-z0-9]+", "-", plat.lower()).strip("-")
+    flat = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9]+", "-", flat.lower()).strip("-")
 
 
-def build_system(doc_id: str, *, nom: str | None = None,
-                 rappels: list[str] | None = None) -> str:
+def build_system(doc_id: str, *, name: str | None = None,
+                 reminders: list[str] | None = None) -> str:
     """Assemble le prompt système d'incarnation depuis la bible.
 
     `rappels` : résumés de sessions antérieures, injectés comme des SOUVENIRS du
@@ -169,78 +169,78 @@ def build_system(doc_id: str, *, nom: str | None = None,
     durable, le souvenir est daté et révisable — les mélanger inviterait le
     modèle à traiter un épisode de conversation comme un fait de la bible.
     """
-    fiche = acting_context(doc_id)
-    if not fiche:
+    sheet = acting_context(doc_id)
+    if not sheet:
         raise ValueError(
             f"Aucune fiche indexée pour « {doc_id} ». Vérifier la bible et "
             "l'indexeur (ids attendus : {doc_id}::voix_et_expression, …)."
         )
-    system = _ACTOR_SYS.format(nom=nom or doc_id, fiche=fiche)
+    system = _ACTOR_SYS.format(name=name or doc_id, sheet=sheet)
 
-    if rappels:
-        bloc = "\n\n".join(rappels)
+    if reminders:
+        block = "\n\n".join(reminders)
         system += (
             "\n\nCE DONT TU TE SOUVIENS de vos précédentes conversations (des "
             "souvenirs, pas des faits de ta fiche — tu peux t'en servir, les "
-            "nuancer, ou refuser d'en parler) :\n" + bloc
+            "nuancer, ou refuser d'en parler) :\n" + block
         )
     return system
 
 
-def lister_sessions(doc_id: str | None = None) -> list[dict]:
+def list_sessions(doc_id: str | None = None) -> list[dict]:
     """Sessions enregistrées sur disque, les plus récentes d'abord."""
-    racine = settings.sessions_dir / doc_id if doc_id else settings.sessions_dir
-    if not racine.exists():
+    root = settings.sessions_dir / doc_id if doc_id else settings.sessions_dir
+    if not root.exists():
         return []
-    fiches = []
-    for chemin in sorted(racine.glob("*/*.md" if doc_id is None else "*.md"),
+    sheets = []
+    for path in sorted(root.glob("*/*.md" if doc_id is None else "*.md"),
                          reverse=True):
-        fiches.append({
-            "id": f"{chemin.parent.name}/{chemin.stem}",
-            "character": chemin.parent.name,
-            "horodatage": chemin.stem,
-            "octets": chemin.stat().st_size,
+        sheets.append({
+            "id": f"{path.parent.name}/{path.stem}",
+            "character": path.parent.name,
+            "horodatage": path.stem,
+            "octets": path.stat().st_size,
         })
-    return fiches
+    return sheets
 
 
-def lire_session(doc_id: str, horodatage: str) -> dict:
+def read_session(doc_id: str, timestamp: str) -> dict:
     """Relit une session enregistrée : métadonnées, résumé, transcription.
 
     Le parseur est volontairement tolérant : ces fichiers sont faits pour être
     ÉDITÉS À LA MAIN avant la scène (élaguer une réplique ratée, resserrer un
     échange). Un format qui casserait à la première retouche manquerait son but.
     """
-    chemin = settings.sessions_dir / doc_id / f"{horodatage}.md"
-    if not chemin.exists():
-        raise FileNotFoundError(f"session inconnue : {doc_id}/{horodatage}")
-    texte = chemin.read_text(encoding="utf-8")
+    path = settings.sessions_dir / doc_id / f"{timestamp}.md"
+    if not path.exists():
+        raise FileNotFoundError(f"session inconnue : {doc_id}/{timestamp}")
+    text = path.read_text(encoding="utf-8")
 
-    nom = doc_id.split("-")[0].capitalize()
-    entete = re.search(r"^#\s+Session de roleplay\s+[—-]\s+(.+)$", texte, re.M)
-    if entete:
-        nom = entete.group(1).strip()
+    name = doc_id.split("-")[0].capitalize()
+    header = re.search(r"^#\s+Session de roleplay\s+[—-]\s+(.+)$", text, re.M)
+    if header:
+        name = header.group(1).strip()
 
-    def section(titre: str) -> str:
-        hit = re.search(rf"^##\s+{titre}\s*$(.*?)(?=^##\s|\Z)", texte,
+    def section(title: str) -> str:
+        hit = re.search(rf"^##\s+{title}\s*$(.*?)(?=^##\s|\Z)", text,
                         re.M | re.S)
         return hit.group(1).strip() if hit else ""
 
-    echanges = []
-    for bloc in re.finditer(r"^\*\*(.+?)\*\*\s+[—-]\s+(.+?)(?=\n\s*\n|\Z)",
+    exchanges = []
+    for block in re.finditer(r"^\*\*(.+?)\*\*\s+[—-]\s+(.+?)(?=\n\s*\n|\Z)",
                             section("Transcription"), re.M | re.S):
-        qui, dit = bloc.group(1).strip(), bloc.group(2).strip()
-        dit = re.sub(r"<!--.*?-->", "", dit, flags=re.S).strip()
-        if dit:
-            echanges.append({
-                "role": "user" if qui.lower() in ("vous", "interlocuteur")
+        who, said = block.group(1).strip(), block.group(2).strip()
+        said = re.sub(r"<!--.*?-->", "", said, flags=re.S).strip()
+        if said:
+            exchanges.append({
+                "role": "user" if who.lower() in ("vous", "interlocuteur")
                         else "assistant",
-                "qui": qui,
-                "texte": dit,
+                "qui": who,
+                "texte": said,
             })
     return {
-        "id": f"{doc_id}/{horodatage}", "character": doc_id, "nom": nom,
-        "resume": section("Ce qui s'est dit"), "echanges": echanges,
+        "id": f"{doc_id}/{timestamp}", "character": doc_id, "nom": name,
+        "resume": section("Ce qui s'est dit"), "echanges": exchanges,
     }
 
 
@@ -253,13 +253,13 @@ class Session:
     lecteur d'une vérité stockée hors de lui, jamais son dépositaire.
     """
 
-    def __init__(self, doc_id: str, *, nom: str | None = None,
-                 keep_turns: int | None = None, rappeler: bool = True):
+    def __init__(self, doc_id: str, *, name: str | None = None,
+                 keep_turns: int | None = None, remind: bool = True):
         self.doc_id = doc_id
-        self.nom = nom or doc_id.split("-")[0].capitalize()
+        self.name = name or doc_id.split("-")[0].capitalize()
         self.keep_turns = settings.keep_turns if keep_turns is None else keep_turns
         self.turns: list[dict] = []       # échanges verbatim (role/content)
-        self.resume: str = ""             # résumé glissant des échanges sortis
+        self.summary: str = ""             # résumé glissant des échanges sortis
         self.metrics: list[dict] = []
         self.warnings: list[str] = []     # sorties de rôle, fuites de langue
         # Transcription INTÉGRALE, distincte de `turns`. `turns` est la mémoire
@@ -267,24 +267,24 @@ class Session:
         # puis les retire, ce qui est juste pour un acteur (il se souvient de ce
         # qui s'est joué, pas des mots exacts) mais détruit la trace. Or c'est
         # cette trace qu'on rejoue sur scène — les sessions sont pré-générées.
-        self.transcription: list[dict] = []
-        self.rappels = session_memories(doc_id) if rappeler else []
-        self.debut = datetime.now(timezone.utc)
+        self.transcript: list[dict] = []
+        self.reminders = session_memories(doc_id) if remind else []
+        self.start = datetime.now(timezone.utc)
         # Valider la fiche À LA CONSTRUCTION, pas au premier tour. Sans ça
         # l'absence de personnage ne se voyait qu'après le premier message :
         # côté CLI le `except ValueError` de chat_character.py ne se déclenchait
         # jamais, et côté HTTP un personnage inconnu rendait 503 (« la machine
         # a un problème ») au lieu de 404 (« ce personnage n'existe pas »).
-        build_system(doc_id, nom=self.nom, rappels=self.rappels)
+        build_system(doc_id, name=self.name, reminders=self.reminders)
 
     # --- contexte ------------------------------------------------------------
 
     def _system(self) -> str:
-        system = build_system(self.doc_id, nom=self.nom, rappels=self.rappels)
-        if self.resume:
+        system = build_system(self.doc_id, name=self.name, reminders=self.reminders)
+        if self.summary:
             system += (
                 "\n\nDÉBUT DE LA CONVERSATION EN COURS, résumé (la suite du "
-                f"dialogue t'est donnée mot pour mot après) :\n{self.resume}"
+                f"dialogue t'est donnée mot pour mot après) :\n{self.summary}"
             )
         return system
 
@@ -300,59 +300,59 @@ class Session:
         empoisonnerait toutes les sessions suivantes. Mesuré au premier test.
         """
         self.turns.append({"role": "user", "content": question})
-        self.transcription.append({"role": "user", "texte": question})
+        self.transcript.append({"role": "user", "texte": question})
         # num_predict serré : la consigne demande deux à six phrases, et un
         # plafond bas est une contrainte plus efficace qu'une prière dans le
         # prompt. Le mode acteur n'a pas besoin du filet de continuation du mode
         # auteur — une réplique coupée se relance d'un mot, une scène non.
-        texte, m = chat_turns(self._system(), self._trimmed_turns(),
+        text, m = chat_turns(self._system(), self._trimmed_turns(),
                               temperature=temperature, num_predict=320)
         self.metrics.append(m)
-        fautes = hors_role(texte)
+        faults = out_of_role(text)
 
-        if fautes:
-            rappel = (
+        if faults:
+            reminder = (
                 "Ta réponse précédente est SORTIE DU PERSONNAGE : elle contient "
-                f"{', '.join('« ' + f + ' »' for f in fautes)}. "
-                f"{self.nom} ne sait pas ce qu'est un programme ni une machine "
+                f"{', '.join('« ' + f + ' »' for f in faults)}. "
+                f"{self.name} ne sait pas ce qu'est un programme ni une machine "
                 "pensante. Réponds de nouveau à la même question, uniquement "
-                f"comme {self.nom}, en réagissant à l'insinuation ou en la "
+                f"comme {self.name}, en réagissant à l'insinuation ou en la "
                 "balayant. Deux à quatre phrases, rien d'autre."
             )
-            texte, m = chat_turns(
-                self._system() + "\n\n" + rappel,
+            text, m = chat_turns(
+                self._system() + "\n\n" + reminder,
                 self._trimmed_turns(),
                 temperature=min(0.7, temperature), num_predict=320,
             )
             self.metrics.append(m)
-            fautes = hors_role(texte)
+            faults = out_of_role(text)
 
-        texte, fuites = delint(_nettoyer(texte, self.nom))
-        if fuites:
-            self.warnings.append(f"tour {len(self.metrics)}: {'; '.join(fuites)}")
+        text, leaks = delint(_clean(text, self.name))
+        if leaks:
+            self.warnings.append(f"tour {len(self.metrics)}: {'; '.join(leaks)}")
 
         # La transcription enregistre ce qui a RÉELLEMENT été dit, y compris une
         # réplique fautive : elle sert à relire et à élaguer à la main avant la
         # scène, pas à nourrir le modèle. Le drapeau permet de la repérer d'un
         # coup d'œil dans le Markdown.
-        self.transcription.append({
-            "role": "assistant", "texte": texte,
-            **({"hors_role": True} if fautes else {}),
+        self.transcript.append({
+            "role": "assistant", "texte": text,
+            **({"hors_role": True} if faults else {}),
         })
 
-        if fautes:
+        if faults:
             self.warnings.append(
                 f"tour {len(self.metrics)} : SORTIE DE PERSONNAGE persistante "
-                f"({', '.join(fautes)}) — réplique exclue de la mémoire"
+                f"({', '.join(faults)}) — réplique exclue de la mémoire"
             )
             # L'échange fautif reste visible à l'écran mais ne pollue ni la
             # fenêtre de contexte des tours suivants ni le résumé.
             self.turns.pop()
-            return texte
+            return text
 
-        self.turns.append({"role": "assistant", "content": texte})
+        self.turns.append({"role": "assistant", "content": text})
         self._roll()
-        return texte
+        return text
 
     def _trimmed_turns(self) -> list[dict]:
         """Les 2 × keep_turns derniers messages (un tour = question + réponse)."""
@@ -368,20 +368,20 @@ class Session:
         surplus = len(self.turns) - 2 * self.keep_turns
         if surplus < 2:
             return
-        sortants = self.turns[:surplus]
+        outgoing = self.turns[:surplus]
         dialogue = "\n".join(
-            f"{'INTERLOCUTEUR' if t['role'] == 'user' else self.nom.upper()} : "
+            f"{'INTERLOCUTEUR' if t['role'] == 'user' else self.name.upper()} : "
             f"{t['content']}"
-            for t in sortants
+            for t in outgoing
         )
-        entree = (f"RÉSUMÉ DÉJÀ ÉTABLI :\n{self.resume}\n\n" if self.resume else "")
-        texte, m = chat(
+        entry = (f"RÉSUMÉ DÉJÀ ÉTABLI :\n{self.summary}\n\n" if self.summary else "")
+        text, m = chat(
             _SUMMARY_SYS,
-            f"{entree}EXTRAIT À INTÉGRER :\n{dialogue}",
+            f"{entry}EXTRAIT À INTÉGRER :\n{dialogue}",
             temperature=0.2, num_predict=400,
         )
         self.metrics.append(m)
-        self.resume = texte.strip()
+        self.summary = text.strip()
         self.turns = self.turns[surplus:]
 
     # --- persistance ---------------------------------------------------------
@@ -393,21 +393,21 @@ class Session:
         valoir un souvenir. L'ordre compte : le Markdown est écrit d'ABORD, il
         est la source ; l'index n'en est qu'une projection.
         """
-        if len(self.turns) < 2 and not self.resume:
+        if len(self.turns) < 2 and not self.summary:
             return None
 
         # Ce qui n'a pas encore été fondu doit l'être avant de fermer, sinon la
         # fin de conversation — souvent la plus chargée — serait perdue.
-        garde = self.keep_turns
+        guard = self.keep_turns
         self.keep_turns = 0
         self._roll()
-        self.keep_turns = garde
+        self.keep_turns = guard
 
-        horodatage = self.debut.strftime("%Y-%m-%dT%H-%M-%SZ")
-        chemin = settings.sessions_dir / self.doc_id / f"{horodatage}.md"
-        chemin.parent.mkdir(parents=True, exist_ok=True)
-        corps = (
-            f"# Session de roleplay — {self.nom}\n\n"
+        timestamp = self.start.strftime("%Y-%m-%dT%H-%M-%SZ")
+        path = settings.sessions_dir / self.doc_id / f"{timestamp}.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        body = (
+            f"# Session de roleplay — {self.name}\n\n"
             f"<!-- Généré par orchestrator/roleplay.py. Source canonique de la\n"
             f"     mémoire conversationnelle : éditable à la main, réindexable.\n"
             f"     Deux sections, deux usages : le RÉSUMÉ nourrit les sessions\n"
@@ -415,49 +415,49 @@ class Session:
             f"     rejoue sur scène. Élaguer une réplique ratée dans la\n"
             f"     transcription ne touche pas à la mémoire du personnage. -->\n\n"
             f"- personnage : `{self.doc_id}`\n"
-            f"- début : {self.debut.isoformat(timespec='seconds')}\n"
+            f"- début : {self.start.isoformat(timespec='seconds')}\n"
             f"- tours : {len(self.metrics)}\n\n"
-            f"## Ce qui s'est dit\n\n{self.resume}\n\n"
-            f"## Transcription\n\n{self._transcription_md()}\n"
+            f"## Ce qui s'est dit\n\n{self.summary}\n\n"
+            f"## Transcription\n\n{self._transcript_md()}\n"
         )
-        chemin.write_text(corps, encoding="utf-8")
+        path.write_text(body, encoding="utf-8")
 
         if indexer:
-            self.index(chemin, horodatage)
-        return chemin
+            self.index(path, timestamp)
+        return path
 
-    def _transcription_md(self) -> str:
+    def _transcript_md(self) -> str:
         """Échanges verbatim, dans un format relisible ET éditable à la main.
 
         Une réplique se supprime en effaçant son paragraphe ; rien d'autre à
         maintenir cohérent. C'est le format qui décide si le contenu de démo est
         curable, et il doit rester du Markdown que l'œil lit.
         """
-        lignes = []
-        for tour in self.transcription:
-            qui = "Vous" if tour["role"] == "user" else self.nom
-            marque = "  <!-- hors-rôle, à élaguer -->" if tour.get("hors_role") else ""
-            lignes.append(f"**{qui}** — {tour['texte']}{marque}")
-        return "\n\n".join(lignes)
+        lines = []
+        for turn in self.transcript:
+            who = "Vous" if turn["role"] == "user" else self.name
+            mark = "  <!-- hors-rôle, à élaguer -->" if turn.get("hors_role") else ""
+            lines.append(f"**{who}** — {turn['texte']}{mark}")
+        return "\n\n".join(lines)
 
-    def index(self, chemin: Path, horodatage: str) -> None:
+    def index(self, path: Path, timestamp: str) -> None:
         """Indexe un souvenir de session dans la collection `sessions`.
 
         Même convention que l'indexeur de la bible : id déterministe, document
         préfixé de son origine, métadonnées scalaires uniquement.
         """
         doc = (
-            f"[{self.doc_id} / souvenir de session {horodatage}]\n{self.resume}"
+            f"[{self.doc_id} / souvenir de session {timestamp}]\n{self.summary}"
         )
         sessions_collection().upsert(
-            ids=[f"{self.doc_id}::session-{_slug(horodatage)}"],
+            ids=[f"{self.doc_id}::session-{_slug(timestamp)}"],
             embeddings=[embed(doc)],
             documents=[doc],
             metadatas=[{
                 "type": "session",
                 "doc_id": self.doc_id,
-                "section": f"session-{_slug(horodatage)}",
-                "horodatage": horodatage,
-                "source": str(chemin.name),
+                "section": f"session-{_slug(timestamp)}",
+                "horodatage": timestamp,
+                "source": str(path.name),
             }],
         )

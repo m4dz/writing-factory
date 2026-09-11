@@ -15,7 +15,7 @@ from http.server import ThreadingHTTPServer
 import pytest
 
 from factory.api import server as api
-from factory.pipeline import assembly as chapitre
+from factory.pipeline import assembly
 from factory.settings import settings
 
 FINAL = {
@@ -37,14 +37,14 @@ def server(tmp_path, monkeypatch, fake_chroma):
     monkeypatch.setattr(api, "report", lambda: "machine ok")
     monkeypatch.setattr(api, "build_graph", lambda: FakeGraph())
     monkeypatch.setattr(api, "unload", lambda *a, **k: True)
-    monkeypatch.setattr(api, "rendre_chapitre",
+    monkeypatch.setattr(api, "render_chapter",
                         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("no voice")))
     slides = tmp_path / "slides"
     slides.mkdir()
     (slides / "index.html").write_text("<html>deck</html>", encoding="utf-8")
     monkeypatch.setattr(settings, "slides_dir", slides)
     monkeypatch.setattr(api, "JOB", api.Job())
-    monkeypatch.setattr(api, "SALON", api.Salon())
+    monkeypatch.setattr(api, "ROOM", api.ChatRoom())
 
     srv = ThreadingHTTPServer(("127.0.0.1", 0), api.Handler)
     t = threading.Thread(target=srv.serve_forever, daemon=True)
@@ -67,9 +67,9 @@ def call(addr, method, path, body=None):
 
 def wait_ready(timeout=10.0):
     t0 = time.time()
-    while api.JOB.etat not in ("ready", "error") and time.time() - t0 < timeout:
+    while api.JOB.status not in ("ready", "error") and time.time() - t0 < timeout:
         time.sleep(0.05)
-    assert api.JOB.etat == "ready", api.JOB.erreur
+    assert api.JOB.status == "ready", api.JOB.error
 
 
 def test_generate_is_idempotent_and_artifacts_appear_on_disk(server):
@@ -91,18 +91,18 @@ def test_generate_is_idempotent_and_artifacts_appear_on_disk(server):
     status, ctype, body = call(server, "GET", "/chapter")
     text = body.decode()
     assert status == 200 and ctype.startswith("text/markdown")
-    assert chapitre.BASCULE in text and chapitre.FIN_AUDIO in text
-    assert text.split(chapitre.BASCULE)[1].lstrip().startswith("Samedi 14.")
+    assert assembly.SWITCH in text and assembly.AUDIO_END in text
+    assert text.split(assembly.SWITCH)[1].lstrip().startswith("Samedi 14.")
     # TTS failed: the chapter is served, the audio alone is absent (per-resource fallback).
     assert call(server, "GET", "/audio")[0] == 204
     assert api.chapter_path().exists() and not api.audio_path().exists()
 
 
 def test_chat_is_refused_while_generating(server):
-    api.JOB.etat = "generating"
+    api.JOB.status = "generating"
     status, _, body = call(server, "POST", "/chat", {"character": "judith", "message": "x"})
     assert status == 409 and json.loads(body)["state"] == "generating"
-    api.JOB.etat = "idle"
+    api.JOB.status = "idle"
 
 
 def test_chat_validates_input_and_unknown_character_is_404(server, fake_model):

@@ -18,13 +18,14 @@ Everything runs on one Apple Silicon laptop: Ollama on the host (author model
 `mistral-nemo` 12B, QA model `qwen2.5` 7B, embeddings `nomic-embed-text`),
 ChromaDB in a Podman container, the `factory` package in a host venv.
 
-## Layout today (step 4, part 1)
+## Layout today (step 4, part 2)
 
 ```
 src/factory/
   paths.py           repository paths, resolved once (FACTORY_ROOT override)
+  settings.py        one Settings object; every knob, env overrides, read at use
   text.py            French guard, delint, sentence detection
-  infra/             ollama.py (chat client, metrics), preflight.py (machine
+  infra/             ollama.py (OllamaClient, one `client`, metrics), preflight.py (machine
                      gate), tts.py (cloned voice, lazy mlx import),
                      notify.py (Telegram, structured fields), progress.py
   retrieval/         context.py (Chroma access, style sections, system
@@ -51,17 +52,19 @@ docs/                architecture, runbook, doctrines, adr/, plans/
 tests/               fakes, unit, stages, snapshots
 ```
 
-Module names are English; most identifiers inside are still French until
-part 2 of step 4 renames them (ADR-0001).
+Module names and identifiers are English (ADR-0001); comments and docstrings
+are still French until the language pass of step 7. Data keys stay French
+where they are data: run frontmatter, lint reports, the entry-spec dicts that
+step 5 turns into YAML, the JSON the keynote deck reads.
 
 ## The graph
 
 ```
-plan ──▶ write ──▶ accumulate ──▶ glisse ──┐
+plan ──▶ write ──▶ accumulate ──▶ drift ───┐
   ▲                                        │ more entries?
   └────────────────────────────────────────┘
                                            ▼ no
-                   review ──▶ repair ──▶ assemble ──▶ poser_gestes ──▶ coherence
+                   review ──▶ repair ──▶ assemble ──▶ place_gestures ──▶ coherence
 ```
 
 - **plan** (nemo, checked by Qwen): derives bible facts, plans dated entries
@@ -75,20 +78,20 @@ plan ──▶ write ──▶ accumulate ──▶ glisse ──┐
   trim to the last sentence as a net, sentence bound when the brief sets one.
 - **accumulate** (nemo): one long enumerative sentence, validated by code
   (thresholds, language, person, abstraction, decor), set aside.
-- **glisse** (no model): the drift passage, from the chapter bank or the
+- **drift** (no model): the drift passage, from the chapter bank or the
   brief, validated and set aside.
 - **review** (nemo) and **repair** (Qwen, after nemo is unloaded): rewrite
   each entry; a guard rejects a rewrite that moves away from the entry's word
   target.
 - **assemble**: deterministic pruning of named residue motifs on beat entries.
-- **poser_gestes**: re-stamps header and anchor, poses the fall line, inserts
+- **place_gestures**: re-stamps header and anchor, poses the fall line, inserts
   accumulation and drift on the FINAL text, deduplicates repeated paragraphs
   while protecting composed ones.
 - **coherence** (Qwen): facts → violation questions → answers per scene, with
   code-verified citations and a severe counter-call.
 
 Around the graph, called by the API and the CLI: **preflight** before,
-**assembly** of the chapter Markdown (`chapitre.assembler`) and **render**
+**assembly** of the chapter Markdown (`assembly.assemble`) and **render**
 (TTS) after. Both become graph nodes at step 4.
 
 ## Data flows
@@ -103,7 +106,7 @@ Around the graph, called by the API and the CLI: **preflight** before,
 - **Chapter 7 spec → state.** `factory.chapter_spec.chapter7` reads `chapters/07-anniversaire/
   brief.md` and `brief-entree-2.md` by section, the movement line of the
   chapter from the deep table, and builds the `graph.invoke` state
-  (`entrees_spec`, beats, anchor, fall). Chapter 2 is built the same way in
+  (`entry_specs`, beats, anchor, fall). Chapter 2 is built the same way in
   `factory.tooling.stage_runner`. Both become a YAML spec and a loader at step 5.
 - **State → artifacts.** The API writes `output/chapitre.md` and
   `output/chapitre.wav`; calibration runs write frontmatter Markdown under
@@ -112,10 +115,23 @@ Around the graph, called by the API and the CLI: **preflight** before,
   is written first, then its summary is indexed in the `sessions` collection
   and retrieved at the next session start.
 
+## Configuration
+
+`factory.settings.Settings` is the one configuration object: model names,
+Ollama and Chroma endpoints, API host and port, audio and TTS calibration,
+roleplay memory, Telegram, preflight thresholds, experiment knobs. Defaults
+live in the dataclass; the environment overrides them once at import
+(`settings = Settings.from_env()`); modules read `settings.<field>` at call
+time, so a test or a CLI changes a value and sees it applied. Chapter
+knowledge is not configuration (`chapters/`, ADR-0002); repository paths are
+not either (`factory.paths`). The variable table is in the runbook, §1.6.
+
 ## Boundaries that are tested
 
-- Model boundary: `llm.chat` / `llm.chat_turns`, faked in tests; served
-  prompts frozen in `tests/snapshots/`.
+- Model boundary: `factory.infra.ollama.client`, one `OllamaClient` whose
+  `chat` / `chat_turns` / `unload` the module-level functions delegate to;
+  the fake replaces its three methods in one place. Served prompts frozen in
+  `tests/snapshots/`.
 - Store boundary: Chroma client, faked from the indexer's chunker.
 - Machine boundary: preflight probes, TTS synthesizer, Telegram, faked.
 

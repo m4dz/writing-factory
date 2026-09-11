@@ -19,13 +19,15 @@
 
 ## Part 2 — settings and identifiers
 
-- [ ] `factory.settings.Settings` (one object, env overrides) replacing the
+- [x] `factory.settings.Settings` (one object, env overrides) replacing the
       37 `os.environ.get` reads; modules read `settings.*`.
-- [ ] One model client object injected into pipeline, QA and roleplay; the
+- [x] One model client object injected into pipeline, QA and roleplay; the
       fake replaces it in one place.
-- [ ] French identifiers → English across the package; tests renamed with
-      them, aliases removed.
-- [ ] `make check` green; snapshots identical.
+- [x] French identifiers → English across the package; tests renamed with
+      them, aliases removed. Graph nodes `glisse` → `drift`, `poser_gestes`
+      → `place_gestures`; ChapterState keys English; data keys (run
+      frontmatter, lint reports, entry-spec dicts, deck JSON) unchanged.
+- [x] `make check` green; snapshots identical.
 
 ## Part 3 — nodes and CLI
 

@@ -23,7 +23,7 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from factory.eval.lint import analyse, mots, normalise, phrases
+from factory.eval.lint import analyze, words, normalize, sentences
 from factory.paths import BIBLE_DIR, EXPERIMENTS_DIR
 from factory.settings import settings
 from factory.text import ends_mid_sentence
@@ -36,7 +36,7 @@ from factory.text import ends_mid_sentence
 # évite de construire un second modèle pour un seul scalaire (deux noms de
 # modèle désaligneraient les colonnes de la grille).
 TEMPERATURES = [0.7, 0.7, 0.9]
-TEMP_CONTROLE = 0.7
+CONTROL_TEMPERATURE = 0.7
 
 # --- Boucle de renvoi ---------------------------------------------------------
 #
@@ -57,7 +57,7 @@ TEMP_CONTROLE = 0.7
 # Le renvoi est CHIRURGICAL — on ne redemande pas la scène entière. Une
 # régénération complète perdrait les couperets et la vérification matérielle,
 # qui, eux, sont tenus. On cible le seul paragraphe fautif.
-MAX_RENVOIS = 1
+MAX_CONTINUATIONS = 1
 REGIME_LINE = re.compile(
     # Coupe depuis « Régime » (début OU milieu de ligne, gras ou non)
     # jusqu'à la fin de la ligne.
@@ -96,8 +96,8 @@ def strip_regime_lines(brief: str) -> tuple[str, int]:
 # exemples de répliques les fait RECOPIER ; les exemples sont désormais formulés
 # comme des attitudes, pas comme du texte. » On décrit donc le MOUVEMENT, on
 # chiffre la contrainte, et on force l'ancrage dans les éléments de CETTE scène.
-ACCUMULATION_ATTENDUE = """Ta scène ne contient aucune phrase d'accumulation. \
-Sa phrase la plus longue fait {mots} mots et {virgules} virgule(s) — il en faut \
+EXPECTED_ACCUMULATION = """Ta scène ne contient aucune phrase d'accumulation. \
+Sa phrase la plus longue fait {words} mots et {virgules} virgule(s) — il en faut \
 au moins 60 et au moins 6.
 
 La phrase d'accumulation est le marqueur signature de ce style, et il en faut \
@@ -139,7 +139,7 @@ def chat_messages(model: str, messages: list[dict], timeout: int,
         return json.loads(resp.read())
 
 
-def generer_avec_renvoi(model: str, prompt: str, timeout: int,
+def generate_with_continuation(model: str, prompt: str, timeout: int,
                         temperature: float) -> tuple[str, dict]:
     """Génère la scène, puis la renvoie UNE fois si l'accumulation manque.
 
@@ -148,47 +148,47 @@ def generer_avec_renvoi(model: str, prompt: str, timeout: int,
     dispositif silencieux se lit comme un dispositif qui a marché.
     """
     messages = [{"role": "user", "content": prompt}]
-    resultat = chat_messages(model, messages, timeout, temperature)
-    texte = resultat["message"]["content"].strip()
+    result = chat_messages(model, messages, timeout, temperature)
+    text = result["message"]["content"].strip()
     journal = {"renvois": 0, "renvoi_verdict": "non déclenché",
-               "duree_s": resultat.get("total_duration", 0) / 1e9,
-               "done_reason": resultat.get("done_reason", "?")}
+               "duree_s": result.get("total_duration", 0) / 1e9,
+               "done_reason": result.get("done_reason", "?")}
 
-    for _ in range(MAX_RENVOIS):
-        lint = analyse(texte)
+    for _ in range(MAX_CONTINUATIONS):
+        lint = analyze(text)
         if len(lint["accumulations"]) == 1:
             break
         # Chiffrer la faute plutôt que la nommer : « ta phrase la plus longue
         # fait 38 mots » est vérifiable par le modèle, « fais plus long » ne
         # l'est pas.
-        plus_longue = max(phrases(normalise(texte)), key=mots, default="")
-        reproche = ACCUMULATION_ATTENDUE.format(
-            mots=mots(plus_longue), virgules=plus_longue.count(","))
-        avant = texte
-        messages += [{"role": "assistant", "content": texte},
-                     {"role": "user", "content": reproche}]
-        suite = chat_messages(model, messages, timeout, temperature)
-        texte = suite["message"]["content"].strip()
+        longest = max(sentences(normalize(text)), key=words, default="")
+        complaint = EXPECTED_ACCUMULATION.format(
+            words=words(longest), virgules=longest.count(","))
+        before = text
+        messages += [{"role": "assistant", "content": text},
+                     {"role": "user", "content": complaint}]
+        continuation = chat_messages(model, messages, timeout, temperature)
+        text = continuation["message"]["content"].strip()
         journal["renvois"] += 1
-        journal["duree_s"] += suite.get("total_duration", 0) / 1e9
-        journal["done_reason"] = suite.get("done_reason", "?")
+        journal["duree_s"] += continuation.get("total_duration", 0) / 1e9
+        journal["done_reason"] = continuation.get("done_reason", "?")
 
-        apres = analyse(texte)
-        n = len(apres["accumulations"])
+        after = analyze(text)
+        n = len(after["accumulations"])
         journal["renvoi_verdict"] = (
             f"accumulation obtenue en {journal['renvois']} renvoi(s)" if n == 1
             else f"ÉCHEC — {n} accumulation(s) après {journal['renvois']} renvoi(s)")
         # Le renvoi demandait de ne changer QUE le paragraphe fautif. S'il a
         # tout réécrit, les acquis du premier jet (couperets, vérification
         # matérielle) ont pu partir avec : il faut que ça se voie.
-        ecart = abs(len(texte) - len(avant)) / max(len(avant), 1)
-        if ecart > 0.4:
-            journal["renvoi_verdict"] += f" · scène réécrite à {ecart:.0%}"
+        gap = abs(len(text) - len(before)) / max(len(before), 1)
+        if gap > 0.4:
+            journal["renvoi_verdict"] += f" · scène réécrite à {gap:.0%}"
         # Pas de `break` ici : c'est le test en tête de boucle qui sort, une
         # fois l'accumulation obtenue. Un break inconditionnel rendrait
         # MAX_RENVOIS sans effet — il l'a été le temps d'une version.
 
-    return texte, journal
+    return text, journal
 
 
 def main() -> int:
@@ -237,12 +237,12 @@ def main() -> int:
 
     runs = [0] if args.control else list(range(1, args.runs + 1))
     for n in runs:
-        suffixe = f"-{args.suffixe}" if args.suffixe else ""
-        name = (f"run-{label}{suffixe}" if args.control
-                else f"run-{n}{suffixe}")
+        suffix = f"-{args.suffixe}" if args.suffixe else ""
+        name = (f"run-{label}{suffix}" if args.control
+                else f"run-{n}{suffix}")
         # Au-delà de la liste fournie, on reconduit la dernière valeur plutôt
         # que d'échouer : `--runs 5` reste utilisable pour lever une zone grise.
-        temp = (TEMP_CONTROLE if args.control
+        temp = (CONTROL_TEMPERATURE if args.control
                 else args.temperatures[min(n - 1, len(args.temperatures) - 1)])
         print(f"[{name}] génération en cours ({args.model}, temp={temp})…",
               flush=True)
@@ -255,7 +255,7 @@ def main() -> int:
                        "duree_s": result.get("total_duration", 0) / 1e9,
                        "done_reason": result.get("done_reason", "?")}
         else:
-            text, journal = generer_avec_renvoi(
+            text, journal = generate_with_continuation(
                 args.model, prompt, args.timeout, temp)
         words = len(text.split())
         duration_s = journal["duree_s"]
@@ -267,14 +267,14 @@ def main() -> int:
         # (constaté au run de référence du chapitre). Dans les deux cas, les
         # lignes « clôture » et « phrase-couperet » de la grille échouent pour
         # une raison MÉCANIQUE : le run n'est pas scorable tel quel.
-        alertes = []
+        alerts = []
         if done_reason == "length":
-            alertes.append("TRONQUÉ par num_predict (done_reason=length)")
+            alerts.append("TRONQUÉ par num_predict (done_reason=length)")
         if ends_mid_sentence(text):
-            alertes.append("fin pendante (pas de ponctuation finale)")
+            alerts.append("fin pendante (pas de ponctuation finale)")
 
-        lint = analyse(text)
-        avert = list(lint["delint"])
+        lint = analyze(text)
+        warns = list(lint["delint"])
 
         out_path = out_dir / f"{name}.md"
         out_path.write_text(
@@ -290,8 +290,8 @@ def main() -> int:
             f"renvois: {journal['renvois']}\n"
             f"renvoi_verdict: {journal['renvoi_verdict']}\n"
             f"accumulations: {len(lint['accumulations'])}\n"
-            f"alertes: {alertes if alertes else '[]'}\n"
-            f"lint_delint: {avert if avert else '[]'}\n"
+            f"alertes: {alerts if alerts else '[]'}\n"
+            f"lint_delint: {warns if warns else '[]'}\n"
             f"---\n\n{text}\n",
             encoding="utf-8",
         )
@@ -299,10 +299,10 @@ def main() -> int:
         print(f"[{name}] {words} mots [{target}], {duration_s:.0f}s, "
               f"done={done_reason}, renvois={journal['renvois']} "
               f"({journal['renvoi_verdict']}) → {out_path}")
-        for a in alertes:
+        for a in alerts:
             print(f"  ⚠ {a} — run NON scorable sur les lignes de clôture",
                   file=sys.stderr)
-        for a in avert:
+        for a in warns:
             print(f"  ⚠ {a}", file=sys.stderr)
 
     print("\nRuns terminés.")

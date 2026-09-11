@@ -31,7 +31,7 @@ def main() -> None:
                    help="Échanges gardés verbatim avant fonte dans le résumé")
     args = p.parse_args()
 
-    kwargs = {"nom": args.nom, "rappeler": not args.no_memoire}
+    kwargs = {"name": args.nom, "remind": not args.no_memoire}
     if args.keep_turns is not None:
         kwargs["keep_turns"] = args.keep_turns
     try:
@@ -39,9 +39,9 @@ def main() -> None:
     except ValueError as exc:
         raise SystemExit(str(exc))
 
-    print(f"— Vous parlez à {session.nom} ({args.character}).")
-    if session.rappels:
-        print(f"  {len(session.rappels)} souvenir(s) de sessions précédentes "
+    print(f"— Vous parlez à {session.name} ({args.character}).")
+    if session.reminders:
+        print(f"  {len(session.reminders)} souvenir(s) de sessions précédentes "
               "chargé(s).")
     print("  /quit pour finir, /oubli pour finir sans garder, /etat pour l'état.\n")
 
@@ -58,8 +58,8 @@ def main() -> None:
             if question == "/oubli":
                 print("(session oubliée, rien n'est écrit)")
                 return
-            chemin = session.close()
-            print(f"(souvenir écrit : {chemin})" if chemin
+            path = session.close()
+            print(f"(souvenir écrit : {path})" if path
                   else "(session trop courte, aucun souvenir)")
             if session.warnings:
                 print("Alertes de la session :")
@@ -67,7 +67,7 @@ def main() -> None:
                     print(f"  ⚠ {w}")
             return
         if question == "/etat":
-            print(f"\n[résumé glissant]\n{session.resume or '(vide)'}")
+            print(f"\n[résumé glissant]\n{session.summary or '(vide)'}")
             if session.warnings:
                 print("[alertes]")
                 for w in session.warnings:
@@ -78,8 +78,8 @@ def main() -> None:
                   if session.metrics else "[aucun appel]\n")
             continue
 
-        reponse = session.say(question)
-        print(f"\n{session.nom} > {reponse}\n")
+        reply = session.say(question)
+        print(f"\n{session.name} > {reply}\n")
 
 
 if __name__ == "__main__":
