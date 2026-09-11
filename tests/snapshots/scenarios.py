@@ -2,7 +2,7 @@
 
 Three scenarios cover every writing strategy and both plan paths:
 
-- ``ch7``: chapter 7 exactly as the API generates it (``ch7.etat_ch7``): plan
+- ``ch7``: chapter 7 exactly as the API generates it (``load_chapter(7).state()``): plan
   imposed by the brief, entry 1 single call with best-of-3, entry 2 in three
   bounded beats with best-of-3, gestures on entry 2 only, drift passage from
   the brief, fall posed by code.
@@ -12,24 +12,23 @@ Three scenarios cover every writing strategy and both plan paths:
 - ``ch2-s7-chapter``: same stage, the full chapter (run S7-C): three entries,
   plan node with fact derivation and plan check, coherence on three scenes.
 
-The chapter 2 state reproduces the dict built in ``outillage/stage_runner.py``
-(``main``). Step 5 replaces both constructions with the chapter spec loader
-and must reproduce these golden files byte for byte.
+Both states come from ``chapters/NN-slug/spec.yaml`` through the loader
+(step 5); the golden files were produced by the former Python constructions
+and did not move.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from factory.chapter_spec import chapter7 as ch7
-from factory.tooling import stage_runner
+from factory.chapter_spec import load_chapter
 
 
 @dataclass(frozen=True)
 class Scenario:
     name: str
     state: dict
-    assembly: dict          # kwargs for chapitre.assembler
+    assembly: dict          # kwargs for assembly.assemble
 
     @property
     def seed(self) -> int:
@@ -39,34 +38,16 @@ class Scenario:
 SEED = 424242
 
 
-def _etat_s7(brief: str, *, mono: bool) -> dict:
-    """The ``graph.invoke`` state of ``stage_runner.py`` for stage S7."""
-    return {
-        "brief": brief,
-        "characters": ch7.NARRATOR, "rag": True,
-        "expected_entries": 1 if mono else 3,
-        "entry_specs": [],
-        "imposed_plan": [],
-        "prefix": stage_runner.ANCHOR_CH2,
-        "micro_nodes": True,
-        "segments": True,
-        "seed": SEED,
-        "chapter": 2,
-        "drawn_approaches": [],
-        "start_day": stage_runner.START_DAY,
-        "start_number": stage_runner.START_NUMBER,
-        "verdict": stage_runner.VERDICT_CH2,
-        "active_objects": stage_runner.OBJECTS_CH2,
-        "start_weather": stage_runner.START_WEATHER,
-        "accumulation": "",
-    }
-
-
 def all_scenarios() -> list[Scenario]:
+    """Both chapters through the spec loader; the states are those the API
+    (chapter 7) and the calibration stage S7 (chapter 2) build."""
+    ch7 = load_chapter(7)
+    ch2 = load_chapter(2)
     return [
-        Scenario("ch7", ch7.ch7_state(seed=SEED), ch7.ch7_state(seed=SEED)["assembly"]),
-        Scenario("ch2-s7-score", _etat_s7(stage_runner.BRIEF_V4, mono=True), {}),
-        Scenario("ch2-s7-chapter", _etat_s7(stage_runner.CHAPTER_GOAL_V4, mono=False), {}),
+        Scenario("ch7", ch7.state(seed=SEED), dict(ch7.assembly)),
+        Scenario("ch2-s7-score",
+                 ch2.state(seed=SEED, brief=ch2.entry_brief, entry_count=1), {}),
+        Scenario("ch2-s7-chapter", ch2.state(seed=SEED), {}),
     ]
 
 

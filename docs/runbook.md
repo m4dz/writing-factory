@@ -236,9 +236,10 @@ tokens per call, the context alarms (`ctx_need`, `ctx_truncated`).
 `--no-preflight` skips the probes (a non-macOS machine, tests). `--out DIR`
 moves the artifacts. Exit code 1 on a preflight refusal.
 
-Chapters other than 7 have no specification yet (step 5 of the plan gives
-each chapter a `chapters/NN-slug/spec.yaml`); `factory generate --chapter 2`
-says so and stops.
+A chapter is generated from its `chapters/NN-slug/spec.yaml`; chapters 2 and
+7 have one. A chapter without a spec makes `factory generate --chapter N` say
+so and stop. When the owner's brief carries workshop vocabulary the lint bans
+in output, the command reports it and goes on: the brief is the author's.
 
 **Launch in the FOREGROUND.** A detached launch (`&`, `nohup`) inherits
 `nice 5` under zsh's `BG_NICE`; against an indexing daemon the generation

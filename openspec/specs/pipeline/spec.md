@@ -28,7 +28,7 @@ a severe counter-call, and replan once on a confirmed violation. It SHALL be
 short-circuited when the brief is single-entry or imposes its own entries.
 
 #### Scenario: Plan imposed by the brief
-- **WHEN** the state carries `plan_impose`
+- **WHEN** the state carries `imposed_plan`
 - **THEN** no model is called for the plan and the report says so
 
 ### Requirement: Headers and anchors are composed by code
@@ -52,15 +52,16 @@ code-capped beats; the strategy comes from the entry spec (`beats`,
 already written, and exact overlaps removed on reattachment.
 
 #### Scenario: Movement method
-- **WHEN** the entry spec carries `mouvement`
+- **WHEN** the entry spec carries a `movement`
 - **THEN** the prompt is assembled in the order intention, trajectory, material, vetos, and the assembled prompt is asserted free of workshop and machinery vocabulary
 
 ### Requirement: Best-of-N by reading criteria
 
 When the entry spec asks for it, the write node SHALL draw N variants and keep
 the one with the fewest named defects (resolution, dismissal, restart,
-presence, recursion, forbidden decor), ties to the first, recording every
-variant's metrics.
+presence, recursion, forbidden decor for beats; the named criterion of
+`factory.pipeline.scorers` for a whole entry), ties to the first, recording
+every variant's metrics.
 
 #### Scenario: A resolving variant
 - **WHEN** one of three beat variants says "je me souviens soudain de tout"
@@ -70,11 +71,11 @@ variant's metrics.
 
 A generation cut by `num_predict` SHALL be continued once unless brevity is
 wanted; a text ending mid-sentence SHALL be trimmed to the last complete
-sentence when that removes less than a quarter; an entry with `phrases_max`
+sentence when that removes less than a quarter; an entry with `sentences_max`
 SHALL be cut to that many sentences after its prefix, reported.
 
 #### Scenario: Two-sentence entry
-- **WHEN** the entry spec sets `phrases_max: 2` and the model writes eight sentences
+- **WHEN** the entry spec sets `sentences_max: 2` and the model writes eight sentences
 - **THEN** the entry is cut after the second sentence past the prefix and a warning quotes what was removed
 
 ### Requirement: Gestures are validated and posed by code, last
@@ -88,7 +89,7 @@ anchor and imposed fall re-stamped, and repeated paragraphs removed while
 protecting composed ones.
 
 #### Scenario: Entry without gestures
-- **WHEN** the entry spec sets `gestes: false`
+- **WHEN** the entry spec sets `gestures: false`
 - **THEN** no accumulation call is made and an empty gesture set keeps indices aligned
 
 ### Requirement: Review and repair cannot destroy an entry

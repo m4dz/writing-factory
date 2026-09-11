@@ -1,0 +1,119 @@
+# Chapitre 7 — L'anniversaire. Spécification lue par la fabrique (étape 5 du
+# plan). Ce fichier porte la STRUCTURE et les RÉGLAGES ; le texte du brief vit
+# dans brief.md et brief-entree-2.md, pointés ici, jamais recopiés.
+chapter: 7
+slug: anniversaire
+narrator: judith
+
+# Le brief machine servi au modèle : le bloc cité du §3 de brief.md, projeté
+# sur scène pendant la génération (le prompt servi EST le brief affiché).
+brief: {file: brief.md, section: "## 3. Brief machine"}
+# Un beat par entrée, découpé du brief sur ses titres « **Entrée N » : le plan
+# ne se demande pas au modèle quand le brief le porte déjà.
+plan: entries-of-brief
+
+calendar: {weekday: Samedi, number: 14, weather: Beau temps}
+verdict: anniversaire
+active_objects: "les photos, la playlist, le plat des anniversaires, les deux couverts, le cahier"
+# L'ancre du chapitre 7 est PAR ENTRÉE (l'entrée 1 ne cite pas) : pas de préfixe global.
+prefix: ""
+
+# Stations de la reconstruction (entrée 2, la nuit) : l'ÉTAT CONSTATÉ de chaque
+# objet qu'elle avait entrepris d'effacer — ce qui EST, jamais l'intention.
+stations:
+  - la table du séjour, la boîte ouverte, les photos étalées
+  - le salon, l'enceinte allumée, la musique qui tourne
+  - la cuisine, le plat au four, l'odeur
+  - la table, deux couverts mis
+  - le cahier ouvert, la ligne relue
+  - la lampe, la fin de la journée
+
+# La chute de l'accumulation : un objet du quatuor, le plus contradictoire —
+# elle a décidé de supprimer la playlist, et la musique tourne.
+accumulation_fall: la playlist qui tourne encore
+
+# Banque du glissement (protocole de session 7), pour l'entrée 2 seulement :
+# l'entrée 1 tient en deux phrases. Les faits sont pris au matériau imposé.
+drift_bank:
+  approaches:
+    - Neuf ans, et je ne sais toujours pas ce qui
+    - J'aurais dû demander, le jour où elle
+    - Je pourrais compter ce qui reste depuis qu'elle
+  facts:
+    - Le plat est au four.
+    - Les deux couverts sont mis.
+
+# Assemblage pour la scène : bascule sur le SECOND en-tête daté (les deux
+# entrées portent le même jour), audio borné sur la chute.
+assembly: {on_second_header: true, fall: "Constat : anniversaire."}
+
+defaults: {rag: true, micro_nodes: true, segments: true}
+
+entry_count: 2
+entries:
+  # L'après-midi : deux phrases, sans citation, sans découpage, sans gestes.
+  - weekday: Samedi
+    number: 14
+    weather: Beau temps
+    words: [25, 60]
+    sentences_max: 2
+    citation: ""
+    gestures: false
+    strategy: single
+    # Best-of-3 sur l'entrée lue à voix nue : le variant retenu est celui dont
+    # les DEUX phrases servies nomment l'effacement de l'anniversaire, pas un
+    # rangement générique (cahier, grenier).
+    best_of:
+      n: 3
+      criterion: names-erasure
+      names: [photo, photos, playlist, musique, le plat, anniversaire, couvert, couverts]
+      drift: [ranger le cahier, ranger le grenier, le grenier, dans un album, le cahier ailleurs]
+    movement: {entry: 1}
+    # Matière d'entrée 1 : la résolution d'effacement. Nommer les objets est
+    # VOULU — la liste d'effacement EST les deux phrases.
+    material:
+      - "Ce qu'elle a décidé cet après-midi : ce jour n'aura pas lieu, elle l'efface."
+      - "Les gestes d'effacement, tenus en deux phrases : ranger les photos, supprimer la musique, ne pas sortir le plat des grandes occasions ; une journée ordinaire."
+    vetos: >-
+      Elle est seule, l'après-midi, et rien ne lui arrive : aucune voix, aucun bruit,
+      personne ; elle décide, elle n'observe pas. Le mot du jour ne s'écrit pas.
+    form: {accumulation: absent, verdict: absent}
+
+  # La nuit : l'entrée pleine, ancrée sur [CIT-2], servie en trois beats bornés
+  # (cap-code v5). Trajectoire, matière, libellés des beats et glissement sont
+  # lus dans brief-entree-2.md.
+  - weekday: Samedi
+    number: 14
+    weather: Beau temps
+    words: [300, 400]
+    citation: "« Neuf ans aujourd'hui que je t'ai dit oui. J'ai mis deux couverts, exprès cette fois, et j'ai redit oui tout haut dans la cuisine. Je t'aime toujours. »"
+    gestures: true
+    # La capitulation lexicale, au mot près : manquée 3/3 par le modèle, posée par le code.
+    fall: "Constat : anniversaire."
+    strategy: beats
+    # Les bornes sont du RÉGLAGE ; les libellés vivent dans le brief §7.
+    beats:
+      - {name: relève, num_predict: 150, sentences_max: 4}
+      - {name: découverte, num_predict: 240, sentences_max: 5}
+      - {name: doute, num_predict: 150, sentences_max: 4}
+    movement: {entry: 2}
+    source: brief-entree-2.md
+    # Les vétos du §5 sont écrits pour l'implémenteur ; ceci est leur traduction
+    # en langue du monde — ce que le TEXTE ne fait pas.
+    vetos: >-
+      Aucun nom propre, aucune marque. Aucun objet qui ne soit dans la maison.
+      Les objets sont là, dans l'état de la fête — mais rien ne bouge de
+      soi-même sous ses yeux : aucune présence, aucun autre dans la maison,
+      personne qu'elle n'attende ; elle constate ce qu'elle trouve, elle ne
+      surprend rien en train de se faire. Rien n'est entendu : aucun bruit,
+      aucune sonnerie, aucun pas, aucun objet cassé — l'étrange se voit et se
+      doute, il ne s'entend pas. Tu ne trouves chaque chose qu'une seule fois :
+      quatre découvertes en tout, jamais reprises ni recomptées ; ne fais pas le
+      tour de la maison. Elle ne raconte pas ce que l'autre a
+      fait ou dit, ni pourquoi elle est partie : elle ne cherche pas la cause.
+      La seule question est de savoir si ce n'est pas elle qui a tout mis en
+      place sans s'en souvenir. Le mot du jour ne s'écrit qu'à la toute fin,
+      une seule fois. Rien ne se résout, rien ne se console : pas de promesse
+      au lendemain, pas d'adresse à personne. La voix ne cède pas —
+      déclarative, tenue, pas de cri.
+    form: {accumulation: allowed, verdict: absent}

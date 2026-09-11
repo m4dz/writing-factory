@@ -423,7 +423,7 @@ MACHINERY = re.compile(
     r"\bL[1-4]\b|\bla table de pilotage\b|\ble code\b|\bbloquants?\b"
     r"|\blint\w*\b|\bexempt[ée]\w*\b|\btamponn[ée]\w*\b|\blexiques?\b"
     r"|\bgrille\b|\bpipeline\b|\bhors [ée]chelle\b|\bcomposeur\b"
-    r"|\bentrees_spec\b|\bv[ée]tos?\b", re.IGNORECASE)
+    r"|\bentrees_spec\b|\bentry_specs\b|\bv[ée]tos?\b", re.IGNORECASE)
 
 # ATTRACTEURS : formules vers lesquelles le modèle glisse tout seul, relevées à
 # la lecture des runs. Ce ne sont pas des fautes de langue, ce sont des tics

@@ -23,7 +23,7 @@ Usage : python3 outillage/etancheite.py > rapport-etancheite.md
 import re
 import sys
 
-from factory.paths import DATA_DIR, REPO_ROOT as RACINE
+from factory.paths import CHAPTERS_DIR, DATA_DIR, REPO_ROOT as RACINE
 
 from factory.retrieval import context as retrieval
 from factory.eval.lint import lexical_leak
@@ -95,6 +95,30 @@ def flatten(text: str) -> str:
     garantissait.
     """
     return re.sub(r"\s+", " ", text)
+
+
+def chapter_material(root=CHAPTERS_DIR) -> list[str]:
+    """Distinctive lines of every chapter file (briefs, specs): the material
+    that must be in NO collection. Chapter specs are outside `bible/`, so the
+    indexer never reads them; this control proves it instead of presuming it."""
+    out: list[str] = []
+    if not root.is_dir():
+        return out
+    for path in sorted(root.rglob("*")):
+        if path.suffix not in (".md", ".yaml", ".yml") or not path.is_file():
+            continue
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip().lstrip(">-# ").strip()
+            if len(line) > 40 and not line.startswith(("|", "```", "---")):
+                out.append(flatten(line))
+    return out
+
+
+def chapter_leaks(documents: list[str], material: list[str] | None = None) -> list[str]:
+    """The chapter lines found verbatim inside indexed documents."""
+    material = chapter_material() if material is None else material
+    body = flatten(" ".join(documents))
+    return [line for line in material if line in body]
 
 
 def dump() -> dict:
@@ -214,6 +238,29 @@ def main(argv: list[str] | None = None) -> int:
             f"{'⛔ OUI' if rest else '✓ non'}",
             f"- Inventaire re-vérifié : {'⛔ écart' if len(after) != len(ids) else '✓ identique à l’état initial'}",
             ""]
+
+    # --- 6. Chapitres --------------------------------------------------------
+    out += ["## 6. Matériau des chapitres — hors de toute collection", "",
+            "`chapters/` (briefs, spécifications) vit hors de `bible/` : l'indexeur "
+            "ne le lit jamais. Contrôle : aucune ligne de ces fichiers dans "
+            "`auteur` ni dans `sessions`.", ""]
+    material = chapter_material()
+    all_docs = list(docs)
+    try:
+        all_docs += retrieval.sessions_collection().get(include=["documents"])["documents"] or []
+    except Exception as exc:                          # noqa: BLE001
+        out.append(f"- ⚠ collection `sessions` non lue ({type(exc).__name__})")
+    leaked = chapter_leaks(all_docs, material)
+    if not material:
+        failures.append("chapitres : aucun matériau trouvé sous chapters/ — le contrôle "
+                        "porterait sur un ensemble vide")
+        out.append("- ⛔ aucune ligne de chapitre à contrôler : ce vert ne prouverait rien")
+    elif leaked:
+        failures.append(f"chapitres : {len(leaked)} ligne(s) de chapters/ indexée(s)")
+        out.append(f"- ⛔ {len(leaked)} ligne(s) de `chapters/` retrouvée(s) dans l'index")
+    else:
+        out.append(f"- ✓ {len(material)} lignes de `chapters/` contrôlées, aucune dans l'index")
+    out.append("")
 
     # --- 5. Routage ----------------------------------------------------------
     out += ["## 5. Assertion de routage", "",

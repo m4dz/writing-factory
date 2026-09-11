@@ -168,47 +168,9 @@ def drift_position(text: str, acc_position: int,
     return previous_ones[-1][1] if previous_ones else paras[0][1]
 
 
-# ---------------------------------------------------------------------------
-# LA BANQUE D'APPROCHES — le geste quitte le modèle (session 6, §2)
-#
-# Huit runs, puis trois de plus à l'étage C : le modèle n'a jamais fourni cette
-# phrase. Trois modes d'échec distincts, ce qui dit que la difficulté n'est pas
-# la longueur mais la NATURE de la demande — approcher un sujet puis
-# s'interrompre est un geste de sens, pas de forme. La mesure a tranché.
-#
-# C'est la doctrine des citations du cahier, étendue : la matière la plus intime
-# du roman est écrite main. Le code choisit, coupe et colle ; il n'invente rien.
-# ---------------------------------------------------------------------------
-DRIFT_BANK: dict[int, dict] = {
-    2: {
-        "approches": (
-            "Je pourrais me demander ce qui, ce soir-là",
-            "Si je savais seulement pourquoi",
-            "Il faudrait que je relise le jour où elle",
-        ),
-        # Faits matériels de collage. Le retour au matériel est ce qui fait du
-        # glissement un geste et non une plainte.
-        #
-        # PLUSIEURS, et tirés eux aussi : à l'étage C, les trois glissements de
-        # CC partageaient le même fait, donc se ressemblaient par la queue —
-        # 0,62 à 0,71 de similarité entre eux. Le geste variait, sa chute non.
-        "faits": ("L'assiette est sèche. Je la range.",
-                  "L'égouttoir est vide. Je ferme le placard.",
-                  "La lampe du couloir est restée allumée. Je l'éteins."),
-    },
-    # CHAPITRE 7 — l'anniversaire. Banque livrée par le protocole de session 7,
-    # pour l'ENTRÉE 2 seulement : l'entrée 1 tient en deux phrases, elle n'a pas
-    # la place d'un geste. Les faits sont pris au matériau imposé du brief.
-    7: {
-        "approches": (
-            "Neuf ans, et je ne sais toujours pas ce qui",
-            "J'aurais dû demander, le jour où elle",
-            "Je pourrais compter ce qui reste depuis qu'elle",
-        ),
-        "faits": ("Le plat est au four.",
-                  "Les deux couverts sont mis."),
-    },
-}
+# The drift bank — approaches and material facts, written by hand — is chapter
+# knowledge and lives in the chapter spec (`drift_bank`); the loader asserts
+# each approach against `approach_valid` at load time.
 
 
 def approach_valid(approach: str) -> tuple[bool, str]:
@@ -234,17 +196,6 @@ def approach_valid(approach: str) -> tuple[bool, str]:
     if not SUSPENDED_PIVOT.search(a):
         return False, "aucun pivot resté ouvert (ce qui, pourquoi, le jour où…)"
     return True, ""
-
-
-# La banque se falsifie AU CHARGEMENT. C'est ainsi qu'on découvre qu'un critère
-# d'entrée refuse la matière de référence : `CHAMP_DEPART` rejetait ces trois
-# lignes, et l'assertion l'aurait dit au premier import au lieu de le laisser
-# se découvrir en fin de run, dans les warnings.
-for _ch, _bank in DRIFT_BANK.items():
-    for _a in _bank["approches"]:
-        _ok, _reason = approach_valid(_a)
-        assert _ok, (f"banque du chapitre {_ch} : approche refusée par son "
-                     f"propre validateur — « {_a} » ({_reason})")
 
 
 def passage_valid(passage: str) -> tuple[bool, str]:
@@ -278,7 +229,7 @@ def passage_valid(passage: str) -> tuple[bool, str]:
     return True, ""
 
 
-def draw_approach(chapter: int, already_drawn: list[str],
+def draw_approach(bank: dict, already_drawn: list[str],
                    seed: int) -> tuple[str, str]:
     """Tire une approche non encore utilisée dans ce chapitre, et le fait.
 
@@ -288,17 +239,18 @@ def draw_approach(chapter: int, already_drawn: list[str],
     exactement le défaut mesuré trois fois (l'étalon récité, les contre-exemples
     repris). La graine garde le run rejouable.
 
-    Rend `("", "")` si le chapitre n'a pas de banque : un chapitre sans
-    glissement prévu n'est pas une erreur, et M1 le lit comme « non prévu ».
+    Rend `("", "")` si le chapitre n'a pas de banque (`{approaches, facts}`
+    de la spec) : un chapitre sans glissement prévu n'est pas une erreur, et M1
+    le lit comme « non prévu ».
     """
-    bank = DRIFT_BANK.get(chapter)
-    if not bank:
+    approaches = list((bank or {}).get("approaches") or ())
+    facts = list((bank or {}).get("facts") or ())
+    if not approaches or not facts:
         return "", ""
-    facts = bank["faits"]
     # Le fait tourne AVEC l'approche, sur son propre index : deux glissements
     # d'un même chapitre ne partagent ni leur tête ni leur queue.
     fact = facts[len(already_drawn) % len(facts)]
-    remaining_ones = [a for a in bank["approches"] if a not in already_drawn]
+    remaining_ones = [a for a in approaches if a not in already_drawn]
     if not remaining_ones:
         # Plus d'approche neuve : on rend vide plutôt que de répéter. Deux fois
         # la même phrase dans un chapitre, c'est le tic qu'on cherche à éteindre.
@@ -327,6 +279,14 @@ def validate_accumulation(sentence: str, last_attempt: bool = False,
     deux « réussites » qui étaient l'étalon au caractère près, dans une scène
     qui parlait d'autre chose.
     """
+    # LA LANGUE D'ABORD. Une accumulation en anglais n'est pas « un peu courte »,
+    # elle n'est pas une accumulation : le contrôle passe avant toute tolérance
+    # de seuil, sinon la tolérance du dernier essai l'acceptait (écart relevé
+    # par le filet de sécurité de l'étape 2, corrigé à l'étape 5).
+    _, alerts = delint(sentence)
+    leaks = [a for a in alerts if "anglais" in a]
+    if leaks:
+        return False, f"langue : {leaks[0]}"
     if not accumulations_l3(sentence):
         # LE MESSAGE DIT CE QUE LA PORTE A MESURÉ, pas ce que le candidat pèse.
         #
@@ -384,15 +344,10 @@ def validate_accumulation(sentence: str, last_attempt: bool = False,
                        "essai, l'accumulation est droppée")
     if n > ACC_WORDS_MAX and not last_attempt:
         return False, (f"trop longue ({n} mots ; plafond {ACC_WORDS_MAX})")
-    # LA LANGUE. Au premier run C, `accumulate` a rendu une phrase de 75 mots et
-    # 7 virgules — en ANGLAIS (« Despite having dinner alone with one plate… »),
-    # et la validation l'a acceptée : elle comptait des mots et des virgules,
-    # pas une langue. Compter n'est pas lire. FRENCH_GUARD était pourtant dans
-    # le prompt système : la garde ne suffit pas, il faut le contrôle en sortie.
-    _, alerts = delint(sentence)
-    leaks = [a for a in alerts if "anglais" in a]
-    if leaks:
-        return False, f"langue : {leaks[0]}"
+    # (La langue a été contrôlée en tête : au premier run C, `accumulate` a
+    # rendu une phrase de 75 mots et 7 virgules — en ANGLAIS — et la validation
+    # l'a acceptée parce qu'elle comptait des mots, pas une langue. Compter
+    # n'est pas lire ; FRENCH_GUARD dans le prompt système ne suffit pas.)
     # L'ACCUMULATION QUI SE RÉSUME (session 6). C2 a rendu 131 mots de table des
     # matières — « perplexité, concentration sur les détails, rappel des faits,
     # fatigue, panique… » — et les compteurs l'ont acceptée. C'est *compter n'est

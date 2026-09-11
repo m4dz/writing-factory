@@ -5,9 +5,9 @@ snapshot diff becomes unreadable. This file says which fixture broke, and why.
 """
 
 from factory import text as text_mod
+from factory.chapter_spec import load_chapter
 from factory.eval.lint import material_forbidden
-from factory.pipeline import gestures as gestures
-from factory.pipeline import graph
+from factory.pipeline import gestures, graph, scorers
 from fakes import fixtures as fx
 
 
@@ -32,7 +32,7 @@ def test_beats_are_clean_and_bounded():
 def test_short_entry_names_the_erasure_in_two_sentences():
     assert len(text_mod.sentence_ends(fx.SHORT_ENTRY)) == 2
     assert 25 <= len(fx.SHORT_ENTRY.split()) <= 60
-    score, defects = graph._score_entry1(fx.SHORT_ENTRY)
+    score, defects = scorers.score(fx.SHORT_ENTRY, load_chapter(7).entries[0].best_of)
     assert score > 0 and not defects
 
 

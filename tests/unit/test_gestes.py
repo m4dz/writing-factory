@@ -1,7 +1,10 @@
 import pytest
 
+from factory.chapter_spec import load_chapter
 from factory.pipeline import gestures
 from fakes import fixtures as fx
+
+BANK = load_chapter(2).state(seed=1)["drift_bank"]
 
 
 def test_compose_drift_cuts_on_the_suspension_and_appends_the_fact():
@@ -13,8 +16,8 @@ def test_compose_drift_cuts_on_the_suspension_and_appends_the_fact():
 
 
 def test_approach_validator_both_ways():
-    for bank in gestures.DRIFT_BANK.values():
-        for a in bank["approches"]:
+    for n in (2, 7):
+        for a in load_chapter(n).drift_bank.approaches:
             assert gestures.approach_valid(a) == (True, "")
     assert not gestures.approach_valid("Mardi 12. Pluie fine et douce")[0]
     assert not gestures.approach_valid("Trop court ici")[0]
@@ -33,14 +36,14 @@ def test_passage_validator_both_ways():
 
 
 def test_draw_is_seeded_without_replacement_and_chapter_scoped():
-    a1, f1 = gestures.draw_approach(2, [], 7)
-    assert (a1, f1) == gestures.draw_approach(2, [], 7)
-    a2, _ = gestures.draw_approach(2, [a1], 7)
-    a3, _ = gestures.draw_approach(2, [a1, a2], 7)
+    a1, f1 = gestures.draw_approach(BANK, [], 7)
+    assert (a1, f1) == gestures.draw_approach(BANK, [], 7)
+    a2, _ = gestures.draw_approach(BANK, [a1], 7)
+    a3, _ = gestures.draw_approach(BANK, [a1, a2], 7)
     assert len({a1, a2, a3}) == 3
-    exhausted, fact = gestures.draw_approach(2, [a1, a2, a3], 7)
+    exhausted, fact = gestures.draw_approach(BANK, [a1, a2, a3], 7)
     assert exhausted == "" and fact
-    assert gestures.draw_approach(99, [], 7) == ("", "")
+    assert gestures.draw_approach({}, [], 7) == ("", "")
 
 
 TEXT = ("Ouverture du soir, le cahier.\n\nJe reprends les faits dans l'ordre, la "
@@ -83,19 +86,17 @@ def test_assembler_inserts_from_the_end_and_notes_collisions():
     (fx.ACCUMULATION_SHORT, False, False, "seuils non atteints"),
     (fx.ACCUMULATION_SHORT, True, True, "ACCEPTÉE malgré"),
     ("Le retour, l'assiette ; le verre, sauf une, l'assiette.", True, False, "point-virgule"),
-    (fx.ACCUMULATION_ENGLISH, False, False, "seuils non atteints"),
+    (fx.ACCUMULATION_ENGLISH, False, False, "langue"),
+    (fx.ACCUMULATION_ENGLISH, True, False, "langue"),
 ])
 def test_accumulation_validator_thresholds(sentence, last, ok, fragment):
     got_ok, reason = gestures.validate_accumulation(sentence, last_attempt=last, chapter=2)
     assert got_ok is ok and fragment in reason
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "KNOWN GAP (found while writing the safety net): the last-attempt tolerance on "
-    "the word/comma thresholds returns before the language check, so a SHORT English "
-    "accumulation is accepted on the last try. Fix belongs to the eval package "
-    "(revamp step 5); this test flips when it lands."))
 def test_short_english_accumulation_is_rejected_on_last_attempt():
+    # Gap found by the safety net (plan §9), closed at step 5: the language
+    # check now runs before the last-attempt tolerance on the thresholds.
     ok, reason = gestures.validate_accumulation(fx.ACCUMULATION_ENGLISH, last_attempt=True,
                                              chapter=2)
     assert not ok and "langue" in reason

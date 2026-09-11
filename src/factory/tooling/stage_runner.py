@@ -33,17 +33,13 @@ from pathlib import Path
 
 from factory.paths import REPO_ROOT as RACINE
 
-from factory.eval.lint import META_TERMS, analyze
+from factory.eval.lint import analyze
 from factory.retrieval import context as retrieval
 from factory.text import ends_mid_sentence
 from factory.infra.preflight import PreflightError
-# La spécification du chapitre 7 vit dans orchestrator/ch7.py — source unique
-# partagée avec le chemin live de l'API (voir le module). NARRATRICE y est aussi
-# (le doc_id de la narratrice vaut pour TOUS les étages, pas seulement le ch. 7).
-from factory.chapter_spec.chapter7 import (
-    NARRATOR, ENTRIES_CH7, beats_chapter_7, brief_chapter_7,
-    VERDICT_CH7, OBJECTS_CH7,
-)
+# Chapter knowledge (7 and 2) comes from chapters/NN-slug/spec.yaml through the
+# loader — the single source shared with the API's live path and the CLI.
+from factory.chapter_spec import load_chapter
 
 # Le brief v2 du chapitre 2 — §3 du protocole de session, verbatim. Il vaut
 # pour les runs SCORÉS des deux étages.
@@ -97,8 +93,7 @@ CHAPTER_GOAL = (
 # (`graph.entete`), plus recopié depuis une constante. Servi aussi aux chapitres
 # complets — c'est le vide d'ancre qui avait engendré le manuscrit intérieur de
 # B′C.
-ANCHOR_CH2 = ("« Deux assiettes mises, sans y penser. Je l'ai laissée sur la "
-             "table jusqu'au matin. »")
+# (The anchor quotation is now `prefix` in chapters/02-*/spec.yaml.)
 
 BRIEF_V3 = BRIEF_V2.replace(
     "Matériau : le cahier, le carnet, l'assiette, l'égouttoir.",
@@ -130,114 +125,10 @@ BRIEF_C = (BRIEF_V3
                     "L'en-tête et la citation sont DÉJÀ ÉCRITS. Squelette de "
                     "ce qui reste, dans l'ordre : constat"))
 
-# BRIEF V4 — LE SQUELETTE EN LANGUE DU MONDE (session 6, §3.2).
-#
-# La chaîne de `.replace` s'arrête ici : la traduction touche presque chaque
-# ligne, et un empilement de dix remplacements aurait rendu le diff illisible
-# précisément là où il compte. Écrit d'un trait, donc, et gardé par une
-# assertion plutôt que par la relecture.
-#
-# Ce que la session 5 avait fait pour l'état narratif, on ne l'avait pas fait
-# pour le brief : « Couperet : » est sorti EN TEXTE sur C2 et « Couperet. » sur
-# C3, parce que notre propre squelette servi nommait le couperet. Le run C3 est
-# le run de voix de la série, et il porte un mot d'atelier au milieu — venu de
-# nous, pas du modèle.
-#
-# Trois traductions et une soustraction :
-#   · « notation physiologique → couperet » devient « le corps constate, une
-#     ligne ; une phrase brève referme » ;
-#   · « Matériau : » devient « Dans la maison, ce soir : » ;
-#   · le verdict rejoint la matière servie, dans les mots du personnage — il
-#     réparait déjà la régression B′ (verdict absent des trois runs) ;
-#   · LA SPIRALE DISPARAÎT du beat 4. Elle appartient à `accumulate` désormais.
-#     C'est ce doublon qui faisait raconter sa soirée deux fois à C3 : une
-#     consigne et un nœud qui font la même chose se cumulent, ils ne se
-#     remplacent pas.
-#
-# « rationalisation » reste « elle se donne une raison » — et non « elle
-# explique », qui aurait contredit l'interdit « aucune explication » deux lignes
-# plus bas. Un brief qui se contredit lui-même laisse le modèle choisir.
-BRIEF_V4 = (
-    "Chapitre 2, entrée unique du carnet, 450-600 mots.\n"
-    "L'en-tête et la citation sont DÉJÀ ÉCRITS.\n"
-    "Ce qui reste, dans l'ordre : elle relit, constate l'écart, va vérifier ; "
-    "elle rétablit sa soirée ; elle rend son verdict ; le corps constate, une "
-    "ligne ; une phrase brève referme.\n"
-    "Le soir : elle relit l'entrée de la veille de son cahier, comme chaque "
-    "soir. Sa mémoire dit une assiette, un dîner seule ; l'entrée en compte "
-    "deux. Elle va voir : la cuisine, l'égouttoir — regarder, compter. Ce "
-    "qu'elle voit confirme l'entrée, pas sa mémoire. Elle se donne une raison : "
-    "la fatigue, l'automatisme.\n"
-    "Verdict à rendre, dans ses mots : erreur de relevé — la faute est à elle, "
-    "pas au texte ; et la résolution de pointer plus précisément.\n"
-    "Dans la maison, ce soir : le cahier, l'assiette, l'égouttoir.\n"
-    "CE QU'ELLE VOIT, imposé : « L'égouttoir, ce soir : deux assiettes. » Elle "
-    "le CONSTATE, elle ne le découvre pas.\n"
-    "En-tête : jamais de mois, jamais d'année.\n"
-    "Interdits : aucun nom propre, aucun dialogue, aucune explication, "
-    "« journal » et « journal intime » bannis, aucun terme réservé "
-    "(la tierce, l'errata, le bon à tirer)."
-)
+# BRIEF V4 (session 6) and the chapter goal v4 live in chapters/02-*/spec.yaml
+# (`entry_brief`, `brief`); the loader asserts them free of workshop terms.
 
-# La garde d'entrée EST le lint de sortie. Le détecteur qui attrape « Couperet »
-# dans le texte est exactement celui qui aurait dû interdire de le servir : on
-# a linté la sortie contre un vocabulaire qu'on injectait à l'entrée. Cette
-# assertion supprime la classe entière, pour ce brief et pour les suivants.
-
-# L'objectif du chapitre complet, traduit lui aussi. Il en avait BESOIN :
-# `OBJECTIF_CHAPITRE_V3` servait « Fait imposé, au matériau », et « matériau »
-# est dans `META_TERMES` — donc CC recevait un terme d'atelier sans que personne
-# l'ait remarqué. L'assertion ci-dessous n'a pas été écrite pour ce cas, elle
-# l'a trouvé.
-CHAPTER_GOAL_V4 = (
-    "Chapitre 2 complet, trois entrées du carnet à dates consécutives, "
-    "450-600 mots chacune. Ce que le chapitre raconte : la première "
-    "divergence — l'entrée relue de son cahier mentionne une seconde assiette "
-    "(citation à recopier verbatim dans l'entrée concernée : « Deux assiettes "
-    "mises, sans y penser. Je l'ai laissée sur la table jusqu'au matin. »), "
-    "elle va voir à la cuisine, elle se donne une raison — la fatigue —, elle "
-    "rend son verdict : erreur de relevé, et la résolution de pointer plus "
-    "précisément.\n"
-    "CE QU'ELLE VOIT, imposé : « L'égouttoir, ce soir : deux assiettes. »\n"
-    "En-tête : jamais de mois, jamais d'année.\n"
-    "Interdits : aucun nom propre, aucun dialogue, aucune explication, "
-    "« journal » et « journal intime » bannis, aucun terme réservé "
-    "(la tierce, l'errata, le bon à tirer)."
-)
-
-# La garde d'entrée EST le lint de sortie. Le détecteur qui attrape « Couperet »
-# dans le texte est exactement celui qui aurait dû interdire de le servir : on
-# a linté la sortie contre un vocabulaire qu'on injectait à l'entrée. Cette
-# assertion supprime la classe entière, pour ces briefs et pour les suivants.
-for _name, _brief in [("BRIEF_V4", BRIEF_V4),
-                     ("OBJECTIF_CHAPITRE_V4", CHAPTER_GOAL_V4)]:
-    _leaks = sorted({m.group(0).lower() for m in META_TERMS.finditer(_brief)})
-    assert not _leaks, (
-        f"{_name} sert des termes d'atelier que le lint bannit en sortie : "
-        f"{_leaks}. C'est la cause mesurée du « Couperet : » de C2.")
-
-
-# Météo de la première entrée : le brief la fixait, et sur un run mono-entrée le
-# plan est court-circuité — donc aucun champ [météo] ne remonte, et le code
-# tombait sur son défaut (« Temps calme ») en contredisant le brief.
-START_WEATHER = "Ciel couvert"
-
-# NARRATRICE, la spec du chapitre 7 (ENTREES_CH7, briefs, beats, verdict,
-# objets) sont importées de `ch7` en tête de fichier — source unique partagée
-# avec le chemin live de l'API.
-
-# Ancre de la séquence d'en-têtes : le code DÉRIVE les dates suivantes, donc
-# elles sont consécutives par construction (B′C avait produit [8,7,7,7,7,9,10,7]).
-START_DAY, START_NUMBER = "Mardi", 12
-
-# Le VERDICT est le repère d'épissure de l'accumulation — le seul point garanti
-# de l'entrée, parce qu'un autre lint l'exige en présence. Les marqueurs de
-# reconstruction (fatigue, automatisme) ne servent qu'en repli : ce sont des
-# valeurs de la table de pilotage, qui MIGRENT d'un chapitre à l'autre.
-VERDICT_CH2 = "erreur de relevé"
-OBJECTS_CH2 = "le cahier, le carnet, l'assiette, l'égouttoir"
-
-
+# Calendar, verdict, objects and anchor of chapter 2 are read from its spec.
 
 PLAN_RUNS = {
     "A": [("A1", BRIEF_V2, "score"), ("A2", BRIEF_V2, "score"),
@@ -258,16 +149,16 @@ PLAN_RUNS = {
     # S6 : `write` décomposé en trois segments, brief v4, glissement pris à la
     # banque. La variable mesurée est le DÉCOUPAGE — le reste du lot corrige des
     # défauts nés à l'étage C, il n'ajoute pas de dispositif.
-    "S6": [("S6-1", BRIEF_V4, "score"), ("S6-2", BRIEF_V4, "score"),
-           ("S6-3", BRIEF_V4, "score"),
-           ("S6-C", CHAPTER_GOAL_V4, "chapitre complet, hors score")],
+    "S6": [("S6-1", "entry", "score"), ("S6-2", "entry", "score"),
+           ("S6-3", "entry", "score"),
+           ("S6-C", "chapter", "chapitre complet, hors score")],
     # S7 : le lot correctif. Brief v4 inchangé — ce qui bouge est DANS le
     # pipeline (stations, consignes en faits, garde-fou conscient de la cible,
     # dédoublonnage, tampon d'ancre) et dans la bible. Le brief reste le même
     # pour que la comparaison avec S6 porte sur le lot, et sur rien d'autre.
-    "S7": [("S7-1", BRIEF_V4, "score"), ("S7-2", BRIEF_V4, "score"),
-           ("S7-3", BRIEF_V4, "score"),
-           ("S7-C", CHAPTER_GOAL_V4, "chapitre complet, hors score")],
+    "S7": [("S7-1", "entry", "score"), ("S7-2", "entry", "score"),
+           ("S7-3", "entry", "score"),
+           ("S7-C", "chapter", "chapitre complet, hors score")],
     # CH7 : la répétition. Un seul run, le chapitre entier, deux entrées.
     "CH7": [("CH7", None, "répétition — chapitre 7 en conditions réelles")],
 }
@@ -355,38 +246,28 @@ def main(argv: list[str] | None = None) -> int:
         mono = role == "score"
         # LE CHAPITRE 7 diffère de tout le reste par sa STRUCTURE, pas par son
         # câblage : deux entrées du même jour, la première en deux phrases sans
-        # citation. `entrees_spec` porte cette structure ; partout ailleurs elle
+        # citation. `entry_specs` porte cette structure ; partout ailleurs elle
         # est vide et le comportement est inchangé.
         ch7 = args.stage == "CH7"
+        # The chapter spec builds the state (step 5); the stage only sets the
+        # run options: brief version, RAG, micro-nodes, segments, single entry.
+        spec = load_chapter(7 if ch7 else 2)
+        served = {"entry": spec.entry_brief, "chapter": spec.brief}.get(brief, brief)
         try:
             status = graph.invoke(
-                {"brief": brief_chapter_7() if ch7 else brief,
-             "preflight": preflight_request,
-             "characters": NARRATOR, "rag": rag,
-             "expected_entries": len(ENTRIES_CH7) if ch7 else (1 if mono else 3),
-             "entry_specs": ENTRIES_CH7 if ch7 else [],
-             "imposed_plan": beats_chapter_7() if ch7 else [],
-             # L'ancre du ch. 7 est PAR ENTRÉE (l'entrée 1 ne cite pas), donc
-             # elle vit dans `entrees_spec` et non dans le préfixe global.
-             "prefix": "" if ch7 else (
-                 ANCHOR_CH2 if args.stage in ("Bp", "C", "S6", "S7") else ""),
-             "micro_nodes": args.stage in ("C", "S6", "S7", "CH7"),
-             # LA VARIABLE MESURÉE. Hors S6, `write` reste l'appel unique par
-             # lequel tout le pipeline a été chronométré : l'habillage d'un
-             # étage ne doit jamais rejouer la validation d'un autre.
-             "segments": args.stage in ("S6", "S7", "CH7"),
-             "seed": seed,
-             # Le numéro de chapitre commande le SCOPE des interdits matériels
-             # et la chute imposée de l'accumulation. Sans lui, un lint qui ne
-             # connaît pas sa portée est soit inutile, soit faux.
-             "chapter": 7 if ch7 else 2,
-             "drawn_approaches": [],
-             "start_day": "Samedi" if ch7 else START_DAY,
-             "start_number": 14 if ch7 else START_NUMBER,
-             "verdict": VERDICT_CH7 if ch7 else VERDICT_CH2,
-             "active_objects": OBJECTS_CH7 if ch7 else OBJECTS_CH2,
-             "start_weather": "Beau temps" if ch7 else START_WEATHER,
-             "accumulation": ""},
+                {**spec.state(
+                    seed=seed,
+                    brief=None if ch7 else served,
+                    entry_count=None if ch7 else (1 if mono else 3),
+                    rag=rag,
+                    micro_nodes=args.stage in ("C", "S6", "S7", "CH7"),
+                    # LA VARIABLE MESURÉE de la session 6 : hors S6, `write`
+                    # reste l'appel unique par lequel tout a été chronométré.
+                    segments=args.stage in ("S6", "S7", "CH7"),
+                    prefix=None if ch7 else (
+                        spec.prefix if args.stage in ("Bp", "C", "S6", "S7") else ""),
+                 ),
+                 "preflight": preflight_request},
                 config={"recursion_limit": 50},
             )
         except PreflightError as exc:

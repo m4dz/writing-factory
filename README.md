@@ -51,7 +51,7 @@ src/factory/    the package: cli (the `factory` command), pipeline, API,
                 infra, settings
 docker/         the indexer image (installs the package)
 bible/          canon; surface/ is indexed, profond/ never is
-chapters/       per-chapter briefs, never indexed
+chapters/       per-chapter spec.yaml and briefs, author-owned, never indexed
 experiments/    runs with manifests, journal of failed draws, grids, reports
 openspec/       project context, specs, change proposals
 docs/           architecture, runbook, doctrines, ADRs, plans

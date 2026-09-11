@@ -18,7 +18,7 @@ Everything runs on one Apple Silicon laptop: Ollama on the host (author model
 `mistral-nemo` 12B, QA model `qwen2.5` 7B, embeddings `nomic-embed-text`),
 ChromaDB in a Podman container, the `factory` package in a host venv.
 
-## Layout today (step 4 done)
+## Layout today (step 5 done)
 
 ```
 src/factory/
@@ -35,11 +35,13 @@ src/factory/
                      query.py (retrieval smoke test)
   pipeline/          graph.py (state, writing nodes, strategies, wiring),
                      nodes/preflight.py and nodes/render.py (the machine
-                     nodes), gestures.py (validators, drift bank, placement),
+                     nodes), scorers.py (best-of criteria by name),
+                     gestures.py (validators, drift draw, placement),
                      assembly.py (audio switch, excerpt bound),
                      qa.py (Qwen roles: repair, facts, violation questions)
-  chapter_spec/      chapter7.py (chapter 7 as Python, reads chapters/07-*/),
-                     narrative_state.py (state chunk from the pilot table)
+  chapter_spec/      model.py (ChapterSpec, EntrySpec, typed), loader.py
+                     (spec.yaml → ChapterSpec, pointers into the briefs and
+                     the movement table, anti-leak checks), narrative_state.py
   roleplay/          session.py (memory, out-of-role guard), cli.py
   api/               server.py (HTTP surface), static/acteur.html
   eval/              lint.py, grid.py, seal.py, journal.py, data/
@@ -48,7 +50,7 @@ src/factory/
                      sessions), resolution_xp (an experiment's recipe)
 docker/              indexer.Dockerfile (installs the package)
 bible/               canon, French, author-owned; surface/ and profond/ layers
-chapters/07-*/       chapter 7 briefs (author-owned, never indexed)
+chapters/NN-slug/    spec.yaml + briefs per chapter (author-owned, never indexed)
 experiments/         runs (with manifests), journal, grids, reports
 openspec/            project context, current specs, changes
 docs/                architecture, runbook, doctrines, adr/, plans/
@@ -113,11 +115,16 @@ preflight ──▶ plan ──▶ write ──▶ accumulate ──▶ drift �
 - **Index → prompt.** Writing chunks (voice, current state, psychology) by
   deterministic id; world chunks for fact derivation; style sections from
   disk with example lines stripped; no previous entries during writing.
-- **Chapter 7 spec → state.** `factory.chapter_spec.chapter7` reads `chapters/07-anniversaire/
-  brief.md` and `brief-entree-2.md` by section, the movement line of the
-  chapter from the deep table, and builds the `graph.invoke` state
-  (`entry_specs`, beats, anchor, fall). Chapter 2 is built the same way in
-  `factory.tooling.stage_runner`. Both become a YAML spec and a loader at step 5.
+- **Chapter spec → state.** `load_chapter(N)` reads `chapters/NN-slug/spec.yaml`
+  (calendar, verdict, objects, stations, accumulation fall, drift bank,
+  assembly, per-entry structure and caps, best-of criterion name) and follows
+  its pointers: the served brief is a section of the owner's `brief.md`, an
+  entry's trajectory, material, beat instructions and drift passage come from
+  its entry brief, the movement is one row of the deep table. `spec.state()`
+  builds the `graph.invoke` state; run options (RAG, micro-nodes, segments,
+  single-entry brief) are keyword overrides. No chapter number appears in
+  pipeline code: the graph reads `state["stations"]`, `state["accumulation_fall"]`,
+  `state["drift_bank"]` and the typed `entry_specs`.
 - **State → artifacts.** The render node writes `output/chapitre.md` and
   `output/chapitre.wav` (`factory generate`, `POST /generate`); calibration
   runs (`factory calibrate`) write frontmatter Markdown under

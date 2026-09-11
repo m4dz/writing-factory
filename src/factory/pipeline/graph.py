@@ -32,6 +32,8 @@ from factory.infra.ollama import chat, unload
 from factory.retrieval.context import REVIEW_STYLE, assemble_system_prompt
 from factory.text import delint, ends_mid_sentence, sentence_ends, trim_to_sentence
 from factory.pipeline.qa import repair, derive_facts, check_facts, check_plan
+from factory.chapter_spec.model import EMPTY_ENTRY, EntrySpec
+from factory.pipeline import scorers
 from factory.pipeline.nodes.preflight import preflight_node
 from factory.pipeline.nodes.render import render_node
 from factory.settings import settings
@@ -113,6 +115,10 @@ class ChapterState(TypedDict):
     seed: int           # tirage du glissement, consigné au frontmatter du run
     chapter: int         # numéro du chapitre — scope des interdits matériels
     drawn_approaches: list[str]  # jamais deux fois la même dans un chapitre
+    # --- chapter knowledge, from the spec (step 5) ---------------------------
+    stations: list[str]   # stations of the reconstruction segment
+    accumulation_fall: str  # the object the accumulation falls on
+    drift_bank: dict      # {approaches: [...], facts: [...]} for the drift draw
     # --- machine nodes (ADR-0002, item 5) ------------------------------------
     preflight: object     # None/False: skipped; True or {strict, timer}: checked first
     preflight_warnings: list[str]
@@ -438,7 +444,7 @@ def plan_node(state: ChapterState) -> dict:
     # dégénéré : le modèle rédige au lieu de découper, et on se replie sur le
     # brief. En étage B, ce détour coûtait 139 à 222 secondes — pour rien.
     # COURT-CIRCUIT SUR PLAN FOURNI. Quand le brief porte déjà un beat par
-    # entrée (`plan_impose`), planifier n'ajoute rien et peut tout défaire : au
+    # entrée (`imposed_plan`), planifier n'ajoute rien et peut tout défaire : au
     # premier tirage du chapitre 7, le nœud n'a produit aucune ligne numérotée
     # sur un brief en prose formatée, et le repli a donné le brief ENTIER à
     # chaque entrée — les deux ont donc reçu la consigne décrivant les deux.
@@ -549,7 +555,7 @@ def plan_node(state: ChapterState) -> dict:
 
     # LE PLAN D'ENTRÉES FAIT LOI SUR LE NOMBRE (micro-lot, correctif CH7).
     #
-    # `entrees_spec` décrit une structure imposée par le brief — deux entrées du
+    # `entry_specs` décrit une structure imposée par le brief — deux entrées du
     # même jour pour le chapitre 7. Le nœud de plan, lui, n'en savait rien : il
     # a rendu QUATRE beats, et les entrées 3 et 4, hors spec, sont retombées sur
     # les dates dérivées (« Lundi 16 », « Mardi 17 »). Un chapitre de 2281 mots
@@ -594,7 +600,7 @@ def write_node(state: ChapterState) -> dict:
     # la citation, la cible de mots et le découpage. Vide hors chapitre 7 —
     # tout le reste du pipeline est alors inchangé.
     spec = state.get("entry_specs") or []
-    sheet = spec[idx] if idx < len(spec) else {}
+    sheet: EntrySpec = spec[idx] if idx < len(spec) else EMPTY_ENTRY
     progress.phase("Écriture", f"entrée {idx + 1}/{len(state['plan'])} (nemo)",
                    i=idx + 1, n=len(state["plan"]))
     system = assemble_system_prompt(
@@ -619,7 +625,7 @@ def write_node(state: ChapterState) -> dict:
     # le continuer mot pour mot.
     prior_block = ""
 
-    lo, hi = sheet.get("mots") or WORDS_PER_ENTRY  # cible propre à l'entrée
+    lo, hi = sheet.words or WORDS_PER_ENTRY  # cible propre à l'entrée
     # PRÉFIXAGE PAR LE CODE (item 5) : l'en-tête et la citation ancre ne sont
     # pas DEMANDÉS au modèle, ils lui sont DONNÉS déjà écrits — il continue.
     # A3 avait altéré l'ancre et corrompu les beats 2-3 qui en dépendaient ;
@@ -650,16 +656,16 @@ def write_node(state: ChapterState) -> dict:
     # en-tête normalisé. Pas d'en-tête conforme, pas de coïncidence scénique.
     start_day = state.get("start_day") or "Mardi"
     start_number = state.get("start_number") or 12
-    if sheet.get("jour"):
-        head = header(sheet["jour"], sheet["numero"], 0,
-                      sheet.get("meteo") or weather or "")
+    if sheet.weekday:
+        head = header(sheet.weekday, sheet.number, 0,
+                      sheet.weather or weather or "")
     else:
         head = header(start_day, start_number, idx,
                       weather or (state.get("start_weather") if idx == 0 else ""))
     # La citation d'ancre devient un champ de l'entrée : au chapitre 7, l'entrée
     # 1 NE CITE PAS (« première entorse au rituel, premier signal ») et l'entrée
     # 2 s'ouvre sur [CIT-2]. Servir la même ancre aux deux détruirait le signal.
-    anchor = (sheet.get("citation") if "citation" in sheet
+    anchor = (sheet.citation if sheet.citation is not None
              else state.get("prefix") or "")
     prefix = f"{head}\n\n{anchor}" if anchor else head
     prefix_block = (
@@ -702,7 +708,7 @@ def write_node(state: ChapterState) -> dict:
     # mouvement (« dump du prompt servi »), et c'est aussi ce qui permet de
     # mesurer la recopie — le contrôle qui manquait au tirage 6.
     served_prompts: list[tuple[str, str]] = []
-    if sheet.get("beats"):
+    if sheet.strategy == "beats" and sheet.beats:
         # CAP-CODE STRUCTUREL (entrée 2, v5). Chaque beat est un appel court,
         # servi SEUL (pas le mouvement entier — cf. `_prompt_beat`), borné en
         # phrases ET en tokens par le code. Le texte déjà écrit devient le
@@ -714,9 +720,11 @@ def write_node(state: ChapterState) -> dict:
         # `_VOIX_VERDICT`). Réassignation locale — les autres branches sont en
         # `elif`, et le tail commun n'utilise pas `system` pour générer.
         system = _VERDICT_VOICE.sub("", system)
-        beats = sheet["beats"]
-        first_name = beats[0][0]
-        for name, num_predict, max_sentences, instruction in beats:
+        beats = sheet.beats
+        first_name = beats[0].name
+        for b in beats:
+            name, num_predict, max_sentences, instruction = (
+                b.name, b.num_predict, b.sentences_max, b.instruction)
             is_first = (name == first_name)
             already = f"{prefix}\n\n{text}".strip() if prefix else text.strip()
             block = (
@@ -743,7 +751,7 @@ def write_node(state: ChapterState) -> dict:
                 seg, wn = _clean_segment(seg, f"entrée {idx + 1}/{name}#{k + 1}")
                 seg, wb = _bound_sentences(seg, max_sentences, idx, "")
                 sc, defects = _score_beat(seg, is_first,
-                                           state.get("chapter") or 2)
+                                           state.get("chapter") or 0)
                 variants.append({"score": sc, "k": k, "seg": seg,
                                   "defauts": defects, "m": m, "w": w + wn + wb})
             # Meilleur score ; à égalité, le premier tiré (stable, rejouable).
@@ -766,7 +774,7 @@ def write_node(state: ChapterState) -> dict:
                    for v in variants for m2 in v["m"]]
         # L'accumulation prend l'entrée entière pour contexte : elle est courte.
         reconstruction = text
-    elif sheet.get("segments", state.get("segments")):
+    elif sheet.uses_segments(state.get("segments")):
         text, ms, wg = "", [], []
         for name, num_predict, target_words, instruction in SEGMENTS:
             progress.phase("Écriture", f"entrée {idx + 1}/"
@@ -786,8 +794,8 @@ def write_node(state: ChapterState) -> dict:
                        if name == "reconstruction" else "")
             stations = "\n".join(
                 f"  {k}. {place_name}" for k, place_name in
-                enumerate(STATIONS.get(state.get("chapter") or 2, ()), 1))
-            if sheet.get("mouvement"):
+                enumerate(state.get("stations") or (), 1))
+            if sheet.movement:
                 # Méthode du mouvement : le brief porte tout, les consignes de
                 # segment ne portent plus que la POSITION dans la trajectoire.
                 seg_user = _movement_prompt(
@@ -830,13 +838,13 @@ def write_node(state: ChapterState) -> dict:
         # porte un mouvement, l'appel unique reçoit le même ordre de service —
         # sinon on retomberait sur le prompt de cases que la méthode remplace,
         # et la comparaison ne porterait plus sur le seul nombre d'appels.
-        if sheet.get("mouvement"):
+        if sheet.movement:
             user = _movement_prompt(
                 sheet, f"{lo} à {hi} mots",
                 "Tu écris cette trajectoire ENTIÈRE, d'un seul tenant.",
                 prefix_block)
             served_prompts.append(("entrée entière", user))
-        budget = (int(hi * 1.6) + 40 if sheet.get("mots") else 1400)
+        budget = (int(hi * 1.6) + 40 if sheet.words else 1400)
         # PAS DE CONTINUATION quand la brièveté est VOULUE. La continuation
         # existe contre l'amputation accidentelle — un texte coupé en plein mot
         # à 1400 tokens. Sur une entrée bornée à soixante mots, `done_reason:
@@ -844,14 +852,14 @@ def write_node(state: ChapterState) -> dict:
         # tirage précédent est reparti pour 300 tokens et a rendu 314 mots.
         # On coupe à la dernière phrase complète, ce que `_generate_whole` fait
         # déjà en filet.
-        best_of = sheet.get("best_of")
+        best_of = sheet.best_of.n if sheet.best_of else 0
         if best_of:
             # BEST-OF-N sur l'entrée ENTIÈRE (entrée 1). On SCORE la version
-            # bornée à `phrases_max` — ce qui est réellement servi — via le
+            # bornée à `sentences_max` — ce qui est réellement servi — via le
             # scorer nommé par `critere`. Même principe que les beats : la
             # sélection est une lecture déterministe, pas un juge de goût.
-            phr = sheet.get("phrases_max")
-            cont = not sheet.get("mots")
+            phr = sheet.sentences_max
+            cont = not sheet.words
             cands = []
             for k in range(best_of):
                 progress.phase("Écriture",
@@ -867,9 +875,7 @@ def write_node(state: ChapterState) -> dict:
                 t_clean = STRAY_HEADER.sub("", t).strip()
                 to_score = (_bound_sentences(t_clean, phr, idx, "")[0]
                             if phr else t_clean)
-                sc, defects = (_score_entry1(to_score)
-                               if sheet.get("critere") == "effacement-anniversaire"
-                               else (0, []))
+                sc, defects = scorers.score(to_score, sheet.best_of)
                 cands.append({"score": sc, "k": k, "t": t, "m": m, "w": w,
                               "def": defects})
             cands.sort(key=lambda c: (-c["score"], c["k"]))
@@ -886,7 +892,7 @@ def write_node(state: ChapterState) -> dict:
         else:
             text, ms, wg = _generate_whole(
                 system, user, num_predict=budget, temperature=0.7,
-                label=f"entrée {idx + 1}", keep_going=not sheet.get("mots"))
+                label=f"entrée {idx + 1}", keep_going=not sheet.words)
     # La concaténation elle-même. `_recoller` retire le chevauchement au
     # caractère près si le modèle a redonné l'en-tête ou l'ancre malgré la
     # consigne — on ne veut ni doublon, ni ancre recomposée.
@@ -927,8 +933,8 @@ def write_node(state: ChapterState) -> dict:
     # produites là où le brief en demande deux, et c'est l'entrée que le
     # locuteur lit à voix nue. Une contrainte de scène se compte dans l'unité
     # de la scène.
-    if sheet.get("phrases_max"):
-        text, wp = _bound_sentences(text, sheet["phrases_max"], idx, prefix)
+    if sheet.sentences_max:
+        text, wp = _bound_sentences(text, sheet.sentences_max, idx, prefix)
         wg += wp
 
     text, w = delint(text)
@@ -944,7 +950,7 @@ def write_node(state: ChapterState) -> dict:
         # après que la réparation l'a réécrit.
         "placed_header": head,
         "placed_anchor": anchor,
-        "placed_fall": sheet.get("chute", ""),
+        "placed_fall": sheet.fall,
         "served_prompts": (state.get("served_prompts") or []) + served_prompts,
         "metrics": state["metrics"] + _tag(ms, f"write/{idx + 1}"),
         "warnings": state["warnings"] + wg
@@ -1020,29 +1026,9 @@ s'arrête."""
 
 # Le programme du jour — les stations du chapitre 2. Elles viennent de la table
 # de pilotage côté PERÇU : ce sont les lieux d'une soirée ordinaire chez elle.
-STATIONS = {
-    # CHAPITRE 7 — la journée de l'anniversaire, entrée 2 (la nuit).
-    #
-    # Chaque station est l'ÉTAT CONSTATÉ d'un objet qu'elle avait entrepris
-    # d'effacer. La contradiction est donc dans la matière, pas dans la
-    # consigne : le brief porte déjà l'intention (« chaque geste d'effacement
-    # dont elle se souvient d'avoir décidé est contredit par l'état de la
-    # maison »), et la répéter ici en langue d'intention ferait revenir « je
-    # décide de » — le défaut que ce même lot vient d'éteindre. Les stations
-    # ne disent que ce qui EST.
-    7: ("la table du séjour, la boîte ouverte, les photos étalées",
-        "le salon, l'enceinte allumée, la musique qui tourne",
-        "la cuisine, le plat au four, l'odeur",
-        "la table, deux couverts mis",
-        "le cahier ouvert, la ligne relue",
-        "la lampe, la fin de la journée"),
-    2: ("la table du séjour, le cahier refermé",
-        "la cuisine, l'égouttoir",
-        "le dîner, l'assiette",
-        "la vaisselle, l'eau",
-        "la relecture de l'entrée de la veille",
-        "la lampe éteinte, le couloir"),
-}
+# Stations of the reconstruction segment come from the chapter spec
+# (`state["stations"]`): the CONSTATED state of each object, never the
+# intention — repeating it in intention language brings back « je décide de ».
 
 # (nom, num_predict, mots visés, consigne)
 #
@@ -1175,33 +1161,9 @@ def _score_beat(variant: str, is_first: bool,
     return score, defects
 
 
-# CRITÈRE de l'entrée 1 (best-of-N sur le chemin entrée-entière). L'entrée lue
-# à voix nue doit nommer l'EFFACEMENT DE L'ANNIVERSAIRE (photos rangées, musique
-# supprimée, plat écarté), pas dériver vers un rangement générique (le cahier,
-# le grenier) — dérive mesurée aux tirages v7/v9/v11. On score la version
-# BORNÉE À DEUX PHRASES : c'est ce qui est réellement servi ; l'effacement en
-# phrase 3+ est coupé et ne compte pas.
-_E1_ERASURE = re.compile(
-    r"\b(photos?|playlist|musique|le\s+plat|anniversaire|couverts?)\b",
-    re.IGNORECASE)
-_E1_DRIFT = re.compile(
-    r"ranger\s+le\s+(?:cahier|grenier)|le\s+grenier|dans\s+un\s+album"
-    r"|le\s+cahier\s+ailleurs", re.IGNORECASE)
-
-
-def _score_entry1(variant: str) -> tuple[int, list[str]]:
-    """Note l'entrée 1 (résolution d'effacement). Falsifié dans les deux sens."""
-    defects: list[str] = []
-    score = 0
-    if _E1_ERASURE.search(variant):
-        score += 3
-    else:
-        score -= 3
-        defects.append("ne nomme pas l'effacement de l'anniversaire")
-    if _E1_DRIFT.search(variant):
-        score -= 5
-        defects.append("dérive (cahier / grenier / album)")
-    return score, defects
+# The criterion of the best-of on a whole entry is named by the chapter spec
+# (`best_of.criterion`) and resolved in `factory.pipeline.scorers`; its lexical
+# lists travel with the spec.
 
 
 # FIX RACINE (xp C5, 2026-08-31) : le squelette de voix servi finit par
@@ -1254,7 +1216,7 @@ def _prompt_beat(instruction: str, block: str) -> str:
     return prompt
 
 
-def _movement_prompt(sheet: dict, target_words: str, position: str,
+def _movement_prompt(sheet: EntrySpec, target_words: str, position: str,
                       prefix_block: str) -> str:
     """Assemble le prompt d'une entrée sous méthode du mouvement.
 
@@ -1262,25 +1224,25 @@ def _movement_prompt(sheet: dict, target_words: str, position: str,
     l'intention ; la matière ne vient qu'après le comportement de la prose,
     parce qu'elle est à disposition et non à cocher.
     """
-    blocks = [f"MOUVEMENT À ACCOMPLIR — {sheet['mouvement']}"]
-    if sheet.get("trajectoire"):
+    blocks = [f"MOUVEMENT À ACCOMPLIR — {sheet.movement}"]
+    if sheet.trajectory:
         blocks.append("COMPORTEMENT DE LA PROSE :\n"
                      + "\n".join(f"  - {_without_machinery(d)}"
-                                   for d in sheet["trajectoire"]))
-    if sheet.get("matiere"):
+                                   for d in sheet.trajectory))
+    if sheet.material:
         blocks.append("MATIÈRE DISPONIBLE — à ta disposition pour accomplir ce "
                      "mouvement, jamais une liste à épuiser :\n"
                      + "\n".join(f"  - {_without_machinery(m)}"
-                                   for m in sheet["matiere"]))
-    form = sheet.get("forme") or {}
+                                   for m in sheet.material))
+    form = sheet.form or {}
     vetos = [f"Longueur visée : {target_words}."]
     if form.get("verdict") == "absent":
         vetos.append("Aucun verdict ne se rend : la dernière ligne en tient "
                      "lieu, et elle est déjà écrite ailleurs.")
-    if form.get("accumulation") == "absente":
+    if form.get("accumulation") == "absent":
         vetos.append("Pas de phrase-récapitulatif.")
-    if sheet.get("vetos"):
-        vetos.append(sheet["vetos"])
+    if sheet.vetos:
+        vetos.append(sheet.vetos)
     # Le libellé aussi est servi : « VÉTOS » est un mot de notre atelier. Ce
     # que le modèle doit lire, c'est ce que le texte ne fait pas.
     blocks.append("CE QUE LE TEXTE NE FAIT PAS :\n"
@@ -1325,7 +1287,7 @@ def _reconstruction_material(state: ChapterState) -> str:
     prompt ne fait que préparer le terrain — en donnant du mobilier RÉEL, parce
     que le nœud inventait faute d'en avoir.
     """
-    ch = state.get("chapter") or 2
+    ch = state.get("chapter") or 0
     objects = state.get("active_objects") or ""
     lines = []
     try:
@@ -1363,7 +1325,7 @@ def _scene_vetos(text: str, idx: int, state: ChapterState,
     L'avertissement nomme l'objet et cite l'extrait ; le véto vit dans la grille.
     """
     warns: list[str] = []
-    ch = state.get("chapter") or 2
+    ch = state.get("chapter") or 0
     for excerpt in material_forbidden(text, ch):
         warns.append(f"entrée {idx + 1} : VÉTO décor — {excerpt[:110]}")
     for m in MARKS.finditer(text):
@@ -1433,13 +1395,8 @@ for _name, _, _, _instruction in SEGMENTS:
 # modèle choisir l'anomalie, et il en choisissait une à lui — un robinet resté
 # ouvert (C1). L'anomalie du chapitre est un fait du roman, pas une trouvaille
 # de fin de phrase : elle se donne, comme le verdict et le fait imposé.
-_IMPOSED_FALL = {
-    2: "l'assiette",
-    # Chapitre 7 : la chute tombe sur un objet du quatuor, celui que le brief
-    # rend le plus contradictoire — elle a décidé de supprimer la playlist, et
-    # la musique tourne.
-    7: "la playlist qui tourne encore",
-}
+# The object the accumulation falls on comes from the chapter spec
+# (`state["accumulation_fall"]`); without one, « celui qui cloche ».
 
 _ACC_INSTRUCTION = """Voici la partie d'une entrée de carnet où la narratrice \
 rétablit sa soirée.
@@ -1487,7 +1444,7 @@ def _gestures_allowed(state: ChapterState) -> bool:
     idx = len(state["scenes"]) - 1
     if idx < 0 or idx >= len(spec):
         return True
-    return bool(spec[idx].get("gestures", True))
+    return bool(spec[idx].gestures)
 
 
 def accumulate_node(state: ChapterState) -> dict:
@@ -1511,7 +1468,7 @@ def accumulate_node(state: ChapterState) -> dict:
     entry = state.get("reconstruction") or state["scenes"][-1]
     instruction = _ACC_INSTRUCTION.format(
         objects=state.get("active_objects") or "le cahier, l'assiette, l'égouttoir",
-        fall=_IMPOSED_FALL.get(state.get("chapter") or 2, "celui qui cloche"))
+        fall=state.get("accumulation_fall") or "celui qui cloche")
     metrics, warns, sentence = [], [], ""
     for try_no in range(1, MAX_GESTURE_ATTEMPTS + 1):
         progress.phase("Accumulation",
@@ -1530,7 +1487,7 @@ def accumulate_node(state: ChapterState) -> dict:
         # consigne vise ce qui est atteignable, la garde mesure ce qui compte.
         ok, reason = validate_accumulation(
             candidate, last_attempt=(try_no == MAX_GESTURE_ATTEMPTS),
-            chapter=state.get("chapter") or 2)
+            chapter=state.get("chapter") or 0)
         if ok:
             sentence = candidate
             if reason:
@@ -1574,15 +1531,15 @@ def drift_node(state: ChapterState) -> dict:
     warns: list[str] = []
     spec = state.get("entry_specs") or []
     idx = len(state["scenes"]) - 1
-    sheet = spec[idx] if 0 <= idx < len(spec) else {}
+    sheet: EntrySpec = spec[idx] if 0 <= idx < len(spec) else EMPTY_ENTRY
 
     # PASSAGE RÉDIGÉ (méthode du mouvement) : le brief le fournit entier, avec
     # sa frontière. Plus de suture approche + « … » + fait — l'interruption
     # porte l'approche et le retour au matériel EST la découverte suivante.
     # Les deux formes cohabitent : la banque reste pour les chapitres non
     # migrés, et c'est la présence du champ qui tranche.
-    if sheet.get("glissement", {}).get("texte"):
-        passage = sheet["glissement"]["texte"]
+    if sheet.drift and sheet.drift.text:
+        passage = sheet.drift.text
         ok, reason = passage_valid(passage)
         if not ok:
             warns.append(f"glissement entrée {idx + 1} : passage REFUSÉ par "
@@ -1591,7 +1548,7 @@ def drift_node(state: ChapterState) -> dict:
         gestures = list(state.get("gestures") or [])
         gestures.append({"accumulation": state.get("accumulation") or "",
                        "glissement": passage,
-                       "frontiere": sheet["glissement"].get("position", ""),
+                       "frontiere": sheet.drift.position,
                        "reconstruction": state.get("reconstruction") or "",
                        "entete": state.get("placed_header") or "",
                        "ancre": state.get("placed_anchor") or "",
@@ -1600,7 +1557,7 @@ def drift_node(state: ChapterState) -> dict:
                 "warnings": state["warnings"] + warns}
 
     drawn = list(state.get("drawn_approaches") or [])
-    approach, fact = draw_approach(state.get("chapter") or 2, drawn,
+    approach, fact = draw_approach(state.get("drift_bank") or {}, drawn,
                                    state.get("seed") or 0)
     drift = ""
     if approach:
@@ -1820,8 +1777,8 @@ def route_after_write(state: ChapterState) -> str:
 def _entry_target(state: ChapterState, i: int) -> tuple[int, int]:
     """Fourchette de mots de l'entrée `i` — celle du brief si elle en donne une."""
     spec = state.get("entry_specs") or []
-    if i < len(spec) and spec[i].get("mots"):
-        return tuple(spec[i]["mots"])
+    if i < len(spec) and spec[i].words:
+        return tuple(spec[i].words)
     return WORDS_PER_ENTRY
 
 
@@ -2055,8 +2012,8 @@ def assemble_node(state: ChapterState) -> dict:
         return {}
     outputs, warns = list(entries), []
     for i, entry in enumerate(entries):
-        sheet = spec[i] if i < len(spec) else {}
-        if not sheet.get("beats"):        # seule l'entrée en beats est nettoyée
+        sheet = spec[i] if i < len(spec) else EMPTY_ENTRY
+        if sheet.strategy != "beats":     # seule l'entrée en beats est nettoyée
             continue
         progress.phase("Assemblage", f"entrée {i + 1} (Qwen)")
         outputs[i], w = _assemble_qwen(entry)

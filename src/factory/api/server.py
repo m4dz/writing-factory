@@ -41,7 +41,7 @@ from urllib.parse import parse_qs
 from factory.infra import notify
 from factory.settings import settings
 from factory.infra import progress
-from factory.chapter_spec import chapter7 as ch7
+from factory.chapter_spec import load_chapter
 from factory.pipeline.graph import build_graph
 from factory.pipeline.nodes.render import audio_path, chapter_path
 from factory.infra.preflight import PreflightError, report
@@ -98,10 +98,12 @@ _TYPES = {
 # Le récit généré est le CHAPITRE 7 de « L'Involontaire ». Le contrat dit
 # « corps minimal ou vide » : le deck ne connaît pas le récit, c'est la machine
 # qui sait quoi écrire. Toute la structure du chapitre (deux entrées, ancre,
-# beats, chute) vient de `ch7.etat_ch7()` — source unique partagée avec le
-# driver de calibration (`outillage/run_s4.py`), pour qu'API et outillage
-# convergent sur un seul chapitre. Graine aléatoire par run : vraie variance
-# live du best-of-3 de l'entrée 1 et du tirage du glissement.
+# beats, chute) vient de `chapters/07-anniversaire/spec.yaml` par le loader —
+# source unique partagée avec `factory generate` et `factory calibrate`.
+# Graine aléatoire par run : vraie variance live du best-of-3 de l'entrée 1 et
+# du tirage du glissement. ADR-0005 (étape 6) rend le chapitre un champ du
+# payload ; jusque-là la scène est le chapitre 7.
+STAGE_CHAPTER = 7
 
 
 class Job:
@@ -165,7 +167,7 @@ class Job:
             # WAV ; un échec de voix laisse le chapitre servi et l'audio absent.
             graph = build_graph()
             final = graph.invoke(
-                {**ch7.ch7_state(),
+                {**load_chapter(STAGE_CHAPTER).state(),
                  "preflight": {"strict": True, "timer": True},
                  "render": True},
                 config={"recursion_limit": 50},

@@ -1,6 +1,8 @@
 import pytest
 
-from factory.pipeline import graph
+from factory.chapter_spec import load_chapter
+from factory.chapter_spec.model import EntrySpec
+from factory.pipeline import graph, scorers
 from fakes import fixtures as fx
 
 HEADER = "Samedi 14. Beau temps."
@@ -65,8 +67,9 @@ def test_beat_scorer_falsified_both_ways():
 
 
 def test_entry1_scorer():
-    assert graph._score_entry1(fx.SHORT_ENTRY) == (3, [])
-    score, defects = graph._score_entry1("J'ai décidé de ranger le cahier au grenier.")
+    criterion = load_chapter(7).entries[0].best_of
+    assert scorers.score(fx.SHORT_ENTRY, criterion) == (3, [])
+    score, defects = scorers.score("J'ai décidé de ranger le cahier au grenier.", criterion)
     assert score < 0 and len(defects) == 2
 
 
@@ -118,7 +121,7 @@ def test_pruning_removes_marked_sentences_and_protects_owned_lines():
 
 
 def test_gestures_permission_reads_the_entry_spec():
-    state = {"scenes": ["a"], "entry_specs": [{"gestures": False}, {"gestures": True}]}
+    state = {"scenes": ["a"], "entry_specs": [EntrySpec(gestures=False), EntrySpec(gestures=True)]}
     assert graph._gestures_allowed(state) is False
     state["scenes"].append("b")
     assert graph._gestures_allowed(state) is True

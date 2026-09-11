@@ -35,7 +35,7 @@ def _generate_parser() -> argparse.ArgumentParser:
                                             "assemblage, voix.")
     what = p.add_mutually_exclusive_group()
     what.add_argument("--chapter", type=int, default=7,
-                      help="Chapitre à générer (7 : la structure de scène)")
+                      help="Chapitre à générer (chapters/NN-slug/spec.yaml)")
     what.add_argument("--brief", help="Chapitre ad hoc : objectif libre (plan généré)")
     p.add_argument("--characters", nargs="+", default=["judith"],
                    help="doc_ids des personnages présents (mode --brief)")
@@ -60,12 +60,17 @@ def _generate_state(args) -> dict:
         state = {"brief": args.brief, "characters": args.characters}
         if args.seed is not None:
             state["seed"] = args.seed
-    elif args.chapter == 7:
-        from factory.chapter_spec import chapter7 as ch7
-        state = ch7.ch7_state(seed=args.seed)
     else:
-        raise SystemExit(f"chapitre {args.chapter} : aucune spécification "
-                         "(étape 5 du plan : chapters/NN-slug/spec.yaml)")
+        from factory.chapter_spec import ChapterSpecError, load_chapter
+        try:
+            spec = load_chapter(args.chapter)
+        except ChapterSpecError as exc:
+            raise SystemExit(str(exc))
+        state = spec.state(seed=args.seed)
+        if spec.workshop_terms:
+            print(f"  ⚠ le brief du chapitre {spec.chapter} porte des termes d'atelier "
+                  f"que le lint bannit en sortie : {list(spec.workshop_terms)} — "
+                  "à arbitrer par l'auteur", file=sys.stderr)
     state["preflight"] = (None if args.no_preflight
                           else {"strict": not args.skip_preflight, "timer": True})
     state["render"] = not args.no_render
