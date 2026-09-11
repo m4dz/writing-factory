@@ -107,4 +107,5 @@ def test_real_bible_exposes_the_sections_retrieval_asks_for(bible_chroma):
         assert f"judith::{section}" in col.docs, section
     assert not any("profond" in (m.get("source_file") or "") for m in col.metas.values())
     assert not any("Romane" in d and "morte" in d for d in col.docs.values())
-    assert Path("bible/profond").is_dir()
+    from factory.paths import BIBLE_DIR
+    assert (BIBLE_DIR / "profond").is_dir()
