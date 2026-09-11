@@ -42,7 +42,6 @@ parfaitement saine.
 """
 
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -50,11 +49,12 @@ import time
 import urllib.error
 import urllib.request
 
-OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+from factory.settings import settings
 
-# Seuils. Le disque doit pouvoir absorber la croissance du swap (macOS va
-# jusqu'à ~2× la RAM physique) plus une marge de travail.
-MIN_DISK_GB = float(os.environ.get("PREFLIGHT_MIN_DISK_GB", "20"))
+# Seuils : `settings.min_disk_gb` (le disque doit pouvoir absorber la
+# croissance du swap, macOS va jusqu'à ~2× la RAM physique, plus une marge de
+# travail), `settings.min_swap_free_gb`, `settings.pageout_block_kb_s`,
+# `settings.daemon_warn_cpu` / `daemon_block_cpu`, `settings.probe_model`.
 
 # Swap : AVERTISSEMENT par défaut, bloquant seulement en mode chrono
 # (cf. `preflight(chrono=...)`). Révision du 2026-08-09, sur mesure.
@@ -78,7 +78,6 @@ MIN_DISK_GB = float(os.environ.get("PREFLIGHT_MIN_DISK_GB", "20"))
 #
 # Ce qui reste vrai : une machine qui vit sur son swap ne donne pas des DURÉES
 # fiables. D'où le mode chrono, pour les runs dont le chiffre est l'objet.
-MIN_SWAP_FREE_GB = float(os.environ.get("PREFLIGHT_MIN_SWAP_FREE_GB", "2"))
 
 # SWAP FROID — la correction du 2026-08-22, et elle porte sur une faille de
 # LOGIQUE, pas sur un arbitrage.
@@ -98,8 +97,6 @@ MIN_SWAP_FREE_GB = float(os.environ.get("PREFLIGHT_MIN_SWAP_FREE_GB", "2"))
 # C'est la leçon déjà gravée dans CLAUDE.md, appliquée une fois de plus : un
 # seuil qui corrèle n'est pas un seuil qui cause, et avant d'imposer un rituel,
 # vérifier que le signal bloquant n'est pas déjà couvert par un signal direct.
-SWAP_PAGEOUT_BLOCK_KB_S = float(
-    os.environ.get("PREFLIGHT_PAGEOUT_KB_S", "1024"))
 PAGEOUT_FENETRE_S = 4.0
 # Taille de page mémoire d'Apple Silicon. `vm_stat` la rappelle en en-tête ;
 # on la fixe plutôt que de la parser, elle ne varie pas sur cette plateforme.
@@ -129,14 +126,11 @@ NOISY_DAEMONS = (
     "IntelligencePlatformComputeService", "duetexpertd",
     "AssetCacheLocatorService", "syspolicyd",
 )
-DAEMON_WARN_CPU = float(os.environ.get("PREFLIGHT_DAEMON_WARN_CPU", "30"))
-DAEMON_BLOCK_CPU = float(os.environ.get("PREFLIGHT_DAEMON_BLOCK_CPU", "80"))
 
 # Modèle de la sonde de génération. Le PLUS PETIT du projet : on vérifie que le
 # serveur sait lancer un llama-server, pas que nemo tient en mémoire — et
 # charger 4,8 GB coûte dix secondes contre une trentaine pour 13 GB.
 # Vider la variable désactive la sonde.
-PROBE_MODEL = os.environ.get("PREFLIGHT_PROBE_MODEL", "qwen2.5:7b-instruct")
 
 
 class PreflightError(RuntimeError):
@@ -223,7 +217,7 @@ def _swap_froid(fenetre: float = PAGEOUT_FENETRE_S) -> bool:
     if b is None or b < a:
         return False
     ko_par_s = (b - a) * PAGE_SIZE_BYTES / 1024 / fenetre
-    return ko_par_s < SWAP_PAGEOUT_BLOCK_KB_S
+    return ko_par_s < settings.pageout_block_kb_s
 
 
 def _pressure_level() -> int | None:
@@ -301,7 +295,7 @@ def _busy_daemons() -> list[tuple[str, float]] | None:
             cpu = float(parts[0])
         except ValueError:
             continue
-        if cpu < DAEMON_WARN_CPU:
+        if cpu < settings.daemon_warn_cpu:
             break  # `-r` trie par CPU décroissant : plus rien au-dessus du seuil
         nom = parts[1].rsplit("/", 1)[-1].strip()
         if nom in NOISY_DAEMONS:
@@ -329,7 +323,7 @@ def _probe_generation(model: str, timeout: float = 120.0) -> str | None:
         "options": {"num_predict": 1},
     }).encode()
     req = urllib.request.Request(
-        f"{OLLAMA_URL}/api/generate", data=payload,
+        f"{settings.ollama_url}/api/generate", data=payload,
         headers={"Content-Type": "application/json"},
     )
     try:
@@ -349,7 +343,7 @@ def _loaded_llms() -> list[dict] | None:
     LLM, mais 370 MB contre 13 GB, l'écart tranche tout seul.
     """
     try:
-        with urllib.request.urlopen(f"{OLLAMA_URL}/api/ps", timeout=5) as resp:
+        with urllib.request.urlopen(f"{settings.ollama_url}/api/ps", timeout=5) as resp:
             data = json.loads(resp.read())
     except (urllib.error.URLError, OSError, json.JSONDecodeError):
         return None
@@ -376,9 +370,9 @@ def preflight(*, strict: bool = True, chrono: bool = False) -> list[str]:
     warnings: list[str] = []
 
     disk = _disk_free_gb()
-    if disk < MIN_DISK_GB:
+    if disk < settings.min_disk_gb:
         blocking.append(
-            f"Disque : {disk:.1f} GB libres (< {MIN_DISK_GB:.0f} GB). "
+            f"Disque : {disk:.1f} GB libres (< {settings.min_disk_gb:.0f} GB). "
             "macOS ne pourra pas agrandir le swap → risque de panic "
             "watchdog. Libérer de l'espace avant de lancer."
         )
@@ -388,27 +382,27 @@ def preflight(*, strict: bool = True, chrono: bool = False) -> list[str]:
         warnings.append("Swap : état illisible (sysctl vm.swapusage).")
     elif swap["total"] == 0:
         pass  # Aucun swapfile alloué : machine fraîche, rien à signaler.
-    elif swap["free"] < MIN_SWAP_FREE_GB and _swap_froid():
+    elif swap["free"] < settings.min_swap_free_gb and _swap_froid():
         warnings.append(
             f"Swap : {swap['free']:.2f} GB libres sur {swap['total']:.1f} GB "
             f"alloués, mais FROID (moins de "
-            f"{SWAP_PAGEOUT_BLOCK_KB_S:.0f} Ko/s de pageouts sur "
+            f"{settings.pageout_block_kb_s:.0f} Ko/s de pageouts sur "
             f"{PAGEOUT_FENETRE_S:.0f} s). Ce sont des pages froides que personne "
             "ne relit : macOS dimensionne `total` au-dessus de `used`, donc "
             "`free` reste petit même quand la machine va bien. Les durées "
             "restent interprétables."
         )
-    elif swap["free"] < MIN_SWAP_FREE_GB:
+    elif swap["free"] < settings.min_swap_free_gb:
         msg = (
             f"Swap : {swap['free']:.2f} GB libres sur {swap['total']:.1f} GB "
-            f"alloués (< {MIN_SWAP_FREE_GB:.0f} GB). La machine porte encore la "
+            f"alloués (< {settings.min_swap_free_gb:.0f} GB). La machine porte encore la "
             "session précédente. Remède : DÉCHARGER le modèle "
             "(`ollama stop <modèle>`, ou attendre l'expiration de keep_alive) — "
             "macOS rend alors les pages ET rétrécit les swapfiles. Redémarrer "
             "n'est qu'un dernier recours."
         )
         # Bloquant seulement quand on chronomètre : un swap consommé ne casse
-        # pas la machine (le disque, lui, si — cf. MIN_DISK_GB), il rend les
+        # pas la machine (le disque, lui, si — cf. min_disk_gb), il rend les
         # durées ininterprétables.
         if chrono:
             blocking.append(
@@ -443,7 +437,7 @@ def preflight(*, strict: bool = True, chrono: bool = False) -> list[str]:
     elif demons:
         detail = ", ".join(f"{nom} {cpu:.0f} %" for nom, cpu in demons)
         pire = max(cpu for _, cpu in demons)
-        if pire >= DAEMON_BLOCK_CPU:
+        if pire >= settings.daemon_block_cpu:
             blocking.append(
                 f"Entretien macOS en cours : {detail}. Le processus de "
                 "génération tourne à nice 5 et perdra l'arbitrage : trous de "
@@ -454,11 +448,11 @@ def preflight(*, strict: bool = True, chrono: bool = False) -> list[str]:
         else:
             warnings.append(
                 f"Entretien macOS actif : {detail}. Surveiller — au-delà de "
-                f"{DAEMON_BLOCK_CPU:.0f} % ça fausse toute mesure de temps."
+                f"{settings.daemon_block_cpu:.0f} % ça fausse toute mesure de temps."
             )
 
-    if PROBE_MODEL:
-        echec = _probe_generation(PROBE_MODEL)
+    if settings.probe_model:
+        echec = _probe_generation(settings.probe_model)
         if echec:
             blocking.append(
                 f"Ollama ne GÉNÈRE pas : {echec}. Le démon écoute mais ne peut "
@@ -469,7 +463,7 @@ def preflight(*, strict: bool = True, chrono: bool = False) -> list[str]:
 
     llms = _loaded_llms()
     if llms is None:
-        warnings.append(f"Ollama injoignable sur {OLLAMA_URL} — état inconnu.")
+        warnings.append(f"Ollama injoignable sur {settings.ollama_url} — état inconnu.")
     elif len(llms) > 1:
         noms = ", ".join(
             f"{m.get('name', '?')} ({m.get('size', 0) / 1e9:.1f} GB)"

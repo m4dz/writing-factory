@@ -20,20 +20,14 @@ import re
 
 import chromadb
 
-from factory.paths import REPO_ROOT
 
-CHROMA_HOST = os.environ.get("CHROMA_HOST", "localhost")
-CHROMA_PORT = int(os.environ.get("CHROMA_PORT", "8000"))
-OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
-EMBED_MODEL = os.environ.get("EMBED_MODEL", "nomic-embed-text")
-COLLECTION = os.environ.get("CHROMA_COLLECTION", "auteur")
+from factory.settings import settings
 
 # Fiche de style, servie PAR SECTIONS et lue sur disque : elle n'est jamais
 # indexée (cf. EXCLUSIONS de l'indexeur). Servie entière, elle pèse ~4 200
 # tokens sur les 8 192 de la fenêtre et pousse `FRENCH_GUARD` vers la sortie —
 # Ollama fait alors glisser la fenêtre et ampute le DÉBUT du prompt, sans une
-# erreur.
-STYLE_PATH = os.environ.get("STYLE_PATH", "bible/style-auteur.md")
+# erreur. Chemin : `settings.style_path`.
 
 # Ce que chaque nœud reçoit de la fiche. Les « Extraits étalons » ne sont
 # servis à AUCUN nœud : la session 3 a mesuré qu'un modèle à qui on montre un
@@ -91,7 +85,6 @@ ACTING_SECTIONS = [
 # bible est dérivée du Markdown canonique et l'indexeur y purge les chunks
 # orphelins, ce qui effacerait une mémoire de session au premier réindexage.
 # Le sens du flux reste le même — Markdown d'abord (sessions/), index ensuite.
-SESSIONS_COLLECTION = os.environ.get("CHROMA_SESSIONS", "sessions")
 
 _client = None
 
@@ -111,10 +104,11 @@ def vider_routage() -> None:
     _ROUTAGE.clear()
 
 
-def _collection(nom: str = COLLECTION):
+def _collection(nom: str | None = None):
     """Point de passage UNIQUE vers une collection — et donc seul endroit à
     instrumenter. Des appels dispersés à `get_collection` rendraient le
     journal de routage incomplet sans que rien ne le signale."""
+    nom = nom or settings.author_collection
     _ROUTAGE.append(nom)
     return _chroma().get_collection(nom)
 
@@ -122,7 +116,7 @@ def _collection(nom: str = COLLECTION):
 def _chroma():
     global _client
     if _client is None:
-        _client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
+        _client = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
     return _client
 
 
@@ -131,9 +125,9 @@ def embed(text: str) -> list[float]:
     import json
     import urllib.request
 
-    payload = json.dumps({"model": EMBED_MODEL, "input": [text]}).encode()
+    payload = json.dumps({"model": settings.embed_model, "input": [text]}).encode()
     req = urllib.request.Request(
-        f"{OLLAMA_URL}/api/embed",
+        f"{settings.ollama_url}/api/embed",
         data=payload,
         headers={"Content-Type": "application/json"},
     )
@@ -157,8 +151,7 @@ def style_sections(noms: tuple[str, ...]) -> str:
     global _STYLE_CACHE
     if _STYLE_CACHE is None:
         _STYLE_CACHE = {}
-        chemin = str(REPO_ROOT / STYLE_PATH)
-        chemin = chemin if os.path.isfile(chemin) else STYLE_PATH
+        chemin = str(settings.style_path)
         if os.path.isfile(chemin):
             with open(chemin, encoding="utf-8") as fh:
                 texte = fh.read()
@@ -250,7 +243,7 @@ def sessions_collection():
     pas exiger qu'un indexeur soit passé avant elle.
     """
     return _chroma().get_or_create_collection(
-        SESSIONS_COLLECTION, metadata={"hnsw:space": "cosine"}
+        settings.sessions_collection, metadata={"hnsw:space": "cosine"}
     )
 
 

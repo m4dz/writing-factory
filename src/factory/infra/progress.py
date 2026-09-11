@@ -20,14 +20,14 @@ Deux principes de conception :
    branchement sur le streaming d'Ollama (cf. `llm.chat_turns(on_token=…)`).
 """
 
-import os
 import shutil
 import sys
 import time
 
-# Budget de scène, en minutes. La keynote récolte le chapitre ~25 min après
-# l'avoir lancé (abaissé de 35' à 25' le 2026-08-06).
-BUDGET_MIN = float(os.environ.get("DEMO_BUDGET_MIN", "25"))
+from factory.settings import settings
+
+# Budget de scène, en minutes : `settings.stage_budget_min`. La keynote récolte
+# le chapitre ~25 min après l'avoir lancé (abaissé de 35' à 25' le 2026-08-06).
 
 _ANSI_EFFACE_LIGNE = "\x1b[2K"
 _ANSI_DEBUT_LIGNE = "\r"
@@ -94,9 +94,11 @@ class Progress:
         de log, illisible ; et c'est exactement le cas d'usage `> run.log`.
     """
 
-    def __init__(self, *, actif: bool = False, budget_min: float = BUDGET_MIN,
+    def __init__(self, *, actif: bool = False, budget_min: float | None = None,
                  flux=None):
         self.actif = actif
+        if budget_min is None:
+            budget_min = settings.stage_budget_min
         self.budget = budget_min * 60
         self.flux = flux or sys.stdout
         self.interactif = actif and self.flux.isatty()

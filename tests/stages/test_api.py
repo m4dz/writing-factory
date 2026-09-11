@@ -16,6 +16,7 @@ import pytest
 
 from factory.api import server as api
 from factory.pipeline import assembly as chapitre
+from factory.settings import settings
 
 FINAL = {
     "repaired": ["Samedi 14. Beau temps.\n\nUne. Deux. Trois.",
@@ -31,9 +32,7 @@ class FakeGraph:
 
 @pytest.fixture
 def server(tmp_path, monkeypatch, fake_chroma):
-    monkeypatch.setattr(api, "SORTIE", tmp_path / "out")
-    monkeypatch.setattr(api, "CHAPITRE_MD", tmp_path / "out" / "chapitre.md")
-    monkeypatch.setattr(api, "CHAPITRE_WAV", tmp_path / "out" / "chapitre.wav")
+    monkeypatch.setattr(settings, "output_dir", tmp_path / "out")
     monkeypatch.setattr(api, "preflight", lambda **k: ["avertissement machine"])
     monkeypatch.setattr(api, "report", lambda: "machine ok")
     monkeypatch.setattr(api, "build_graph", lambda: FakeGraph())
@@ -43,7 +42,7 @@ def server(tmp_path, monkeypatch, fake_chroma):
     slides = tmp_path / "slides"
     slides.mkdir()
     (slides / "index.html").write_text("<html>deck</html>", encoding="utf-8")
-    monkeypatch.setattr(api, "SLIDES", slides)
+    monkeypatch.setattr(settings, "slides_dir", slides)
     monkeypatch.setattr(api, "JOB", api.Job())
     monkeypatch.setattr(api, "SALON", api.Salon())
 
@@ -96,7 +95,7 @@ def test_generate_is_idempotent_and_artifacts_appear_on_disk(server):
     assert text.split(chapitre.BASCULE)[1].lstrip().startswith("Samedi 14.")
     # TTS failed: the chapter is served, the audio alone is absent (per-resource fallback).
     assert call(server, "GET", "/audio")[0] == 204
-    assert (api.CHAPITRE_MD).exists() and not api.CHAPITRE_WAV.exists()
+    assert api.chapter_path().exists() and not api.audio_path().exists()
 
 
 def test_chat_is_refused_while_generating(server):
@@ -112,8 +111,7 @@ def test_chat_validates_input_and_unknown_character_is_404(server, fake_model):
 
 
 def test_chat_turn_then_close(server, fake_model, tmp_path, monkeypatch):
-    from factory.roleplay import session as roleplay
-    monkeypatch.setattr(roleplay, "SESSIONS_DIR", tmp_path / "sessions")
+    monkeypatch.setattr(settings, "sessions_dir", tmp_path / "sessions")
     status, _, body = call(server, "POST", "/chat", {"character": "judith", "message": "Bonsoir"})
     assert status == 200
     reply = json.loads(body)
@@ -134,8 +132,7 @@ def test_session_identifiers_are_whitelisted(server, path):
 
 
 def test_unknown_session_is_404_and_listing_works(server, tmp_path, monkeypatch):
-    from factory.roleplay import session as roleplay
-    monkeypatch.setattr(roleplay, "SESSIONS_DIR", tmp_path / "none")
+    monkeypatch.setattr(settings, "sessions_dir", tmp_path / "none")
     assert call(server, "GET", "/session/judith/2026-01-01T00-00-00Z")[0] == 404
     status, _, body = call(server, "GET", "/sessions?character=judith")
     assert status == 200 and json.loads(body) == {"sessions": []}

@@ -27,20 +27,17 @@ Sans `TELEGRAM_BOT_TOKEN` ni `TELEGRAM_CHAT_ID`, tout appel est un no-op silenci
 """
 
 import json
-import os
 import re
 import threading
 import time
 import urllib.error
 import urllib.request
 
-TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
-CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
-TIMEOUT_S = float(os.environ.get("TELEGRAM_TIMEOUT_S", "5"))
+from factory.settings import settings
 
-# Un message d'avancement au plus toutes les N secondes : sur une montre, une
-# rafale de notifications est pire que pas de notification du tout.
-PERIODE_MIN_S = float(os.environ.get("TELEGRAM_PERIODE_S", "300"))
+# Jeton, chat, délai et période minimale entre deux messages d'avancement
+# (sur une montre, une rafale de notifications est pire que pas de
+# notification du tout) : `settings.telegram_*`.
 
 # Tout ce qui est cité l'est parce que ça vient du modèle ou de la bible.
 _CITATIONS = re.compile(r"[«\"“][^»\"”]*[»\"”]")
@@ -51,7 +48,7 @@ _verrou = threading.Lock()
 
 
 def actif() -> bool:
-    return bool(TOKEN and CHAT_ID)
+    return bool(settings.telegram_token and settings.telegram_chat_id)
 
 
 def _assainir(texte: str) -> str:
@@ -69,14 +66,14 @@ def _assainir(texte: str) -> str:
 def _poster(texte: str) -> None:
     """Envoi réel, en tâche de fond. N'échoue jamais vers l'appelant."""
     charge = json.dumps({
-        "chat_id": CHAT_ID, "text": texte, "disable_notification": False,
+        "chat_id": settings.telegram_chat_id, "text": texte, "disable_notification": False,
     }).encode()
     req = urllib.request.Request(
-        f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+        f"https://api.telegram.org/bot{settings.telegram_token}/sendMessage",
         data=charge, headers={"Content-Type": "application/json"},
     )
     try:
-        urllib.request.urlopen(req, timeout=TIMEOUT_S).read()
+        urllib.request.urlopen(req, timeout=settings.telegram_timeout_s).read()
     except (urllib.error.URLError, OSError, ValueError):
         # Le bipeur qui tombe ne doit surtout pas emporter la génération : c'est
         # un confort d'opérateur, pas une dépendance du pipeline.
@@ -94,7 +91,7 @@ def _envoyer(texte: str, *, prioritaire: bool = False) -> None:
         return
     with _verrou:
         maintenant = time.time()
-        if not prioritaire and maintenant - _dernier_envoi < PERIODE_MIN_S:
+        if not prioritaire and maintenant - _dernier_envoi < settings.telegram_period_s:
             return
         _dernier_envoi = maintenant
     threading.Thread(target=_poster, args=(_assainir(texte),),

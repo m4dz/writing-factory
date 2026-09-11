@@ -26,13 +26,12 @@ Trois décisions structurantes :
    la bible ne peut pas l'effacer.
 """
 
-import os
 import re
 import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
-from factory import paths
+from factory.settings import settings
 from factory.infra.ollama import chat, chat_turns
 from factory.text import delint
 from factory.retrieval.context import (
@@ -42,12 +41,12 @@ from factory.retrieval.context import (
     sessions_collection,
 )
 
-SESSIONS_DIR = Path(os.environ.get("SESSIONS_DIR", paths.SESSIONS_DIR))
-
-# Échanges gardés VERBATIM en contexte. Au-delà, on fond dans le résumé. Six
-# tours (douze messages) tiennent la continuité d'une conversation de démo sans
-# gonfler le prompt : le contexte de personnage pèse déjà ~2k tokens.
-KEEP_TURNS = int(os.environ.get("RP_KEEP_TURNS", "6"))
+# Sessions sur disque : `settings.sessions_dir`.
+#
+# Échanges gardés VERBATIM en contexte (`settings.keep_turns`). Au-delà, on
+# fond dans le résumé. Six tours (douze messages) tiennent la continuité d'une
+# conversation de démo sans gonfler le prompt : le contexte de personnage pèse
+# déjà ~2k tokens.
 
 # Le prompt système du mode acteur. Les interdits sont explicites et NOMMÉS :
 # un modèle de 12B respecte mieux « ne dis jamais que tu es un modèle » qu'une
@@ -190,7 +189,7 @@ def build_system(doc_id: str, *, nom: str | None = None,
 
 def lister_sessions(doc_id: str | None = None) -> list[dict]:
     """Sessions enregistrées sur disque, les plus récentes d'abord."""
-    racine = SESSIONS_DIR / doc_id if doc_id else SESSIONS_DIR
+    racine = settings.sessions_dir / doc_id if doc_id else settings.sessions_dir
     if not racine.exists():
         return []
     fiches = []
@@ -212,7 +211,7 @@ def lire_session(doc_id: str, horodatage: str) -> dict:
     ÉDITÉS À LA MAIN avant la scène (élaguer une réplique ratée, resserrer un
     échange). Un format qui casserait à la première retouche manquerait son but.
     """
-    chemin = SESSIONS_DIR / doc_id / f"{horodatage}.md"
+    chemin = settings.sessions_dir / doc_id / f"{horodatage}.md"
     if not chemin.exists():
         raise FileNotFoundError(f"session inconnue : {doc_id}/{horodatage}")
     texte = chemin.read_text(encoding="utf-8")
@@ -255,10 +254,10 @@ class Session:
     """
 
     def __init__(self, doc_id: str, *, nom: str | None = None,
-                 keep_turns: int = KEEP_TURNS, rappeler: bool = True):
+                 keep_turns: int | None = None, rappeler: bool = True):
         self.doc_id = doc_id
         self.nom = nom or doc_id.split("-")[0].capitalize()
-        self.keep_turns = keep_turns
+        self.keep_turns = settings.keep_turns if keep_turns is None else keep_turns
         self.turns: list[dict] = []       # échanges verbatim (role/content)
         self.resume: str = ""             # résumé glissant des échanges sortis
         self.metrics: list[dict] = []
@@ -405,7 +404,7 @@ class Session:
         self.keep_turns = garde
 
         horodatage = self.debut.strftime("%Y-%m-%dT%H-%M-%SZ")
-        chemin = SESSIONS_DIR / self.doc_id / f"{horodatage}.md"
+        chemin = settings.sessions_dir / self.doc_id / f"{horodatage}.md"
         chemin.parent.mkdir(parents=True, exist_ok=True)
         corps = (
             f"# Session de roleplay — {self.nom}\n\n"

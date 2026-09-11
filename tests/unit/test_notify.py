@@ -1,4 +1,5 @@
 from factory.infra import notify
+from factory.settings import settings
 
 
 def test_sanitiser_strips_quotes_and_bounds_length():
@@ -11,8 +12,8 @@ def test_sanitiser_strips_quotes_and_bounds_length():
 
 
 def test_nothing_leaves_when_inactive(monkeypatch):
-    monkeypatch.setattr(notify, "TOKEN", "")
-    monkeypatch.setattr(notify, "CHAT_ID", "")
+    monkeypatch.setattr(settings, "telegram_token", "")
+    monkeypatch.setattr(settings, "telegram_chat_id", "")
     monkeypatch.setattr(notify, "_poster", lambda texte: (_ for _ in ()).throw(AssertionError))
     notify.demarrage()
     notify.echec("X", "raison « citée »")
@@ -21,8 +22,8 @@ def test_nothing_leaves_when_inactive(monkeypatch):
 
 def test_rate_limit_and_priority(monkeypatch):
     sent = []
-    monkeypatch.setattr(notify, "TOKEN", "t")
-    monkeypatch.setattr(notify, "CHAT_ID", "c")
+    monkeypatch.setattr(settings, "telegram_token", "t")
+    monkeypatch.setattr(settings, "telegram_chat_id", "c")
     monkeypatch.setattr(notify, "_dernier_envoi", 0.0)
     monkeypatch.setattr(notify, "_poster", sent.append)
 

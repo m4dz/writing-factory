@@ -18,7 +18,6 @@ ne puisse pas la changer par mégarde entre deux runs.
 """
 
 import difflib
-import os
 import re
 from typing import TypedDict
 
@@ -29,10 +28,11 @@ from langgraph.graph import StateGraph, START, END
 from factory.infra import progress
 from factory.eval.lint import (ENTETE_ENTREE, MACHINERIE,
                         MARQUES, META_TERMES, interdits_materiels)
-from factory.infra.ollama import AUTHOR_MODEL, chat, unload
+from factory.infra.ollama import chat, unload
 from factory.retrieval.context import STYLE_RELECTURE, assemble_system_prompt
 from factory.text import delint, ends_mid_sentence, sentence_ends, trim_to_sentence
-from factory.pipeline.qa import QA_MODEL, repair, derive_facts, check_facts, check_plan
+from factory.pipeline.qa import repair, derive_facts, check_facts, check_plan
+from factory.settings import settings
 from factory.pipeline.gestures import (assembler, composer_glissement, passage_valide,
                     position_frontiere, tirer_approche,
                     valider_accumulation)
@@ -43,16 +43,14 @@ from factory.eval.lint import paragraphes_redits
 # entrée (mesurées à 139-222 s dans `plan_node` en session 4). Surtout,
 # `accumulate` écrit le marqueur le plus audible du style et sa phrase reste
 # dans le chapitre : c'est de la voix, pas de la QA. Paramétrable pour que
-# l'alternative reste mesurable en un run.
-MODELE_GESTES = os.environ.get("MODELE_GESTES", AUTHOR_MODEL)
+# l'alternative reste mesurable en un run (`settings.gesture_model`).
 # Passe d'assemblage : pruning DÉTERMINISTE du résidu diffus (journée dehors,
 # présence, récursion, tell de résolution) que le best-of-N ne rattrape pas
 # quand TOUS les variants le portent. La piste cross-modèle Qwen a été falsifiée
 # et écartée : Qwen coupe le bon (éditeur) et ne détecte pas la sortie oblique
 # (détecteur, « NON » sur « le départ, la réunion, la départementale, le garage »
 # — le nœud cohérence a le même angle mort). Le code, lui, matche sans ambiguïté.
-ASSEMBLAGE_ACTIF = os.environ.get("ASSEMBLAGE", "1") != "0"
-TEMP_GESTES = float(os.environ.get("TEMP_GESTES", "0.3"))
+# Débrayable par `settings.pruning_enabled`.
 
 # L'unité de composition est l'ENTRÉE DATÉE de carnet, plus la scène. Le roman
 # est un journal : ce que le plan découpe, ce sont des soirs. Les quotas de la
@@ -471,7 +469,7 @@ def plan_node(state: ChapterState) -> dict:
         facts, mf = derive_facts(state["characters"])
         metrics.extend(_tag([mf], "plan/faits"))
         progress.note(f"{len(facts)} faits dérivés, ils contraignent le plan")
-        unload(QA_MODEL)  # place nette avant de charger nemo
+        unload(settings.qa_model)  # place nette avant de charger nemo
 
     beats: list[str] = []
     rapport = "Plan non vérifié (aucun fait dérivé de la bible)."
@@ -523,7 +521,7 @@ def plan_node(state: ChapterState) -> dict:
         warnings.append(f"plan (tentative {attempt}) refusé : {refus}")
         progress.note(f"PLAN REFUSÉ — {refus}. Replanification.")
         feedback = _plan_feedback(violations)
-        unload(QA_MODEL)  # Qwen → nemo pour la reprise
+        unload(settings.qa_model)  # Qwen → nemo pour la reprise
 
     # Filet : un plan illisible ne doit pas faire tomber le graphe. `write_node`
     # indexe `plan[idx]` et lèverait un IndexError — une génération de chapitre
@@ -566,7 +564,7 @@ def plan_node(state: ChapterState) -> dict:
     # L'écriture veut nemo seul : Qwen a pu rester chaud après la vérification.
     # Sans RAG, Qwen n'a jamais été chargé — rien à décharger.
     if rag:
-        unload(QA_MODEL)
+        unload(settings.qa_model)
     return {
         "plan": beats, "facts": facts, "plan_report": rapport,
         "idx": 0, "scenes": [], "metrics": metrics, "warnings": warnings,
@@ -725,9 +723,10 @@ def write_node(state: ChapterState) -> dict:
             # nommés (`_scorer_beat`). La sélection est une lecture déterministe,
             # pas un juge de goût — falsifiable, donc digne de confiance.
             variantes = []
-            for k in range(BEATS_N):
+            beats_n = settings.beats_n
+            for k in range(beats_n):
                 progress.phase("Écriture",
-                               f"entrée {idx + 1} — {nom} ({k + 1}/{BEATS_N})",
+                               f"entrée {idx + 1} — {nom} ({k + 1}/{beats_n})",
                                i=idx + 1, n=len(state["plan"]))
                 seg, m, w = _generate_whole(
                     system, beat_user, num_predict=num_predict, temperature=0.7,
@@ -744,7 +743,7 @@ def write_node(state: ChapterState) -> dict:
             seg = gagnant["seg"]
             wg += gagnant["w"]
             wg.append(
-                f"entrée {idx + 1}/{nom} : best-of-{BEATS_N} — variant "
+                f"entrée {idx + 1}/{nom} : best-of-{beats_n} — variant "
                 f"{gagnant['k'] + 1} retenu (score {gagnant['score']}, "
                 + (", ".join(gagnant["defauts"]) if gagnant["defauts"]
                    else "propre")
@@ -1091,8 +1090,6 @@ def _sans_machinerie(directive: str) -> str:
         return directive
     return (" : ".join(gardes) if gardes else "").rstrip(" :,;") + "."
 
-
-BEATS_N = int(os.environ.get("BEATS_N", "3"))
 
 # CRITÈRES DE SÉLECTION d'un variant de beat (best-of-N). Contrôles de LECTURE,
 # déterministes et falsifiables — jamais un juge de goût (doctrine 3 : compter
@@ -1510,8 +1507,8 @@ def accumulate_node(state: ChapterState) -> dict:
     for essai in range(1, MAX_TENTATIVES_GESTE + 1):
         progress.phase("Accumulation",
                        f"entrée {len(state['scenes'])} (essai {essai})")
-        txt, m = chat(consigne, entree, model=MODELE_GESTES,
-                      temperature=TEMP_GESTES, num_predict=300)
+        txt, m = chat(consigne, entree, model=settings.effective_gesture_model,
+                      temperature=settings.gesture_temperature, num_predict=300)
         metrics.append(m)
         candidat = " ".join(txt.strip().split())
         # L'accumulation est un AUTRE nœud, posé APRÈS le `delint` du write —
@@ -2041,7 +2038,7 @@ def assemble_node(state: ChapterState) -> dict:
     (glissement, chute, accumulation) ne sont pas encore posés, donc le pruning
     ne peut pas les toucher, et le code les pose propres sur le corps nettoyé.
     """
-    if not ASSEMBLAGE_ACTIF or not state.get("micro_noeuds"):
+    if not settings.pruning_enabled or not state.get("micro_noeuds"):
         return {}
     entrees = state.get("repaired") or []
     spec = state.get("entrees_spec") or []

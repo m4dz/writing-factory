@@ -8,16 +8,11 @@ Usage :
 """
 
 import argparse
-import os
 
 import httpx
 import chromadb
 
-CHROMA_HOST = os.environ.get("CHROMA_HOST", "localhost")
-CHROMA_PORT = int(os.environ.get("CHROMA_PORT", "8000"))
-OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
-EMBED_MODEL = os.environ.get("EMBED_MODEL", "nomic-embed-text")
-COLLECTION = os.environ.get("CHROMA_COLLECTION", "auteur")
+from factory.settings import settings
 
 
 def main() -> None:
@@ -29,8 +24,8 @@ def main() -> None:
     args = parser.parse_args()
 
     resp = httpx.post(
-        f"{OLLAMA_URL}/api/embed",
-        json={"model": EMBED_MODEL, "input": [args.query]},
+        f"{settings.ollama_url}/api/embed",
+        json={"model": settings.embed_model, "input": [args.query]},
         timeout=60.0,
     )
     resp.raise_for_status()
@@ -47,8 +42,8 @@ def main() -> None:
     elif len(filters) > 1:
         where = {"$and": filters}
 
-    chroma = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
-    collection = chroma.get_collection(COLLECTION)
+    chroma = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
+    collection = chroma.get_collection(settings.author_collection)
     results = collection.query(
         query_embeddings=[embedding], n_results=args.n, where=where,
         include=["documents", "metadatas", "distances"],

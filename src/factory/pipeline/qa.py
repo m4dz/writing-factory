@@ -11,13 +11,11 @@ seule fois. On évite tout embedding ici (la dérivation de faits lit les fiches
 par id déterministe, pas par similarité) pour ne pas rappeler nomic-embed.
 """
 
-import os
 import re
 
 from factory.infra.ollama import chat
 from factory.retrieval.context import world_context
-
-QA_MODEL = os.environ.get("QA_MODEL", "qwen2.5:7b-instruct")
+from factory.settings import settings
 
 # Vocabulaire de PRODUCTION, interdit dans les faits dérivés (item 3).
 VOCAB_PILOTAGE = re.compile(
@@ -39,7 +37,7 @@ def repair(text: str) -> tuple[str, dict]:
     """Réécrit un passage en corrigeant les fuites de langue (texte→texte)."""
     # Marge : la version FR peut être un peu plus longue que l'original.
     budget = min(2000, max(600, int(len(text) / 3) + 200))
-    return chat(_REPAIR_SYS, text, model=QA_MODEL, temperature=0.2,
+    return chat(_REPAIR_SYS, text, model=settings.qa_model, temperature=0.2,
                 num_predict=budget)
 
 
@@ -144,7 +142,7 @@ FAITS_NEGATIFS = [
 def derive_facts(characters: list[str]) -> tuple[list[str], dict]:
     """Dérive les faits structurants depuis les fiches (fetch par id, no embed)."""
     ctx = "\n\n".join(world_context(c) for c in characters if world_context(c))
-    text, m = chat(_FACTS_SYS, ctx, model=QA_MODEL, temperature=0.1,
+    text, m = chat(_FACTS_SYS, ctx, model=settings.qa_model, temperature=0.1,
                    num_predict=400)
     facts = [
         re.sub(r"^\s*[-*]\s*", "", line).strip()
@@ -183,7 +181,7 @@ def derive_questions(facts: list[str]) -> tuple[list[str], list[dict]]:
     questions = [""] * len(facts)
     indices = list(range(len(facts)))
     numbered = "\n".join(f"{i + 1}. {facts[i]}" for i in indices)
-    text, m = chat(_QUESTIONS_SYS, f"FAITS :\n{numbered}", model=QA_MODEL,
+    text, m = chat(_QUESTIONS_SYS, f"FAITS :\n{numbered}", model=settings.qa_model,
                    temperature=0.1, num_predict=500)
     metrics.append(m)
     _parse_questions(text, questions, indices)
@@ -191,7 +189,7 @@ def derive_questions(facts: list[str]) -> tuple[list[str], list[dict]]:
     manquants = [i for i, q in enumerate(questions) if not q]
     if manquants:
         numbered = "\n".join(f"{k + 1}. {facts[i]}" for k, i in enumerate(manquants))
-        text, m = chat(_QUESTIONS_SYS, f"FAITS :\n{numbered}", model=QA_MODEL,
+        text, m = chat(_QUESTIONS_SYS, f"FAITS :\n{numbered}", model=settings.qa_model,
                        temperature=0.1, num_predict=300)
         metrics.append(m)
         _parse_questions(text, questions, manquants)
@@ -228,7 +226,7 @@ def _ask(questions: list[str], texte: str, system: str, label: str) -> tuple[dic
     posees = [(i + 1, q) for i, q in enumerate(questions) if q]
     qblock = "\n".join(f"Q{n} : {q}" for n, q in posees)
     user = f"QUESTIONS :\n{qblock}\n\n--- {label} ---\n{texte}"
-    text, m = chat(system, user, model=QA_MODEL, temperature=0.0,
+    text, m = chat(system, user, model=settings.qa_model, temperature=0.0,
                    num_predict=400)
     hits: dict[int, str] = {}
     repondues: set[int] = set()
@@ -261,7 +259,7 @@ def _confirm(question: str, texte: str,
     Un OUI non confirmé n'est pas une violation.
     """
     user = f"QUESTION : {question}\n\n--- EXTRAIT ---\n{texte}"
-    text, m = chat(system, user, model=QA_MODEL, temperature=0.0,
+    text, m = chat(system, user, model=settings.qa_model, temperature=0.0,
                    num_predict=8)
     return bool(re.search(r"\bOUI\b", text, re.I)), m
 

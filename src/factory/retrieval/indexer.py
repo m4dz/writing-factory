@@ -9,7 +9,6 @@ Idempotent : les IDs de chunks sont déterministes ({id}::{section}),
 un re-run met à jour les chunks modifiés et purge les chunks disparus.
 """
 
-import os
 import re
 import sys
 import unicodedata
@@ -19,16 +18,12 @@ import frontmatter
 import httpx
 import chromadb
 
-from factory import paths
+from factory.settings import settings
 
-# --- Configuration (surchargée par l'environnement) -------------------------
-
-CHROMA_HOST = os.environ.get("CHROMA_HOST", "localhost")
-CHROMA_PORT = int(os.environ.get("CHROMA_PORT", "8000"))
-OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")
-EMBED_MODEL = os.environ.get("EMBED_MODEL", "nomic-embed-text")
-BIBLE_DIR = Path(os.environ.get("BIBLE_DIR", paths.BIBLE_DIR))
-COLLECTION = os.environ.get("CHROMA_COLLECTION", "auteur")
+# --- Configuration : `factory.settings` --------------------------------------
+# The bible root is bound at import so a test can point the indexer at a
+# fixture tree; everything else is read from `settings` at call time.
+BIBLE_DIR = settings.bible_dir
 
 # --- Firewall ----------------------------------------------------------------
 #
@@ -187,8 +182,8 @@ def clean_for_embedding(text: str) -> str:
 def embed(client: httpx.Client, texts: list[str]) -> list[list[float]]:
     """Embeddings par lot via l'API Ollama /api/embed."""
     resp = client.post(
-        f"{OLLAMA_URL}/api/embed",
-        json={"model": EMBED_MODEL, "input": texts},
+        f"{settings.ollama_url}/api/embed",
+        json={"model": settings.embed_model, "input": texts},
         timeout=120.0,
     )
     resp.raise_for_status()
@@ -291,9 +286,9 @@ def main() -> int:
         # On ne s'arrête PAS ici : il faut quand même purger d'éventuels
         # chunks orphelins (cas où l'on vient de supprimer la dernière fiche).
 
-    chroma = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
+    chroma = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
     collection = chroma.get_or_create_collection(
-        COLLECTION, metadata={"hnsw:space": "cosine"}
+        settings.author_collection, metadata={"hnsw:space": "cosine"}
     )
 
     all_ids: list[str] = []
@@ -318,7 +313,7 @@ def main() -> int:
         collection.delete(ids=stale)
         print(f"  - {len(stale)} chunks orphelins purgés")
 
-    print(f"\nIndexation terminée : {len(all_ids)} chunks dans '{COLLECTION}'.")
+    print(f"\nIndexation terminée : {len(all_ids)} chunks dans '{settings.author_collection}'.")
     return 0
 
 

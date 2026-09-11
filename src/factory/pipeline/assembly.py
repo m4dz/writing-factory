@@ -20,16 +20,15 @@ Deux décisions du propriétaire (2026-08-07) :
    minutes dans une keynote de cinquante.
 """
 
-import os
 import re
 
+from factory.settings import settings
 from factory.text import sentence_ends
 
 BASCULE = "<!-- BASCULE -->"
 FIN_AUDIO = "<!-- FIN AUDIO -->"
 
-# Phrases lues à voix nue avant la bascule.
-PHRASES_AVANT_BASCULE = int(os.environ.get("BASCULE_APRES_PHRASES", "2"))
+# Phrases lues à voix nue avant la bascule : `settings.switch_after_sentences`.
 
 # La borne se règle en SECONDES, pas en mots — parce que c'est une durée que le
 # deck demande (« 2'30 à 3 min, extrait joué EN ENTIER », session frontend du
@@ -48,17 +47,14 @@ PHRASES_AVANT_BASCULE = int(os.environ.get("BASCULE_APRES_PHRASES", "2"))
 # 117 mots et surestimait de 7 % — d'où un extrait rendu à 3'03 au lieu des 2'45
 # visées. Un texte long porte proportionnellement plus de pauses : fins de
 # phrase, plus 0,6 s entre chaque segment (13 segments = 7,8 s de silence).
-DEBIT_MOTS_MIN = float(os.environ.get("AUDIO_DEBIT_MOTS_MIN", "177"))
-SECONDES_AUDIO = float(os.environ.get("AUDIO_SECONDES", "165"))   # 2 min 45
-
+#
 # Marge d'acceptation autour de la cible. 15 s et non 20 : au run du 2026-08-09
 # l'écart était de 18 s — donc sous l'ancien seuil, donc silencieux, alors qu'il
 # suffisait à sortir de la fenêtre demandée par le deck (2'30-3'00).
-TOLERANCE_AUDIO_S = float(os.environ.get("AUDIO_TOLERANCE_S", "15"))
-
-MOTS_AUDIO = int(os.environ.get(
-    "AUDIO_MOTS_MAX", str(int(DEBIT_MOTS_MIN * SECONDES_AUDIO / 60))
-))
+#
+# Les quatre réglages (`audio_words_per_minute`, `audio_seconds`,
+# `audio_tolerance_s`, `audio_max_words`) vivent dans `factory.settings` ; la
+# borne en mots est `settings.effective_audio_max_words`.
 
 
 # L'en-tête normalisé en DÉBUT DE LIGNE — le repère de bascule du chapitre 7.
@@ -77,7 +73,7 @@ def _fin_de_phrase_n(texte: str, n: int) -> int | None:
     return fins[n - 1] if len(fins) >= n else None
 
 
-def inserer_bascule(texte: str, *, phrases: int = PHRASES_AVANT_BASCULE,
+def inserer_bascule(texte: str, *, phrases: int | None = None,
                     sur_second_entete: bool = False) -> str:
     """Insère le marqueur de bascule après les `phrases` premières phrases.
 
@@ -93,6 +89,8 @@ def inserer_bascule(texte: str, *, phrases: int = PHRASES_AVANT_BASCULE,
     scénique est exacte au lieu d'être approchée. C'est ce que décrit le §7 du
     brief 7 : « détection déterministe, plus d'heuristique ».
     """
+    if phrases is None:
+        phrases = settings.switch_after_sentences
     if sur_second_entete:
         tetes = list(ENTETE_LIGNE.finditer(texte))
         if len(tetes) >= 2:
@@ -111,7 +109,7 @@ def inserer_bascule(texte: str, *, phrases: int = PHRASES_AVANT_BASCULE,
     return f"{tete}\n\n{BASCULE}\n\n{reste}" if reste else f"{tete}\n\n{BASCULE}"
 
 
-def extrait_audio(texte: str, *, mots_max: int = MOTS_AUDIO,
+def extrait_audio(texte: str, *, mots_max: int | None = None,
                   jusqu_a: str = "") -> str:
     """Texte que la voix clonée doit lire : après la bascule, borné en mots.
 
@@ -120,6 +118,8 @@ def extrait_audio(texte: str, *, mots_max: int = MOTS_AUDIO,
     pour une fin voulue. On dépasse donc légèrement le budget plutôt que de
     couper net — la phrase en cours est toujours incluse.
     """
+    if mots_max is None:
+        mots_max = settings.effective_audio_max_words
     apres = texte.split(BASCULE, 1)[1] if BASCULE in texte else texte
     apres = apres.split(FIN_AUDIO, 1)[0].strip()
 
@@ -144,8 +144,8 @@ def extrait_audio(texte: str, *, mots_max: int = MOTS_AUDIO,
     return apres
 
 
-def assembler(scenes: list[str], *, mots_max: int = MOTS_AUDIO,
-              phrases: int = PHRASES_AVANT_BASCULE,
+def assembler(scenes: list[str], *, mots_max: int | None = None,
+              phrases: int | None = None,
               sur_second_entete: bool = False, chute: str = "") -> str:
     """Chapitre complet en Markdown, avec bascule et fin de lecture marquées.
 

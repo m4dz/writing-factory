@@ -58,23 +58,18 @@ def fake_chroma(monkeypatch, bible_chroma):
 
 @pytest.fixture
 def fake_model(monkeypatch):
-    """Replace every model call in every module that bound ``chat`` at import.
+    """Replace the one model client.
 
-    ``from llm import chat`` copies the function into the importing module, so
-    patching ``llm.chat`` alone would leave ``graph.chat`` and ``qa.chat``
-    pointing at the real client. Each binding is patched.
+    Every module calls ``factory.infra.ollama.chat`` / ``chat_turns`` /
+    ``unload``, which delegate to ``ollama.client`` at call time; patching the
+    client's three methods covers every caller.
     """
     from factory.infra import ollama as llm
-    from factory.pipeline import graph, qa
-    from factory.roleplay import session as roleplay
 
     model = FakeModel()
-    for mod in (llm, graph, qa, roleplay):
-        monkeypatch.setattr(mod, "chat", model.chat, raising=True)
-    for mod in (llm, roleplay):
-        monkeypatch.setattr(mod, "chat_turns", model.chat_turns, raising=True)
-    monkeypatch.setattr(graph, "unload", lambda *a, **k: True)
-    monkeypatch.setattr(llm, "unload", lambda *a, **k: True)
+    monkeypatch.setattr(llm.client, "chat", model.chat, raising=True)
+    monkeypatch.setattr(llm.client, "chat_turns", model.chat_turns, raising=True)
+    monkeypatch.setattr(llm.client, "unload", lambda *a, **k: True, raising=True)
     return model
 
 

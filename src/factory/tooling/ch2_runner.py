@@ -38,9 +38,9 @@ from pathlib import Path
 
 from factory.eval.lint import analyse
 from factory.paths import EXPERIMENTS_DIR
+from factory.settings import settings
 from factory.text import ends_mid_sentence
 
-OLLAMA_URL = "http://localhost:11434"
 
 # Plan de runs du §2. X1/X2 sont HORS SCORE : ils explorent la plage de
 # température, ils ne comptent pas dans la règle des 2 sur 3.
@@ -90,7 +90,7 @@ def chat(model: str, prompt: str, temperature: float, timeout: int) -> dict:
         "options": {"temperature": temperature},
     }).encode("utf-8")
     req = urllib.request.Request(
-        f"{OLLAMA_URL}/api/chat", data=payload,
+        f"{settings.ollama_url}/api/chat", data=payload,
         headers={"Content-Type": "application/json"},
     )
     with urllib.request.urlopen(req, timeout=timeout) as resp:

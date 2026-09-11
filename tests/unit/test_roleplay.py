@@ -1,6 +1,7 @@
 import pytest
 
 from factory.roleplay import session as roleplay
+from factory.settings import settings
 from fakes import fixtures as fx
 
 
@@ -18,7 +19,7 @@ def test_reply_cleaning_removes_double_dash_and_own_name():
 
 @pytest.fixture
 def sessions_dir(tmp_path, monkeypatch):
-    monkeypatch.setattr(roleplay, "SESSIONS_DIR", tmp_path)
+    monkeypatch.setattr(settings, "sessions_dir", tmp_path)
     return tmp_path
 
 

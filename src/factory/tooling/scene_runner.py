@@ -25,9 +25,9 @@ from pathlib import Path
 
 from factory.eval.lint import analyse, mots, normalise, phrases
 from factory.paths import BIBLE_DIR, EXPERIMENTS_DIR
+from factory.settings import settings
 from factory.text import ends_mid_sentence
 
-OLLAMA_URL = "http://localhost:11434"
 
 # Protocole de `_scene-test-style.md` : 0.7 pour les runs 1-2 (température de
 # production, cf. write_node), 0.9 pour le run 3 — celui-ci mesure si le style
@@ -132,7 +132,7 @@ def chat_messages(model: str, messages: list[dict], timeout: int,
         "options": {"temperature": temperature},
     }).encode("utf-8")
     req = urllib.request.Request(
-        f"{OLLAMA_URL}/api/chat", data=payload,
+        f"{settings.ollama_url}/api/chat", data=payload,
         headers={"Content-Type": "application/json"},
     )
     with urllib.request.urlopen(req, timeout=timeout) as resp:

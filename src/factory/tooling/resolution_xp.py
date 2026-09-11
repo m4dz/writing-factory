@@ -21,7 +21,6 @@ H3/H4 (même modèle) ils sont justes. Le texte brut de chaque variant est
 conservé : les slides sont faites de verbatims, pas de scores.
 """
 
-import os
 import sys
 from datetime import datetime, timezone
 
@@ -31,10 +30,12 @@ from factory.infra.ollama import chat
 from factory.text import FRENCH_GUARD                        
 from factory.pipeline.graph import _BEAT_RESOUT, _BEAT_DOUTE           
 
-TIRAGES = int(os.environ.get("XP_TIRAGES", "3"))
-TEMP = float(os.environ.get("XP_TEMP", "0.7"))
-NUM_PREDICT = int(os.environ.get("XP_NUM_PREDICT", "300"))  # assez pour laisser
-#                                        le modèle résoudre s'il va le faire
+from factory.settings import settings
+
+TIRAGES = settings.xp_draws
+TEMP = settings.xp_temperature
+NUM_PREDICT = settings.xp_num_predict  # assez pour laisser le modèle résoudre
+#                                        s'il va le faire
 
 # --- La tâche, IDENTIQUE aux sujets (seules l'identité et l'instance varient) --
 _TACHE = (
@@ -85,7 +86,7 @@ def main() -> int:
     horodatage = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
     lignes_md = [
         f"# XP résolution — C5 complet, modèle nu — {horodatage}", "",
-        f"Modèle : `{os.environ.get('AUTHOR_MODEL', 'mistral-nemo (défaut)')}` · "
+        f"Modèle : `{settings.author_model}` · "
         f"T={TEMP} · num_predict={NUM_PREDICT} · BEATS_N=1 · "
         f"{TIRAGES} tirages/condition.", "",
         "C5 complet : aucune consigne de verdict, aucun squelette de voix, "

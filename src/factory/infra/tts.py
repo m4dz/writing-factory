@@ -25,33 +25,16 @@ est importé par un serveur qui vit des heures et ne synthétise qu'une fois, il
 n'a pas à porter `mlx` + `transformers` en mémoire tout ce temps.
 """
 
-import os
 import time
 from pathlib import Path
 
 from factory.infra import progress
-from factory.paths import REPO_ROOT
-from factory.pipeline.assembly import (
-    DEBIT_MOTS_MIN,
-    SECONDES_AUDIO,
-    TOLERANCE_AUDIO_S,
-    extrait_audio,
-)
+from factory.pipeline.assembly import extrait_audio
+from factory.settings import settings
 
-MODEL_ID = os.environ.get(
-    "TTS_MODEL", "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit"
-)
-
-# Référence vocale : asset du dépôt TTS voisin. C'est la SEULE dépendance
-# inter-dépôts, et elle est en lecture seule.
-VOIX_DIR = Path(os.environ.get(
-    "TTS_VOICE_DIR",
-    REPO_ROOT.parent / "TTS" / "voix",
-))
-
-# Segments courts = prosodie stable, pas de dérive du clone (RUNBOOK).
-MAX_CAR_SEGMENT = int(os.environ.get("TTS_MAX_CAR", "400"))
-PAUSE_S = float(os.environ.get("TTS_PAUSE_S", "0.6"))
+# Modèle, référence vocale (asset du dépôt TTS voisin : la SEULE dépendance
+# inter-dépôts, en lecture seule), taille des segments (courts = prosodie
+# stable, pas de dérive du clone) et pause : `settings.tts_*`, `settings.voice_dir`.
 SAMPLE_RATE_DEFAUT = 24_000
 
 
@@ -63,10 +46,12 @@ class TTSIndisponible(RuntimeError):
     """
 
 
-def segmenter(texte: str, *, max_car: int = MAX_CAR_SEGMENT) -> list[str]:
+def segmenter(texte: str, *, max_car: int | None = None) -> list[str]:
     """Découpe en segments courts, jamais au milieu d'une phrase."""
     from factory.text import sentence_ends
 
+    if max_car is None:
+        max_car = settings.tts_max_chars
     segments: list[str] = []
     for para in texte.split("\n\n"):
         para = " ".join(para.split())
@@ -93,17 +78,18 @@ def segmenter(texte: str, *, max_car: int = MAX_CAR_SEGMENT) -> list[str]:
 
 def _reference() -> tuple[str, str]:
     """Chemin du WAV de référence et sa transcription. Lève si absents."""
-    wav, txt = VOIX_DIR / "ma-voix.wav", VOIX_DIR / "ma-voix.txt"
+    voice_dir = settings.voice_dir
+    wav, txt = voice_dir / "ma-voix.wav", voice_dir / "ma-voix.txt"
     if not wav.exists() or not txt.exists():
         raise TTSIndisponible(
-            f"référence vocale manquante dans {VOIX_DIR} "
+            f"référence vocale manquante dans {voice_dir} "
             "(ma-voix.wav + ma-voix.txt attendus)"
         )
     return str(wav), txt.read_text(encoding="utf-8").strip()
 
 
-def rendre(texte: str, sortie: Path, *, model_id: str = MODEL_ID,
-           pause_s: float = PAUSE_S) -> dict:
+def rendre(texte: str, sortie: Path, *, model_id: str | None = None,
+           pause_s: float | None = None) -> dict:
     """Synthétise `texte` dans la voix de référence, écrit un WAV, rend les
     métriques (durée d'audio, durée de calcul, facteur temps réel).
 
@@ -111,6 +97,8 @@ def rendre(texte: str, sortie: Path, *, model_id: str = MODEL_ID,
     dans la queue du compte à rebours. Le RUNBOOK l'annonce à ~1×, à confirmer
     sur cette machine.
     """
+    model_id = model_id or settings.tts_model
+    pause_s = settings.tts_pause_s if pause_s is None else pause_s
     ref_audio, ref_text = _reference()
     segments = segmenter(texte)
     if not segments:
@@ -162,19 +150,20 @@ def rendre(texte: str, sortie: Path, *, model_id: str = MODEL_ID,
     # échantillon) qui sert à convertir la durée voulue par le deck en nombre de
     # mots. Si elle est fausse, l'extrait sort trop court ou trop long, et
     # personne ne s'en aperçoit avant la scène — sauf si on le dit ici.
-    ecart = duree - SECONDES_AUDIO
-    if abs(ecart) > TOLERANCE_AUDIO_S:
+    cible_s = settings.audio_seconds
+    ecart = duree - cible_s
+    if abs(ecart) > settings.audio_tolerance_s:
         progress.note(
             f"durée de lecture hors cible : {duree:.0f} s au lieu de "
-            f"{SECONDES_AUDIO:.0f} s ({ecart:+.0f} s). Recalibrer "
-            f"AUDIO_DEBIT_MOTS_MIN (actuel {DEBIT_MOTS_MIN:.0f} mots/min, "
+            f"{cible_s:.0f} s ({ecart:+.0f} s). Recalibrer "
+            f"AUDIO_WORDS_PER_MINUTE (actuel {settings.audio_words_per_minute:.0f} mots/min, "
             f"réel {len(texte.split()) / (duree / 60):.0f})."
         )
 
     return {
         "segments": len(segments),
         "audio_s": round(duree, 1),
-        "cible_s": SECONDES_AUDIO,
+        "cible_s": cible_s,
         "debit_mots_min": round(len(texte.split()) / (duree / 60), 1),
         "calcul_s": round(calcul, 1),
         "facteur_temps_reel": round(duree / calcul, 2) if calcul else 0.0,

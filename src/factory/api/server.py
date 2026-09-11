@@ -31,7 +31,6 @@ Deux principes que le contrat impose et qui dictent tout le reste :
 """
 
 import json
-import os
 import re
 import threading
 import time
@@ -40,14 +39,13 @@ from pathlib import Path
 from urllib.parse import parse_qs
 
 from factory.infra import notify
-from factory.paths import OUTPUT_DIR, REPO_ROOT
+from factory.settings import settings
 from factory.infra import progress
 from factory.chapter_spec import chapter7 as ch7
 from factory.pipeline.assembly import assembler
 from factory.pipeline.graph import build_graph
 from factory.infra.ollama import unload
 from factory.infra.preflight import PreflightError, preflight, report
-from factory.pipeline.qa import QA_MODEL
 from factory.retrieval.context import list_characters
 from factory.roleplay.session import lire_session, lister_sessions
 from factory.infra.tts import rendre_chapitre
@@ -61,11 +59,8 @@ STATIC = Path(__file__).resolve().parent / "static"
 # `/status`, `/chapter`, `/audio` sont same-origin, sans CORS. C'est la raison
 # d'être de cet endpoint : la machine de présentation charge le deck ICI, et
 # l'API répond à côté, sur le même hôte.
-#   ../../talk/slides/dist depuis orchestrator/  →  ia-devant-soi/talk/slides/dist
-SLIDES = Path(os.environ.get(
-    "API_SLIDES_DIR",
-    REPO_ROOT.parent / "talk" / "slides" / "dist",
-)).resolve()
+#   ../talk/slides/dist depuis le dépôt  →  ia-devant-soi/talk/slides/dist
+# Chemin : `settings.slides_dir`.
 
 # Types MIME servis pour le build statique. `mimetypes` suffirait pour la
 # plupart, mais on FIGE les critiques (`.js`, `.mjs`, `.css`, `.woff2`) : un
@@ -96,18 +91,19 @@ _TYPES = {
     ".txt": "text/plain; charset=utf-8",
 }
 
-HOST = os.environ.get("API_HOST", "0.0.0.0")
-PORT = int(os.environ.get("API_PORT", "8420"))
+# Hôte, port et origine autorisée : `settings.api_host`, `settings.api_port`,
+# `settings.cors_origin` (`*` par défaut : on est sur un réseau local, le
+# service ne lit aucun secret et n'accepte aucune donnée sensible — et une
+# origine mal devinée le jour J casserait la démo pour rien. À resserrer si le
+# deck est servi depuis une origine stable connue).
 
-# Origine autorisée. `*` par défaut : on est sur un réseau local, le service ne
-# lit aucun secret et n'accepte aucune donnée sensible — et une origine mal
-# devinée le jour J casserait la démo pour rien. À resserrer si le deck est
-# servi depuis une origine stable connue.
-CORS_ORIGIN = os.environ.get("API_CORS_ORIGIN", "*")
 
-SORTIE = Path(os.environ.get("API_OUTPUT_DIR", OUTPUT_DIR))
-CHAPITRE_MD = SORTIE / "chapitre.md"
-CHAPITRE_WAV = SORTIE / "chapitre.wav"
+def chapter_path() -> Path:
+    return settings.output_dir / "chapitre.md"
+
+
+def audio_path() -> Path:
+    return settings.output_dir / "chapitre.wav"
 
 # Le récit généré est le CHAPITRE 7 de « L'Involontaire ». Le contrat dit
 # « corps minimal ou vide » : le deck ne connaît pas le récit, c'est la machine
@@ -240,9 +236,9 @@ class Job:
         le même jour — et bornent l'audio sur la chute « Constat : anniversaire. »
         plutôt que sur un plafond de mots.
         """
-        SORTIE.mkdir(parents=True, exist_ok=True)
+        settings.output_dir.mkdir(parents=True, exist_ok=True)
         scenes = final.get("repaired") or final.get("scenes") or []
-        CHAPITRE_MD.write_text(assembler(scenes, **ch7.MARQUEURS_CH7),
+        chapter_path().write_text(assembler(scenes, **ch7.MARQUEURS_CH7),
                                encoding="utf-8")
 
     def _rendre_audio(self) -> dict | None:
@@ -258,10 +254,10 @@ class Job:
             self.etat = "tts"
         # Qwen n'a plus rien à faire à ce stade, et 4,8 GB de rendus au modèle de
         # voix valent mieux qu'un swap. Même logique que la bascule nemo → Qwen.
-        unload(QA_MODEL)
+        unload(settings.qa_model)
         try:
             metriques = rendre_chapitre(
-                CHAPITRE_MD.read_text(encoding="utf-8"), CHAPITRE_WAV
+                chapter_path().read_text(encoding="utf-8"), audio_path()
             )
             progress.note(
                 f"lecture prête : {metriques['audio_s']:.0f} s restituées en "
@@ -304,7 +300,7 @@ class Job:
         base = suivi.instantane() if suivi else {
             "phase": "generating", "ready": False, "progress": 0.0,
             "label": "", "detail": "", "elapsed_s": 0,
-            "budget_s": int(progress.BUDGET_MIN * 60), "gen_toks": 0, "notes": [],
+            "budget_s": int(settings.stage_budget_min * 60), "gen_toks": 0, "notes": [],
         }
         # Projection sur `GenStatus` du deck. On lui dit `error` franchement :
         # son type le prévoit, et le savoir tôt lui permet de basculer sur ses
@@ -317,7 +313,7 @@ class Job:
         base["phase"] = {
             "ready": "ready", "tts": "tts", "error": "error", "idle": "idle",
         }.get(etat, "generating")
-        base["ready"] = etat == "ready" and CHAPITRE_MD.exists()
+        base["ready"] = etat == "ready" and chapter_path().exists()
         base["state"] = etat
         base["progress"] = 1.0 if etat == "ready" else base["progress"]
         if erreur:
@@ -337,7 +333,6 @@ JOB = Job()
 # pris une API compatible OpenAI, qui suppose un client renvoyant tout
 # l'historique à chaque tour — il court-circuiterait le résumeur.
 
-CHAT_TTL_S = float(os.environ.get("CHAT_TTL_S", "7200"))   # 2 h d'inactivité
 
 
 class Salon:
@@ -355,7 +350,7 @@ class Salon:
         sessions pré-générées de la scène. L'oubli silencieux serait la perte
         d'un contenu de démo.
         """
-        limite = time.time() - CHAT_TTL_S
+        limite = time.time() - settings.chat_ttl_s   # 2 h d'inactivité
         for cle in [k for k, (_, vu) in self.sessions.items() if vu < limite]:
             session, _ = self.sessions.pop(cle)
             try:
@@ -400,7 +395,7 @@ class Handler(BaseHTTPRequestHandler):
     # --- utilitaires ---------------------------------------------------------
 
     def _cors(self) -> None:
-        self.send_header("Access-Control-Allow-Origin", CORS_ORIGIN)
+        self.send_header("Access-Control-Allow-Origin", settings.cors_origin)
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
@@ -465,23 +460,24 @@ class Handler(BaseHTTPRequestHandler):
         route côté navigateur. C'est exactement le `_redirects: /* -> /index.html`
         du build.
         """
-        if not SLIDES.is_dir():
+        slides = settings.slides_dir.resolve()
+        if not slides.is_dir():
             # Build absent : ce n'est pas une route d'API, donc 404 franc, pas un
             # 204 « pas prêt » (qui a un sens précis pour les artefacts du deck).
             self._json(404, {"error": "slides non buildées",
-                             "detail": f"attendu dans {SLIDES}"})
+                             "detail": f"attendu dans {slides}"})
             return
         rel = route.lstrip("/") or "index.html"
-        cible = (SLIDES / rel).resolve()
+        cible = (slides / rel).resolve()
         # Anti-traversée : la cible DOIT rester sous dist. Ce serveur écoute sur
         # le réseau d'une conférence — même garde que les identifiants de session.
         try:
-            cible.relative_to(SLIDES)
+            cible.relative_to(slides)
         except ValueError:
             self._repondre(403)
             return
         if not cible.is_file():
-            cible = SLIDES / "index.html"
+            cible = slides / "index.html"
             if not cible.is_file():
                 self._json(404, {"error": "index des slides absent"})
                 return
@@ -661,9 +657,9 @@ class Handler(BaseHTTPRequestHandler):
         elif route == "/events":
             self._flux_evenements()
         elif route == "/chapter":
-            self._fichier(CHAPITRE_MD, "text/markdown; charset=utf-8")
+            self._fichier(chapter_path(), "text/markdown; charset=utf-8")
         elif route == "/audio":
-            self._fichier(CHAPITRE_WAV, "audio/wav")
+            self._fichier(audio_path(), "audio/wav")
         elif route == "/health":
             self._json(200, {"ok": True, "machine": report()})
         elif route == "/characters":
@@ -694,11 +690,11 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
-    SORTIE.mkdir(parents=True, exist_ok=True)
-    serveur = ThreadingHTTPServer((HOST, PORT), Handler)
-    print(f"[api] écoute sur http://{HOST}:{PORT}")
+    settings.output_dir.mkdir(parents=True, exist_ok=True)
+    serveur = ThreadingHTTPServer((settings.api_host, settings.api_port), Handler)
+    print(f"[api] écoute sur http://{settings.api_host}:{settings.api_port}")
     print(f"[api] machine : {report()}")
-    print(f"[api] artefacts : {SORTIE}")
+    print(f"[api] artefacts : {settings.output_dir}")
     try:
         serveur.serve_forever()
     except KeyboardInterrupt:

@@ -17,6 +17,7 @@ import time
 from factory.infra import progress
 from factory.pipeline.graph import build_graph
 from factory.infra.preflight import PreflightError, preflight, report
+from factory.settings import settings
 
 
 def main() -> None:
@@ -35,7 +36,7 @@ def main() -> None:
         help="Sans compte à rebours ni progression (mesure au plus juste)",
     )
     p.add_argument(
-        "--budget", type=float, default=progress.BUDGET_MIN,
+        "--budget", type=float, default=settings.stage_budget_min,
         help="Budget de scène en minutes pour le compte à rebours (défaut 25)",
     )
     args = p.parse_args()

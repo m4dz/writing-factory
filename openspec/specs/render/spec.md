@@ -22,7 +22,7 @@ computed. The chapter served stays whole.
 ### Requirement: The excerpt is bounded in time and ends on a sentence
 
 The excerpt SHALL be the text after the switch up to the word count derived
-from `AUDIO_SECONDES` and the measured rate, cut on a sentence end, or up to
+from `AUDIO_SECONDS` and the measured rate, cut on a sentence end, or up to
 and including the imposed fall line when the chapter names one.
 
 #### Scenario: Fall line beyond the word bound

@@ -10,6 +10,7 @@ import pytest
 
 from factory.infra import tts
 from factory.pipeline import assembly as chapitre
+from factory.settings import settings
 
 
 def test_segmenter_splits_paragraphs_on_sentence_ends_under_the_cap():
@@ -26,7 +27,7 @@ def test_segmenter_splits_paragraphs_on_sentence_ends_under_the_cap():
 def voice(tmp_path, monkeypatch):
     (tmp_path / "ma-voix.wav").write_bytes(b"RIFF")
     (tmp_path / "ma-voix.txt").write_text("Bonjour.", encoding="utf-8")
-    monkeypatch.setattr(tts, "VOIX_DIR", tmp_path)
+    monkeypatch.setattr(settings, "voice_dir", tmp_path)
     return tmp_path
 
 
@@ -66,7 +67,7 @@ def test_render_assembles_segments_with_pauses_and_reports_the_rate(
     assert out["segments"] == 2 and synth.calls[0][3] == "french"
     assert out["audio_s"] == pytest.approx(2 * (1.0 + 0.5), abs=0.05)
     assert written["sr"] == 24_000 and written["n"] == int(out["audio_s"] * 24_000)
-    assert out["debit_mots_min"] > 0 and out["cible_s"] == chapitre.SECONDES_AUDIO
+    assert out["debit_mots_min"] > 0 and out["cible_s"] == settings.audio_seconds
     # 3 s of audio against a 165 s target: the rate note is emitted for the operator.
     assert any("hors cible" in n for n in quiet_progress.notes)
 
@@ -81,7 +82,7 @@ def test_render_chapter_reads_only_the_post_switch_excerpt(voice, fake_mlx, tmp_
 
 
 def test_missing_voice_is_an_ordinary_exception(tmp_path, monkeypatch):
-    monkeypatch.setattr(tts, "VOIX_DIR", tmp_path)
+    monkeypatch.setattr(settings, "voice_dir", tmp_path)
     with pytest.raises(tts.TTSIndisponible, match="référence vocale"):
         tts.rendre("Texte.", tmp_path / "x.wav")
 
