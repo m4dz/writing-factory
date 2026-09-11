@@ -1,0 +1,24 @@
+### 20260826T020105-runs-ch7-run-CH7-entree1-gestes.md
+971 mots [HORS CIBLE] · 20 paragraphes · 75 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✓ Tic d'IA
+- ✓ Point d'exclamation hors dialogue
+- ✓ Incise adverbiale (ou son équivalent prépositionnel)
+- ✓ Élision manquante
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✓ Phrase d'accumulation : exactement une
+    - `Je suis rentrée à la maison, j'ai rangé les photos dans le tiroir du salon, j'ai supprimé la playlist des anniversaires …`
+- ✓ Phrase-couperet en fin de paragraphe → 6 (dont 11 couperets au total)
+    - `Le plat est au four.`
+    - `Je t'aime toujours. »`
+    - `Les deux couverts sont mis.`
+- ✓ Heure ou quantité exacte → 9
+    - `19h`, `20h`, `21h`, `22h`, `23h`, `23h30`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ⚠ 1 forme(s) : `mis`
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.

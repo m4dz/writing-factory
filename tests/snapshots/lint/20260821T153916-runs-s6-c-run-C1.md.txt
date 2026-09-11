@@ -1,0 +1,30 @@
+### 20260821T153916-runs-s6-c-run-C1.md
+872 mots [HORS CIBLE] · 13 paragraphes · 70 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✓ Tic d'IA
+- ✗ Point d'exclamation hors dialogue → 1
+    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✗ Incise adverbiale (ou son équivalent prépositionnel) → 1
+    - `… tard, j'étais fatiguée, peut-être avais-je agi mécaniquement sans y prêter attention. J'ai essayé de…`
+- ✗ Élision manquante → 1
+    - `…tard, j'étais fatiguée, peut-être avais-je agi mécaniquement sans y prêter attention. …`
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✓ Phrase d'accumulation : exactement une
+    - `Je suis rentrée tard, j'ai rangé mes affaires, je me suis préparé un thé, je me suis installée dans le salon, j'ai allum…`
+- ✓ Phrase-couperet en fin de paragraphe → 2 (dont 15 couperets au total)
+    - `-->
+# Run C1 — runs-s6-c`
+    - `Impossible d'avoir mis deux assiettes.`
+- ✓ Heure ou quantité exacte → 4
+    - `Deux assiettes`, `deux assiettes`, `deux lignes`, `deux phrases`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ⚠ 1 forme(s) : `mis`
+
+**Défauts nemo (hors grille du protocole)**
+- ⚠ tokens corrompus : ['nBeats', 'nEn', 'nFAIT', 'nInterdits', 'nL', 'nMatériau']
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.

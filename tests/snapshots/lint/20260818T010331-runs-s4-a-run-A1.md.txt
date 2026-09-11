@@ -1,0 +1,29 @@
+### 20260818T010331-runs-s4-a-run-A1.md
+793 mots [HORS CIBLE] · 14 paragraphes · 66 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✓ Tic d'IA
+- ✗ Point d'exclamation hors dialogue → 1
+    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Incise adverbiale (ou son équivalent prépositionnel)
+- ✗ Élision manquante → 2
+    - `… est un autre jour. Peut-être trouverai-je alors les réponses aux questions qui m'assail…`
+    - `…lent aujourd'hui. Peut-être comprendrai-je enfin ce que mon corps et mon esprit cherchen…`
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✗ Phrase d'accumulation : zéro = plat
+- ✓ Phrase-couperet en fin de paragraphe → 2 (dont 15 couperets au total)
+    - `-->
+# Run A1 — runs-s4-a`
+    - `Ma mémoire m'a trompée.`
+- ✓ Heure ou quantité exacte → 4
+    - `Deux assiettes`, `deux assiettes`, `deux phrases`, `deux sans`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ✓ aucune forme non ambiguë détectée
+
+**Défauts nemo (hors grille du protocole)**
+- ⚠ tokens corrompus : ['nBeats', 'nCitation', 'nInterdits', 'nMatériau', 'nSquelette']
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.

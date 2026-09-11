@@ -1,0 +1,22 @@
+### 20260827T232014-mouvement-trois-arcs.md
+746 mots [HORS CIBLE] · 15 paragraphes · 58 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✓ Tic d'IA
+- ✓ Point d'exclamation hors dialogue
+- ✓ Incise adverbiale (ou son équivalent prépositionnel)
+- ✓ Élision manquante
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✗ Phrase d'accumulation : zéro = plat
+- ✓ Phrase-couperet en fin de paragraphe → 2 (dont 4 couperets au total)
+    - `Je t'aime toujours. »`
+    - `Constat : anniversaire.`
+- ✓ Heure ou quantité exacte → 4
+    - `Deux couverts`, `Neuf ans`, `deux couverts`, `deux places`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ✓ aucune forme non ambiguë détectée
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.

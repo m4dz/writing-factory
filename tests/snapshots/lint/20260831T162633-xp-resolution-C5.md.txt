@@ -1,0 +1,23 @@
+### 20260831T162633-xp-resolution-C5.md
+1854 mots [HORS CIBLE] · 31 paragraphes · 105 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✓ Tic d'IA
+- ✓ Point d'exclamation hors dialogue
+- ✓ Incise adverbiale (ou son équivalent prépositionnel)
+- ✓ Élision manquante
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✗ Phrase d'accumulation : zéro = plat
+- ✓ Phrase-couperet en fin de paragraphe → 14 (dont 23 couperets au total)
+    - `Seule l'identité servie varie.`
+    - `## Résumé (règle 2/3)`
+    - `**correctrice·porte · tirage 1 · TENU**`
+- ✓ Heure ou quantité exacte → 5
+    - `deux assiettes`, `deux couovers`, `deux couteaux`, `deux couverts`, `deux fourchettes`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ⚠ 2 forme(s) : `mis`, `parcourent`
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.

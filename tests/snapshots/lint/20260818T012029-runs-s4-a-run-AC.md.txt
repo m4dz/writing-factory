@@ -1,0 +1,24 @@
+### 20260818T012029-runs-s4-a-run-AC.md
+1513 mots [HORS CIBLE] · 38 paragraphes · 129 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✓ Tic d'IA
+- ✗ Point d'exclamation hors dialogue → 1
+    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Incise adverbiale (ou son équivalent prépositionnel)
+- ✓ Élision manquante
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✗ Phrase d'accumulation : zéro = plat
+- ✓ Phrase-couperet en fin de paragraphe → 9 (dont 32 couperets au total)
+    - `-->
+# Run AC — runs-s4-a`
+    - `Je les ai rangées.`
+    - `Cette voix était réelle.`
+- ✗ Heure ou quantité exacte → 0
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ✓ aucune forme non ambiguë détectée
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.

@@ -1,0 +1,29 @@
+### 20260821T143719-runs-s6-c-run-C3.md
+1185 mots [HORS CIBLE] · 15 paragraphes · 100 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✓ Tic d'IA
+- ✗ Point d'exclamation hors dialogue → 1
+    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Incise adverbiale (ou son équivalent prépositionnel)
+- ✗ Élision manquante → 1
+    - `…sidieux. Avais-je perdu la main ? Étais-je en train de devenir une mauvaise correctri…`
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✗ Phrase d'accumulation : 2 = tic
+    - `Je suis rentrée du travail, lasse, j'ai préparé à dîner mécaniquement, mangé seule à table face à la fenêtre, débarrassé…`
+    - `Je l'ai laissée sur la table jusqu'au matin", vérifié dans la cuisine et confirmé la présence de deux assiettes propres …`
+- ✓ Phrase-couperet en fin de paragraphe → 1 (dont 26 couperets au total)
+    - `-->
+# Run C3 — runs-s6-c`
+- ✓ Heure ou quantité exacte → 3
+    - `Deux assiettes`, `deux assiettes`, `deux phrases`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ⚠ 1 forme(s) : `pris`
+
+**Défauts nemo (hors grille du protocole)**
+- ⚠ tokens corrompus : ['nBeats', 'nEn', 'nFAIT', 'nInterdits', 'nL', 'nMatériau']
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.

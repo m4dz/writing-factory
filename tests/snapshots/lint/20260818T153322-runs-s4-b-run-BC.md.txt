@@ -1,0 +1,31 @@
+### 20260818T153322-runs-s4-b-run-BC.md
+1225 mots [HORS CIBLE] · 22 paragraphes · 129 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✓ Tic d'IA
+- ✗ Point d'exclamation hors dialogue → 1
+    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Incise adverbiale (ou son équivalent prépositionnel)
+- ✓ Élision manquante
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✗ Phrase d'accumulation : 2 = tic
+    - `3}
+- **Collections interrogées** : ["auteur"]
+- **Ligne de grille — échecs AUTO** : L1 noms propres (1), L3 accumulation…`
+    - `warnings: ["entrée 1 : fin coupée à la dernière phrase complète, 14 caractères retirés — « Je ne l'ai pas »", "entrée 2 …`
+- ✓ Phrase-couperet en fin de paragraphe → 4 (dont 42 couperets au total)
+    - `-->
+# Run BC — runs-s4-b`
+    - `À ce que j'ai cru lire.`
+    - `À ce que j'ai cru lire.`
+- ✗ Heure ou quantité exacte → 0
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ✓ aucune forme non ambiguë détectée
+
+**Défauts nemo (hors grille du protocole)**
+- ⚠ tokens corrompus : ['nFAIT']
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.

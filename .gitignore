@@ -28,3 +28,8 @@ runs-*/*.wav
 .claude/*
 !.claude/skills/
 !.claude/commands/
+
+# Local tooling
+.venv/
+.pytest_cache/
+.ruff_cache/

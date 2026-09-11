@@ -1,0 +1,26 @@
+### 20260809T234024-ch2-run-X2.md
+710 mots [HORS CIBLE] · 18 paragraphes · 58 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✓ Tic d'IA
+- ✗ Point d'exclamation hors dialogue → 2
+    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+    - `…moi hier soir. Mais cela n'a aucun sens ! Je suis seule dans cette maison depuis……`
+- ✗ Incise adverbiale (ou son équivalent prépositionnel) → 1
+    - `…-vaisselle. Comment est-ce possible ? Ai-je simplement mal compté ? ai-je mal vu ?  Je décide …`
+- ✓ Élision manquante
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✗ Phrase d'accumulation : zéro = plat
+- ✓ Phrase-couperet en fin de paragraphe → 5 (dont 13 couperets au total)
+    - `, 3 hors champ), point d'exclamation`
+    - `Cible : 450–600 mots.`
+    - `Il faut que je vérifie.`
+- ✓ Heure ou quantité exacte → 4
+    - `Trois assiettes`, `deux assiettes`, `six heures trente`, `trois assiettes`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ⚠ 1 forme(s) : `pris`
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.

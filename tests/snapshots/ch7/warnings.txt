@@ -1,0 +1,7 @@
+entrée 1 : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #2 score 3 ; #3 score 3
+entrée 2/relève : best-of-3 — variant 1 retenu (score 0, propre) ; rejetés : #2 score 0 ; #3 score 0
+entrée 2/découverte : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #2 score 3 ; #3 score 3
+entrée 2/doute : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #2 score 3 ; #3 score 3
+pruning : rien à retirer
+assemblage entrée 1 : aucune accumulation à poser
+assemblage entrée 2 : chute imposée absente — posée par le code : « Constat : anniversaire. »

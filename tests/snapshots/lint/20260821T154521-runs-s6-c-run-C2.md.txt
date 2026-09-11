@@ -1,0 +1,30 @@
+### 20260821T154521-runs-s6-c-run-C2.md
+1121 mots [HORS CIBLE] · 17 paragraphes · 93 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✓ Tic d'IA
+- ✗ Point d'exclamation hors dialogue → 1
+    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Incise adverbiale (ou son équivalent prépositionnel)
+- ✓ Élision manquante
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✗ Phrase d'accumulation : 2 = tic
+    - `warnings: ["entrée 1 : 1 point(s) de suspension produit(s) par le modèle, retiré(s) — le marqueur est réservé au glissem…`
+    - `Rentrée tard, deux assiettes mises sur la table, sans y penser, laissé la vaisselle sale jusqu'au matin, relu l'entrée d…`
+- ✓ Phrase-couperet en fin de paragraphe → 3 (dont 25 couperets au total)
+    - `-->
+# Run C2 — runs-s6-c`
+    - `Pas ce soir.`
+    - `Demain, tout sera clair.`
+- ✓ Heure ou quantité exacte → 7
+    - `Deux assiettes`, `Deux personnes`, `deux assiettes`, `deux couverts`, `deux phrases`, `deux sets`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ✓ aucune forme non ambiguë détectée
+
+**Défauts nemo (hors grille du protocole)**
+- ⚠ tokens corrompus : ['nBeats', 'nEn', 'nFAIT', 'nInterdits', 'nL', 'nMatériau']
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.

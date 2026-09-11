@@ -1,0 +1,23 @@
+### 20260826T021314-runs-ch7-run-CH7-entree1-continuee.md
+857 mots [HORS CIBLE] · 21 paragraphes · 69 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✓ Tic d'IA
+- ✓ Point d'exclamation hors dialogue
+- ✓ Incise adverbiale (ou son équivalent prépositionnel)
+- ✓ Élision manquante
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✗ Phrase d'accumulation : zéro = plat
+- ✓ Phrase-couperet en fin de paragraphe → 5 (dont 7 couperets au total)
+    - `Je t'aime toujours. »`
+    - `Personne n'avait allumé la musique.`
+    - `Le plat est au four.`
+- ✓ Heure ou quantité exacte → 2
+    - `Neuf ans`, `deux couverts`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ✓ aucune forme non ambiguë détectée
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.

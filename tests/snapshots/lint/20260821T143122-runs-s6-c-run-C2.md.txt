@@ -1,0 +1,31 @@
+### 20260821T143122-runs-s6-c-run-C2.md
+1209 mots [HORS CIBLE] · 15 paragraphes · 99 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✗ Tic d'IA → 1
+    - `…is alors que je m'allonge dans mon lit, je ne peux m'empêcher de me poser une question : qui a utilisé l…`
+- ✗ Point d'exclamation hors dialogue → 1
+    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Incise adverbiale (ou son équivalent prépositionnel)
+- ✗ Élision manquante → 1
+    - `…ux assiettes sur l'égouttoir. Mais cela ne explique pas pourquoi j'ai écrit que j'avais lai…`
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✓ Phrase d'accumulation : exactement une
+    - `warnings: ["entrée 1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) — le code compose les en-têtes", "accumu…`
+- ✓ Phrase-couperet en fin de paragraphe → 3 (dont 19 couperets au total)
+    - `-->
+# Run C2 — runs-s6-c`
+    - `Je décide de vérifier à nouveau.`
+    - `Je suis rassurée.`
+- ✓ Heure ou quantité exacte → 6
+    - `Deux assiettes`, `deux assiettes`, `deux lignes`, `deux phrases`, `deux pour`, `trois assiettes`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ⚠ 2 forme(s) : `mis`, `parcourent`
+
+**Défauts nemo (hors grille du protocole)**
+- ⚠ tokens corrompus : ['nBeats', 'nEn', 'nFAIT', 'nInterdits', 'nL', 'nMatériau']
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.

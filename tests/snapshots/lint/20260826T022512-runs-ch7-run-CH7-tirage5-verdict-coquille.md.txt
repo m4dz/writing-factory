@@ -1,0 +1,23 @@
+### 20260826T022512-runs-ch7-run-CH7-tirage5-verdict-coquille.md
+361 mots [HORS CIBLE] · 16 paragraphes · 40 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✓ Tic d'IA
+- ✓ Point d'exclamation hors dialogue
+- ✓ Incise adverbiale (ou son équivalent prépositionnel)
+- ✓ Élision manquante
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✗ Phrase d'accumulation : zéro = plat
+- ✓ Phrase-couperet en fin de paragraphe → 7 (dont 11 couperets au total)
+    - `Je ne pense pas à elle.`
+    - `L'après-midi s'étire, lent et pesant.`
+    - `Je t'aime toujours. »`
+- ✓ Heure ou quantité exacte → 4
+    - `19 h 30`, `20 h 00`, `Neuf ans`, `deux couverts`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ✓ aucune forme non ambiguë détectée
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.
