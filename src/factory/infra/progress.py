@@ -40,6 +40,7 @@ _ANSI_LINE_START = "\r"
 # ~2 min, l'écriture ~7, la relecture ~5, la QA ~3.
 BANDS = {
     "Préflight": (0.00, 0.01),
+    "État narratif": (0.01, 0.01),
     "Invariants de la bible": (0.01, 0.03),
     # Plan et « Plan d'entrées » sont deux CHEMINS du même nœud (brief imposé vs
     # généré) : même bande, un seul est émis par run.

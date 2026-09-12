@@ -31,6 +31,7 @@ Deux principes que le contrat impose et qui dictent tout le reste :
 """
 
 import json
+import random
 import re
 import threading
 import time
@@ -41,10 +42,13 @@ from urllib.parse import parse_qs
 from factory.infra import notify
 from factory.settings import settings
 from factory.infra import progress
-from factory.chapter_spec import load_chapter
+from factory import runs as run_registry
+from factory.chapter_spec import ChapterSpecError, chapter_dirs, load_chapter
+from factory.infra.ollama import client as model_client
+from factory.retrieval import context as retrieval
 from factory.pipeline.graph import build_graph
-from factory.pipeline.nodes.render import audio_path, chapter_path
 from factory.infra.preflight import PreflightError, report
+from factory.runs import Run
 from factory.retrieval.context import list_characters
 from factory.roleplay.session import read_session, list_sessions
 
@@ -95,187 +99,202 @@ _TYPES = {
 # origine mal devinée le jour J casserait la démo pour rien. À resserrer si le
 # deck est servi depuis une origine stable connue).
 
-# Le récit généré est le CHAPITRE 7 de « L'Involontaire ». Le contrat dit
-# « corps minimal ou vide » : le deck ne connaît pas le récit, c'est la machine
-# qui sait quoi écrire. Toute la structure du chapitre (deux entrées, ancre,
-# beats, chute) vient de `chapters/07-anniversaire/spec.yaml` par le loader —
-# source unique partagée avec `factory generate` et `factory calibrate`.
-# Graine aléatoire par run : vraie variance live du best-of-3 de l'entrée 1 et
-# du tirage du glissement. ADR-0005 (étape 6) rend le chapitre un champ du
-# payload ; jusque-là la scène est le chapitre 7.
-STAGE_CHAPTER = 7
+# UN SEUL TRAVAILLEUR (ADR-0005). La machine ne tient qu'un modèle de 13 GB :
+# les runs s'exécutent l'un après l'autre, dans l'ordre des POST. Un POST
+# pendant un run est mis en file, pas refusé — le deck reçoit son `run_id` tout
+# de suite et suit `/runs/<id>/status`. Le chapitre à écrire est dans la charge
+# utile : la machine ne connaît plus de chapitre par défaut.
 
 
-class Job:
-    """Le job de génération unique, et son verrou.
-
-    Un seul job en vol, par construction : la machine n'a de mémoire que pour un
-    modèle de 13 GB, et le contrat exige qu'un second POST ne relance rien.
-    """
+class Worker:
+    """La file des runs et le fil qui les exécute, un à la fois."""
 
     def __init__(self):
         self.lock = threading.Lock()
-        self.status = "idle"        # idle | generating | ready | error
-        self.started_at: float | None = None
-        self.finished_at: float | None = None
-        self.error: str | None = None
+        self.wake = threading.Condition(self.lock)
+        self.queue: list[Run] = []
+        self.current: Run | None = None
         self.tracking: progress.Progress | None = None
-        self.result: dict | None = None
+        self.started_at: float | None = None
         self.thread: threading.Thread | None = None
 
-    # --- lancement -----------------------------------------------------------
+    # --- soumission ----------------------------------------------------------
 
-    def launch(self) -> bool:
-        """Démarre la génération si rien ne tourne. Retourne True si démarré.
+    def submit(self, run: Run) -> int:
+        """Met le run en file ; rend sa position (0 = démarre tout de suite)."""
+        with self.lock:
+            self.queue.append(run)
+            position = len(self.queue) - 1 + (1 if self.current else 0)
+            if self.thread is None or not self.thread.is_alive():
+                self.thread = threading.Thread(target=self._loop, daemon=True)
+                self.thread.start()
+            self.wake.notify()
+        return position
 
-        L'idempotence est ici, pas dans le handler : c'est une propriété du job,
-        et le contrat en dépend (« un second POST ne relance pas »).
+    @property
+    def busy(self) -> bool:
+        with self.lock:
+            return self.current is not None
+
+    def cancel(self, run_id: str) -> bool:
+        """Retire un run de la file, ou demande l'arrêt du run en cours.
+
+        Sortie de secours d'opérateur (cf. la politique de reprise du deck) :
+        l'arrêt prend effet à la frontière de nœud suivante, donc au pire
+        après l'appel modèle en cours.
         """
         with self.lock:
-            if self.status in ("generating", "ready"):
-                return False
-            self.status = "generating"
-            self.started_at = time.time()
-            self.finished_at = None
-            self.error = None
-            self.result = None
-            self.tracking = progress.Progress(active=True)
-            # Le bipeur écoute les changements de phase. Il ne reçoit que le
-            # LIBELLÉ de phase et le pourcentage — jamais les notes, qui citent
-            # la bible et le chapitre (cf. notify.py).
-            self.tracking.observer = lambda s: notify.advancement(
-                s.current_phase, s.advancement, int(time.time() - s.t0)
-            )
-            progress.install(self.tracking)
-            notify.startup()
-            self.thread = threading.Thread(target=self._run, daemon=True)
-            self.thread.start()
-            return True
+            for run in self.queue:
+                if run.id == run_id:
+                    self.queue.remove(run)
+                    run_registry.write_manifest(run, status="cancelled")
+                    return True
+            if self.current and self.current.id == run_id and self.tracking:
+                self.tracking.cancelled = True
+                return True
+        return False
 
-    def _run(self) -> None:
-        """Exécute le pipeline. N'échoue JAMAIS vers l'appelant HTTP."""
+    # --- exécution -----------------------------------------------------------
+
+    def _loop(self) -> None:
+        while True:
+            with self.lock:
+                while not self.queue:
+                    self.wake.wait()
+                run = self.queue.pop(0)
+                self.current = run
+            try:
+                self._execute(run)
+            finally:
+                with self.lock:
+                    self.current, self.tracking, self.started_at = None, None, None
+
+    def _execute(self, run: Run) -> None:
+        """Exécute UN run. N'échoue JAMAIS vers l'appelant HTTP."""
+        tracking = progress.Progress(active=True)
+        # Le bipeur écoute les changements de phase. Il ne reçoit que le
+        # LIBELLÉ de phase et le pourcentage — jamais les notes, qui citent
+        # la bible et le chapitre (cf. notify.py).
+        tracking.observer = lambda s: notify.advancement(
+            s.current_phase, s.advancement, int(time.time() - s.t0))
+        with self.lock:
+            self.tracking, self.started_at = tracking, time.time()
+        progress.install(tracking)
+        run_registry.write_manifest(run, status="generating",
+                                    started=time.strftime("%Y-%m-%dT%H:%M:%S"))
+        notify.startup(f"chapitre {run.chapter}")
+        clocks = run_registry.Clocks()
+        saved = {k: getattr(settings, k) for k in run.overrides}
+        for k, v in run.overrides.items():
+            setattr(settings, k, v)
+        model_client.recording = []
+        retrieval.clear_routing()
+        final: dict | None = None
+        status, error = "error", None
         try:
-            # Le préflight est le PREMIER NŒUD du graphe ; son refus ne doit
-            # pas devenir une erreur réseau pour le deck : il devient un état
-            # `error` que le deck traite comme « pas prêt », donc un fallback
-            # silencieux, tandis que la raison m'est rapportée telle quelle.
-            # `timer=True` : c'est la voie de la scène, celle qui court contre
-            # le compteur du deck. Ici la durée est l'enjeu, donc un swap saturé
-            # redevient bloquant — au contraire de l'outillage de calibration,
-            # qui juge de la prose et se moque des secondes.
-            # `render=True` : le DERNIER nœud écrit `chapitre.md` puis rend le
-            # WAV ; un échec de voix laisse le chapitre servi et l'audio absent.
+            # Le préflight est le PREMIER NŒUD du graphe ; son refus devient un
+            # état `error` que le deck traite comme « pas prêt ». `timer=True` :
+            # c'est la voie de la scène. `narrative_state=True` : l'état du
+            # chapitre est régénéré et indexé avant le premier appel.
+            # `render=True` : le dernier nœud écrit chapitre.md puis le WAV dans
+            # le dossier du run ; un échec de voix laisse le chapitre servi.
             graph = build_graph()
             final = graph.invoke(
-                {**load_chapter(STAGE_CHAPTER).state(),
+                {**load_chapter(run.chapter).state(seed=run.seed),
                  "preflight": {"strict": True, "timer": True},
-                 "render": True},
+                 "narrative_state": True,
+                 "render": True,
+                 "artifacts_dir": str(run.dir)},
                 config={"recursion_limit": 50},
             )
-            audio = final.get("audio")
-            with self.lock:
-                self.result = {
-                    "audio": audio,
-                    "scenes": len(final.get("repaired") or []),
-                    "warnings": final.get("warnings") or [],
-                    "coherence": final.get("coherence") or "",
-                    "plan_report": final.get("plan_report") or "",
-                }
-                self.status = "ready"
-                self.finished_at = time.time()
+            status = "ready"
             progress.note("chapitre prêt")
-            notify.ready(int(self.finished_at - self.started_at),
-                        len(final.get("repaired") or []),
-                        (audio or {}).get("audio_s"))
+            notify.ready(int(time.time() - self.started_at),
+                         len(final.get("repaired") or []),
+                         (final.get("audio") or {}).get("audio_s"))
         except progress.Cancelled:
-            with self.lock:
-                self.status = "idle"       # la machine redevient disponible
-                self.finished_at = time.time()
+            status = "cancelled"
             progress.note("génération annulée")
             notify.cancelled()
         except PreflightError as exc:
             # Le message de préflight vient de NOUS, sans contenu d'œuvre — mais
             # c'est un mode d'emploi de plusieurs lignes, illisible sur une
             # montre : le bipeur n'en reçoit que la première.
-            self._fail(f"préflight refusé : {exc}", kind="préflight",
-                          short=str(exc).splitlines()[1].strip(" -") if
-                          len(str(exc).splitlines()) > 1 else str(exc))
+            error = f"préflight refusé : {exc}"
+            lines = str(exc).splitlines()
+            self._fail(error, kind="préflight",
+                       short=lines[1].strip(" -") if len(lines) > 1 else str(exc))
         except Exception as exc:                       # noqa: BLE001
             # Large volontairement : sur scène, une exception non prévue doit
             # produire un fallback propre, pas un traceback dans un thread.
-            self._fail(f"{type(exc).__name__} : {exc}",
-                          kind=type(exc).__name__, short=str(exc))
+            error = f"{type(exc).__name__} : {exc}"
+            self._fail(error, kind=type(exc).__name__, short=str(exc))
         finally:
-            if self.tracking:
-                self.tracking.end()
+            calls = model_client.recording
+            model_client.recording = None
+            for k, v in saved.items():
+                setattr(settings, k, v)
+            tracking.end()
+            try:
+                run_registry.record_result(
+                    run, final, clocks=clocks.read(), calls=calls,
+                    collections=retrieval.routing(), status=status, error=error)
+            except Exception as exc:                   # noqa: BLE001
+                progress.note(f"manifeste non écrit : {exc}")
 
-    def _fail(self, reason: str, *, kind: str = "erreur",
-                 short: str = "") -> None:
-        with self.lock:
-            self.status = "error"
-            self.error = reason
-            self.finished_at = time.time()
+    def _fail(self, reason: str, *, kind: str = "erreur", short: str = "") -> None:
         progress.note(f"ÉCHEC : {reason}")
         notify.failure(kind, short or reason)
 
-    def cancel(self) -> bool:
-        """Demande l'arrêt du job en cours. Vrai s'il y avait quelque chose.
-
-        Sortie de secours d'opérateur, née d'une interaction que le deck ne
-        pouvait pas voir : sa politique de reprise re-POSTe une fois sur
-        `phase: error` à moins de trois minutes du décompte. Le pipeline repart
-        alors pour dix-sept minutes — bien après la fin du talk — et notre garde
-        409 bloquerait le mode acteur pendant tout ce temps, précisément au
-        moment où on veut le montrer. L'arrêt prend effet à la frontière de nœud
-        suivante, donc au pire après l'appel modèle en cours.
-        """
-        with self.lock:
-            if self.status != "generating" or not self.tracking:
-                return False
-            self.tracking.cancelled = True
-            return True
-
     # --- lecture -------------------------------------------------------------
 
-    def snapshot(self) -> dict:
-        """Charge utile de `GET /status`.
+    def snapshot(self, run: Run) -> dict:
+        """Charge utile de `GET /runs/<id>/status`.
 
-        `phase` et `ready` sont les deux champs du contrat gelé ; tout le reste
-        est additif, et le deck peut l'ignorer sans rien perdre.
+        En mémoire pour le run en cours (le puits de progression) et les runs
+        en file ; depuis le manifeste pour les runs terminés — le serveur ne
+        garde aucun chapitre en mémoire (ADR-0005).
         """
         with self.lock:
-            status, error = self.status, self.error
-            start, end = self.started_at, self.finished_at
-            tracking = self.tracking
-        base = tracking.snapshot() if tracking else {
-            "phase": "generating", "ready": False, "progress": 0.0,
-            "label": "", "detail": "", "elapsed_s": 0,
-            "budget_s": int(settings.stage_budget_min * 60), "gen_toks": 0, "notes": [],
-        }
-        # Projection sur `GenStatus` du deck. On lui dit `error` franchement :
-        # son type le prévoit, et le savoir tôt lui permet de basculer sur ses
-        # assets embarqués au lieu d'attendre un timeout. Le silence côté salle
-        # est garanti par le deck, pas par un mensonge de notre part.
-        # `idle` est dit franchement, comme `error` : c'est une valeur de leur
-        # `GenStatus`, et prétendre « generating » avant tout lancement — ou
-        # après une annulation — laisserait le deck attendre un chapitre que
-        # personne n'écrit.
-        # Pendant la génération, la phase vient du puits (« Restitution » se
-        # projette en `tts`) : le rendu est un nœud du graphe, pas un état du job.
-        base["phase"] = {
-            "ready": "ready", "error": "error", "idle": "idle",
-        }.get(status, base["phase"] if tracking else "generating")
-        base["ready"] = status == "ready" and chapter_path().exists()
-        base["state"] = status
-        base["progress"] = 1.0 if status == "ready" else base["progress"]
-        if error:
-            base["error"] = error
-        if start and end:
-            base["duration_s"] = int(end - start)
-        return base
+            current = self.current
+            tracking, started = self.tracking, self.started_at
+            position = next((i for i, r in enumerate(self.queue) if r.id == run.id), None)
+        base = {"run_id": run.id, "chapter": run.chapter, "seed": run.seed}
+        if current and current.id == run.id and tracking:
+            snap = tracking.snapshot()
+            snap.update(base)
+            snap["state"] = "generating"
+            snap["ready"] = False
+            if started:
+                snap["elapsed_s"] = int(time.time() - started)
+            return snap
+        if position is not None:
+            return {**base, "phase": "queued", "state": "queued", "ready": False,
+                    "progress": 0.0, "label": "", "detail": f"en file, position {position + 1}",
+                    "elapsed_s": 0, "budget_s": int(settings.stage_budget_min * 60),
+                    "gen_toks": 0, "notes": [], "position": position + 1}
+        manifest = run_registry.load_run(run.dir)
+        m = manifest.manifest if manifest else run.manifest
+        state = m.get("status", "unknown")
+        snap = {**base, "state": state,
+                # `phase` et `ready` sont les deux champs du contrat du deck.
+                "phase": {"ready": "ready", "error": "error", "cancelled": "idle",
+                          "queued": "queued"}.get(state, "generating"),
+                "ready": state == "ready" and run.chapter_path.exists(),
+                "progress": 1.0 if state == "ready" else 0.0,
+                "label": "", "detail": "", "gen_toks": (m.get("metrics") or {}).get("gen_toks", 0),
+                "budget_s": int(settings.stage_budget_min * 60),
+                "notes": [], "elapsed_s": int((m.get("timings") or {}).get("wall_s", 0))}
+        if m.get("error"):
+            snap["error"] = m["error"]
+        if m.get("timings"):
+            snap["duration_s"] = int(m["timings"].get("wall_s", 0))
+        if m.get("audio") is not None:
+            snap["audio_s"] = m["audio"].get("audio_s")
+        return snap
 
 
-JOB = Job()
+WORKER = Worker()
 
 
 # --- Mode acteur -------------------------------------------------------------
@@ -436,13 +455,13 @@ class Handler(BaseHTTPRequestHandler):
         mime = _TYPES.get(target.suffix.lower(), "application/octet-stream")
         self._serve_static(target, mime)
 
-    def _event_stream(self) -> None:
-        """Flux SSE des instantanés de `/status` — le compteur du deck y lit les
-        étapes en direct (phase, label, detail, notes, progress).
+    def _event_stream(self, run: Run) -> None:
+        """Flux SSE des instantanés de `/runs/<id>/status` — le compteur du deck
+        y lit les étapes en direct (phase, label, detail, notes, progress).
 
         On N'UTILISE PAS `_repondre` : il force `Content-Length` et un write
         unique. On ouvre la réponse à la main, en `text/event-stream`, et on
-        pousse un snapshot `JOB.instantane()` toutes les ~1 s. Chaque événement
+        pousse un snapshot `WORKER.snapshot(run)` toutes les ~1 s. Chaque événement
         est ABSOLU (pas incrémental) : une reconnexion reprend l'état courant,
         aucun `Last-Event-ID` nécessaire.
 
@@ -461,12 +480,12 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         try:
             while True:
-                snap = JOB.snapshot()
+                snap = WORKER.snapshot(run)
                 self.wfile.write(b"data: "
                                  + json.dumps(snap, ensure_ascii=False).encode()
                                  + b"\n\n")
                 self.wfile.flush()
-                if snap.get("state") in ("ready", "error", "idle"):
+                if snap.get("state") in run_registry.TERMINAL or snap.get("state") == "unknown":
                     break
                 time.sleep(1)
         except (BrokenPipeError, ConnectionResetError):
@@ -524,13 +543,13 @@ class Handler(BaseHTTPRequestHandler):
         # machine. On refuse franchement plutôt que de laisser découvrir la
         # latence en direct. Conséquence de planning : la démo d'acteur se joue
         # AVANT le lancement du chapitre, ou APRÈS sa récolte.
-        if JOB.status == "generating":
+        if WORKER.busy:
             self._json(409, {
                 "error": "génération en cours",
                 "detail": "Le mode acteur et la génération partagent le même "
                           "modèle ; la machine n'en tient qu'un. Réessayer "
                           "après la récolte du chapitre.",
-                "state": JOB.status,
+                "state": "generating",
             })
             return
 
@@ -577,43 +596,131 @@ class Handler(BaseHTTPRequestHandler):
             "turns": len(session.metrics),
         })
 
+    # --- runs (ADR-0005) -----------------------------------------------------
+
+    _RUN_ID = run_registry.RUN_ID
+    _LEGACY = ("/generate", "/status", "/events", "/chapter", "/audio", "/cancel")
+
+    def _generate(self) -> None:
+        """`POST /generate {chapter, seed?, overrides?}` → 202 {run_id}.
+
+        La charge utile est OBLIGATOIRE : le chapitre nomme une spécification
+        existante, la graine est aléatoire par défaut et consignée, les
+        overrides sont une liste blanche de clés de configuration.
+        """
+        payload_dict = self._json_body()
+        if not payload_dict or "chapter" not in payload_dict:
+            self._json(400, {"error": "charge utile requise : {chapter, seed?, overrides?}",
+                             "chapters": sorted(chapter_dirs())})
+            return
+        try:
+            chapter = int(payload_dict["chapter"])
+            spec = load_chapter(chapter)
+        except (TypeError, ValueError, ChapterSpecError) as exc:
+            self._json(400, {"error": f"chapitre invalide : {exc}",
+                             "chapters": sorted(chapter_dirs())})
+            return
+        seed = payload_dict.get("seed")
+        if seed is not None and not isinstance(seed, int):
+            self._json(400, {"error": "seed : entier attendu"})
+            return
+        try:
+            run = run_registry.create_run(
+                chapter, spec.slug, seed=seed if seed is not None else random.randrange(1, 10**6),
+                overrides=payload_dict.get("overrides") or {})
+        except run_registry.RunError as exc:
+            self._json(400, {"error": str(exc)})
+            return
+        position = WORKER.submit(run)
+        self._json(202, {"accepted": True, "run_id": run.id, "chapter": chapter,
+                         "seed": run.seed, "position": position,
+                         "state": "generating" if position == 0 else "queued"})
+
+    def _run_of(self, token: str) -> Run | None:
+        """The run named in a path (`latest` or a whitelisted id), else None."""
+        if token == "latest":
+            return run_registry.latest_run()
+        if not self._RUN_ID.match(token):
+            return None
+        return run_registry.find_run(token)
+
+    def _runs_route(self, route: str, method: str) -> None:
+        pieces = [m for m in route[len("/runs"):].split("/") if m]
+        if not pieces:
+            if method != "GET":
+                self._json(404, {"error": "route inconnue"})
+                return
+            self._json(200, {"runs": [
+                {"run_id": r.id, "chapter": r.chapter, "seed": r.seed,
+                 "state": WORKER.snapshot(r)["state"], "created": r.created}
+                for r in run_registry.list_runs()]})
+            return
+        token, rest = pieces[0], pieces[1:]
+        if token != "latest" and not self._RUN_ID.match(token):
+            self._json(400, {"error": "identifiant de run invalide"})
+            return
+        run = self._run_of(token)
+        if run is None:
+            self._json(404, {"error": "run inconnu" if token != "latest" else "aucun run"})
+            return
+        leaf = rest[0] if rest else "status"
+        if method == "POST":
+            if leaf == "cancel":
+                stopped = WORKER.cancel(run.id)
+                self._json(200, {"cancelled": stopped, "run_id": run.id,
+                                 "detail": None if stopped else "ce run ne tourne pas"})
+            else:
+                self._json(404, {"error": "route inconnue"})
+            return
+        if leaf == "status":
+            self._json(200, WORKER.snapshot(run))
+        elif leaf == "events":
+            self._event_stream(run)
+        elif leaf == "chapter":
+            self._file(run.chapter_path, "text/markdown; charset=utf-8")
+        elif leaf == "audio":
+            self._file(run.audio_path, "audio/wav")
+        elif leaf == "prompts":
+            self._file(run.prompts_path, "text/markdown; charset=utf-8")
+        elif leaf == "manifest":
+            self._file(run.dir / "manifest.yaml", "application/yaml; charset=utf-8")
+        else:
+            self._json(404, {"error": "route inconnue"})
+
     def do_POST(self) -> None:             # noqa: N802
         route = self.path.split("?")[0].rstrip("/") or "/"
         if route == "/chat":
             self._chat()
-            return
-        if route == "/cancel":
-            stopped = JOB.cancel()
-            self._json(200, {"cancelled": stopped, "state": JOB.status,
-                             "detail": None if stopped else "aucun job en cours"})
-            return
-        if route != "/generate":
+        elif route == "/generate":
+            self._generate()
+        elif route.startswith("/runs"):
+            self._runs_route(route, "POST")
+        elif route in self._LEGACY:
+            self._gone(route)
+        else:
             self._json(404, {"error": "route inconnue"})
-            return
-        # On lit et jette le corps : le contrat le dit « minimal ou vide », et
-        # laisser des octets non lus dans la socket casse le keep-alive.
-        size = int(self.headers.get("Content-Length") or 0)
-        if size:
-            self.rfile.read(size)
-        demarre = JOB.launch()
-        # 202 dans les DEUX cas : « accepté », que ce POST ait démarré le job ou
-        # qu'il ait trouvé le travail déjà en route. C'est ça, l'idempotence vue
-        # du deck — qui ne doit pas avoir à distinguer.
-        self._json(202, {"accepted": True, "started": demarre,
-                         "state": JOB.status})
+
+    def _gone(self, route: str) -> None:
+        # Les routes singleton du contrat de la keynote (ADR-0005 les remplace).
+        # 410 et non un repli silencieux sur le deck : un client non migré doit
+        # le savoir tout de suite.
+        self._json(410, {"error": f"{route} n'existe plus",
+                         "detail": "POST /generate {chapter, seed?} puis /runs/<id>/status, "
+                                   "/events, /chapter, /audio, /prompts, POST /runs/<id>/cancel "
+                                   "— ou /runs/latest/…"})
 
     def do_GET(self) -> None:              # noqa: N802
         route = self.path.split("?")[0].rstrip("/") or "/"
-        if route == "/status":
-            self._json(200, JOB.snapshot())
-        elif route == "/events":
-            self._event_stream()
-        elif route == "/chapter":
-            self._file(chapter_path(), "text/markdown; charset=utf-8")
-        elif route == "/audio":
-            self._file(audio_path(), "audio/wav")
+        if route.startswith("/runs"):
+            self._runs_route(route, "GET")
+        elif route in self._LEGACY:
+            self._gone(route)
         elif route == "/health":
-            self._json(200, {"ok": True, "machine": report()})
+            with WORKER.lock:
+                active, queued = WORKER.current, len(WORKER.queue)
+            self._json(200, {"ok": True, "machine": report(),
+                             "active": active.id if active else None, "queued": queued,
+                             "chapters": sorted(chapter_dirs())})
         elif route == "/characters":
             self._json(200, {"characters": list_characters()})
         elif route == "/sessions":
@@ -642,11 +749,11 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
-    settings.output_dir.mkdir(parents=True, exist_ok=True)
+    settings.runs_dir.mkdir(parents=True, exist_ok=True)
     server = ThreadingHTTPServer((settings.api_host, settings.api_port), Handler)
     print(f"[api] écoute sur http://{settings.api_host}:{settings.api_port}")
     print(f"[api] machine : {report()}")
-    print(f"[api] artefacts : {settings.output_dir}")
+    print(f"[api] runs : {settings.runs_dir} — chapitres : {sorted(chapter_dirs())}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

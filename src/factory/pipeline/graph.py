@@ -34,6 +34,7 @@ from factory.text import delint, ends_mid_sentence, sentence_ends, trim_to_sente
 from factory.pipeline.qa import repair, derive_facts, check_facts, check_plan
 from factory.chapter_spec.model import EMPTY_ENTRY, EntrySpec
 from factory.pipeline import scorers
+from factory.pipeline.nodes.narrative_state import narrative_state_node
 from factory.pipeline.nodes.preflight import preflight_node
 from factory.pipeline.nodes.render import render_node
 from factory.settings import settings
@@ -121,6 +122,9 @@ class ChapterState(TypedDict):
     drift_bank: dict      # {approaches: [...], facts: [...]} for the drift draw
     # --- machine nodes (ADR-0002, item 5) ------------------------------------
     preflight: object     # None/False: skipped; True or {strict, timer}: checked first
+    narrative_state: bool  # generate and index the chapter's narrative state chunk
+    narrative_state_path: str
+    artifacts_dir: str    # the run directory the render node writes into ("" : output/)
     preflight_warnings: list[str]
     render: bool          # write chapitre.md and render the WAV after coherence
     assembly: dict        # kwargs of assembly.assemble (switch mode, imposed fall)
@@ -498,6 +502,7 @@ def plan_node(state: ChapterState) -> dict:
         system = assemble_system_prompt(
             characters=state["characters"], scene_brief=state["brief"],
             rag=rag, style=(), include_scenes=False,
+            chapter=state.get("chapter"),
         )
         text, m = chat(system, _plan_user(state["brief"], facts, feedback),
                        num_predict=500, temperature=0.5,
@@ -606,6 +611,7 @@ def write_node(state: ChapterState) -> dict:
     system = assemble_system_prompt(
         characters=state["characters"], scene_brief=beat,
         include_scenes=False,  # continuité gérée par le threading explicite ci-dessous
+        chapter=state.get("chapter"),
         rag=state.get("rag", True),
     )
 
@@ -1829,6 +1835,7 @@ def review_node(state: ChapterState) -> dict:
     system = assemble_system_prompt(
         characters=state["characters"], scene_brief=state["brief"],
         include_scenes=False, rag=state.get("rag", True),
+        chapter=state.get("chapter"),
         style=REVIEW_STYLE, epistemic=False,
     )
     for i, scene in enumerate(state["scenes"]):
@@ -2067,6 +2074,9 @@ def build_graph():
     # The machine gate opens the graph (ADR-0002, item 5): a throttled machine
     # is refused before any model call, from the API and the CLI alike.
     g.add_node("preflight", preflight_node)
+    # The narrative state of this chapter, generated from the author's table
+    # and indexed before the first model call (ADR-0002, step 6).
+    g.add_node("narrative_state", narrative_state_node)
     g.add_node("plan", plan_node)
     g.add_node("write", write_node)
     g.add_node("review", review_node)
@@ -2074,7 +2084,8 @@ def build_graph():
     g.add_node("coherence", coherence_node)
 
     g.add_edge(START, "preflight")
-    g.add_edge("preflight", "plan")
+    g.add_edge("preflight", "narrative_state")
+    g.add_edge("narrative_state", "plan")
     g.add_node("accumulate", accumulate_node)
     g.add_node("drift", drift_node)
     g.add_edge("plan", "write")

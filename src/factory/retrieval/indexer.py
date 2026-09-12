@@ -77,7 +77,7 @@ NUMBERED_SECTION = re.compile(r"^\s*(\d+)\.\s+(.+)$")
 # chronologie firewallée. Une liste noire laisserait passer la prochaine clé
 # qu'on ajoutera sans y penser.
 ALLOWED_METADATA = ("doc_id", "type", "layer", "version", "section",
-                       "source_file", "nom")
+                       "source_file", "nom", "chapter")
 
 # TRADUCTION DES NOMS À L'INDEXATION (item 8, session 5). Le prénom reste dans
 # la bible — c'est du canon — mais il disparaît du contexte de génération : au
@@ -134,6 +134,20 @@ def split_sections(body: str) -> list[tuple[str, str]]:
     if current_lines and "".join(current_lines).strip():
         sections.append((current_title, "\n".join(current_lines).strip()))
     return sections
+
+
+def source_label(path: Path) -> str:
+    """`source_file` metadata: the path relative to the bible; a generated file
+    kept elsewhere (`GENERATED_DIR`) is labelled as if under `bible/generated/`,
+    which is where the seal manifest expects it."""
+    try:
+        return str(path.relative_to(BIBLE_DIR))
+    except ValueError:
+        pass
+    try:
+        return f"generated/{path.relative_to(settings.generated_dir)}"
+    except ValueError:
+        return path.name
 
 
 def excluded(path: Path) -> bool:
@@ -223,7 +237,12 @@ def index_file(path: Path, ollama: httpx.Client) -> tuple[list[str], list[str], 
     doc_id = post.get("doc_id") or post.get("id") or slugify(path.stem)
     doc_meta = scalar_metadata(dict(post.metadata))
     doc_meta["doc_id"] = doc_id
-    doc_meta["source_file"] = str(path.relative_to(BIBLE_DIR))
+    doc_meta["source_file"] = source_label(path)
+    # A chapter-scoped file (the generated narrative state of chapter N) keeps
+    # the sheet's section id and adds `::chNN`: retrieval asks for the chunk of
+    # its chapter first and falls back to the sheet's own section.
+    chapter = post.get("chapter")
+    suffix = f"::ch{int(chapter):02d}" if chapter is not None else ""
 
     # Une fiche de personnage n'expose que ses sections numérotées ; les autres
     # sont des notes de travail (celle de la fiche Judith cite la chronologie
@@ -265,7 +284,7 @@ def index_file(path: Path, ollama: httpx.Client) -> tuple[list[str], list[str], 
         # La traduction s'applique au document COMPLET, label compris : le
         # préfixe `[fiche-judith / …]` est servi au modèle comme le reste.
         document = translate_names(f"[{doc_id} / {title}]\n{cleaned}")
-        ids.append(f"{doc_id}::{section}")
+        ids.append(f"{doc_id}::{section}{suffix}")
         documents.append(document)
         metadatas.append({**doc_meta, "section": section})
     return ids, documents, metadatas

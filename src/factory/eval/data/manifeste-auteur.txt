@@ -9,3 +9,8 @@
 surface/verite-de-surface.md
 surface/objets.md
 fiche-judith.md
+
+# Générés par la fabrique (étape 6) : l'état narratif par chapitre, dérivé de la
+# table de pilotage côté perçu, et les chapitres PROMUS par l'auteur.
+generated/narrative-state/ch-*.md
+scenes/ch-*.md

@@ -55,6 +55,7 @@ class FakeModel:
         text = self._reply(role, system, user)
         self.calls.append(Call(role, system, user, model, num_predict,
                                temperature, text))
+        self._record(model, system, user, num_predict, temperature)
         if on_token:
             on_token(text, 1)
         return text, self._metrics(text, num_predict, num_ctx)
@@ -67,7 +68,18 @@ class FakeModel:
         text = self._reply(role, system, user)
         self.calls.append(Call(role, system, user, model, num_predict,
                                temperature, text))
+        self._record(model, system, user, num_predict, temperature)
         return text, self._metrics(text, num_predict, num_ctx)
+
+    @staticmethod
+    def _record(model, system, user, num_predict, temperature) -> None:
+        """Mirror the real client's `recording` (the run's prompts.md)."""
+        from factory.infra.ollama import client
+
+        if client.recording is not None:
+            client.recording.append({"model": model, "system": system, "user": user,
+                                     "turns": 1, "num_predict": num_predict,
+                                     "temperature": temperature, "gen_toks": 0, "wall_s": 0.0})
 
     def by_role(self, role: str) -> list[Call]:
         return [c for c in self.calls if c.role == role]

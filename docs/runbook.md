@@ -220,26 +220,48 @@ The openspec CLI collects anonymous usage statistics by default; set
 ### Command line (measurement, tuning)
 
 ```bash
-factory generate                       # chapter 7, preflight, chapter + WAV in output/
-factory generate --seed 424242         # replayable drift draw and best-of
+factory generate                       # chapter 7: one run under experiments/runs/
+factory generate --chapter 2 --seed 424242         # replayable drift draw and best-of
+factory generate --chapters 2,7                    # several chapters back to back
 factory generate --no-render --quiet   # text only, no countdown (measure at its truest)
-factory generate --brief "Une entrée du carnet…" --characters judith   # ad hoc chapter, generated plan
+factory generate --brief "Une entrée du carnet…" --characters judith   # ad hoc, generated plan
+factory runs                           # the runs, newest first
 ```
 
-The graph does everything: preflight (first node, strict and timed), plan,
-writing, gestures, review, repair, coherence, then the render node writes
-`output/chapitre.md` and `output/chapitre.wav`. The profiling report at the
-end is the measure that counts: total time against the 25-minute budget,
-tokens per call, the context alarms (`ctx_need`, `ctx_truncated`).
+Every generation is a run: a directory
+`experiments/runs/<YYYYMMDD-HHMMSS>-chNN-<slug>/` with `manifest.yaml`
+(chapter, seed, commit, resolved configuration, status, both clocks, model
+metrics, warnings), `chapitre.md`, `chapitre.wav`, `prompts.md` (every prompt
+served) and `lint.md`. The graph does everything: preflight (first node,
+strict and timed), the narrative state of the chapter (generated from the
+author's table into `bible/generated/narrative-state/ch-NN.md` and indexed),
+plan, writing, gestures, review, repair, coherence, then the render node
+writes the chapter and the WAV into the run directory. The profiling report
+at the end is the measure that counts: total time against the 25-minute
+budget, tokens per call, the context alarms (`ctx_need`, `ctx_truncated`).
 
 `--skip-preflight` turns the gate into warnings (dev only, NEVER on stage);
-`--no-preflight` skips the probes (a non-macOS machine, tests). `--out DIR`
-moves the artifacts. Exit code 1 on a preflight refusal.
+`--no-preflight` skips the probes (a non-macOS machine, tests);
+`--no-narrative-state` skips the state regeneration (no ChromaDB);
+`--runs-dir DIR` moves the registry. Exit code 1 on a preflight refusal;
+`--chapters` refuses the whole series if one chapter has no spec, and stops
+at the first failed run.
 
 A chapter is generated from its `chapters/NN-slug/spec.yaml`; chapters 2 and
-7 have one. A chapter without a spec makes `factory generate --chapter N` say
-so and stop. When the owner's brief carries workshop vocabulary the lint bans
+7 have one. When the owner's brief carries workshop vocabulary the lint bans
 in output, the command reports it and goes on: the brief is the author's.
+
+### Promote a chapter
+
+Generated chapters are candidates. After reading one, the owner promotes it:
+
+```bash
+factory promote 20260912-143022-ch07-anniversaire     # → bible/scenes/ch-07-<run>.md, indexed
+```
+
+Only promoted scenes enter semantic retrieval; nothing from an unpromoted run
+reaches the next chapter. `--no-index` copies without ChromaDB, `--force`
+replaces a scene already promoted from that run.
 
 **Launch in the FOREGROUND.** A detached launch (`&`, `nohup`) inherits
 `nice 5` under zsh's `BG_NICE`; against an indexing daemon the generation
@@ -268,12 +290,25 @@ factory serve                                 # listens on 0.0.0.0:8420
 ```
 
 ```bash
-curl -X POST http://MACHINE:8420/generate     # 202, idempotent
-curl  http://MACHINE:8420/status              # progress
-curl  http://MACHINE:8420/chapter -o chapitre.md
-curl  http://MACHINE:8420/audio   -o chapitre.wav
-curl -X POST http://MACHINE:8420/cancel       # emergency exit
+curl -X POST http://MACHINE:8420/generate -H 'Content-Type: application/json' \
+     -d '{"chapter": 7}'                                   # 202 {run_id, position}
+curl  http://MACHINE:8420/runs                             # newest first
+curl  http://MACHINE:8420/runs/<run_id>/status             # progress ({phase, ready, progress, …})
+curl  http://MACHINE:8420/runs/<run_id>/events             # the same, as SSE, closes when terminal
+curl  http://MACHINE:8420/runs/<run_id>/chapter -o chapitre.md
+curl  http://MACHINE:8420/runs/<run_id>/audio   -o chapitre.wav
+curl  http://MACHINE:8420/runs/<run_id>/prompts            # every prompt served to the model
+curl -X POST http://MACHINE:8420/runs/<run_id>/cancel      # emergency exit
+curl  http://MACHINE:8420/runs/latest/status               # `latest` aliases the newest run
 ```
+
+The payload is mandatory: `chapter` names a spec, `seed` (optional) is
+recorded, `overrides` (optional) is a whitelist of configuration knobs
+(`beats_n`, `num_ctx`, `gesture_temperature`, the model names…). A `POST`
+during a run is queued, not refused: the machine holds one model, runs
+execute one after the other. The keynote's singleton routes (`/status`,
+`/chapter`, `/audio`, `/events`, `/cancel`) answer `410` with the pointer to
+`/runs/…` (ADR-0005; the deck is updated by the owner).
 
 Live P90 at the keynote: ~6 min for chapter 7. Rehearsal measured 7.6 min
 end to end (5 min generation, 2.6 min voice, cold engine at 0.60× real time).
@@ -304,8 +339,8 @@ other.
 Produce them BEFORE the day and drop them in the deck repository:
 
 ```bash
-curl http://localhost:8420/chapter -o public/fallback/chapitre.md
-curl http://localhost:8420/audio   -o public/fallback/chapitre.wav
+curl http://localhost:8420/runs/latest/chapter -o public/fallback/chapitre.md
+curl http://localhost:8420/runs/latest/audio   -o public/fallback/chapitre.wav
 ```
 
 ## 5. The day
@@ -318,10 +353,10 @@ curl http://localhost:8420/audio   -o public/fallback/chapitre.wav
 | H-20 | `caffeinate -is &`, then `factory doctor`: all green |
 | H-15 | `factory serve` in the FOREGROUND, Telegram variables exported; preheat the TTS |
 | H-10 | Blank test: `POST /chat` on a character, one reply must come back |
-| Section 3 | The deck sends `POST /generate`. The countdown starts |
+| Section 3 | The deck sends `POST /generate {chapter: 7}` and keeps the `run_id`. The countdown starts |
 | During | The watch receives the beats. On `❌ ÉCHEC`, prepare plan B |
-| Section 7 | The deck collects `/chapter` and `/audio` by itself |
-| After | `POST /cancel` if a generation lingers (it would block the actor mode) |
+| Section 7 | The deck collects `/runs/<id>/chapter` and `/runs/<id>/audio` by itself |
+| After | `POST /runs/<id>/cancel` if a generation lingers (it would block the actor mode) |
 
 Actor mode does not coexist with generation: `POST /chat` answers `409`
 while a chapter is being written. Play it before the launch or after the
@@ -335,9 +370,10 @@ collection.
 | Preflight: saturated swap (timing mode) | A run already ran since boot | `ollama stop <model>`, then `sudo purge`; reboot last |
 | Preflight: macOS maintenance | Spotlight / Photos indexing | Wait, or §7 |
 | Very slow generation, multi-minute holes | Maintenance daemon + background process | Relaunch in the foreground, machine idle |
-| `/chapter` 204 | Generation not finished, or failed | `GET /status` → `error` field |
-| `/audio` 204 but chapter present | TTS failed; the chapter stays valid | Deck falls back to embedded audio; nothing to do |
-| `POST /chat` 409 | A chapter is generating | Wait for collection, or `POST /cancel` |
+| `/runs/<id>/chapter` 204 | Generation not finished, or failed | `GET /runs/<id>/status` → `error` field |
+| `/runs/<id>/audio` 204 but chapter present | TTS failed; the chapter stays valid | Deck falls back to embedded audio; nothing to do |
+| `POST /chat` 409 | A chapter is generating | Wait for collection, or `POST /runs/<id>/cancel` |
+| `POST /generate` 400 | No payload, or a chapter without spec | `{"chapter": 7}`; `GET /health` lists the chapters |
 | ChromaDB unreachable | Podman machine stopped after reboot | `podman machine start`, `podman-compose up -d chromadb` |
 | Run reports 374 s of compute for 45 min of wall time | Machine slept (battery Maintenance Sleep) | Plug in; the run is NOT COMPARABLE, redo it |
 

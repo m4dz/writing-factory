@@ -19,6 +19,20 @@ call. Absent or false, the node does nothing.
 - **WHEN** the state carries no `preflight` field
 - **THEN** no probe runs and the plan node is the first to act
 
+### Requirement: The narrative state is generated second
+
+The graph SHALL carry a `narrative_state` node after preflight that, when the
+state field `narrative_state` is true, derives the state of the chapter being
+written from the author's pilot table (row N-1, perceived side only), writes
+`bible/generated/narrative-state/ch-NN.md`, indexes it as
+`{doc_id}::etat_narratif_courant::chNN` with the metadata `chapter: N`, and
+returns `narrative_state_path`; a chapter beyond the table SHALL note it and
+continue with the sheet alone. Idempotent: an unchanged state is not rewritten.
+
+#### Scenario: Chapter 7 through the API
+- **WHEN** a run of chapter 7 starts
+- **THEN** `ch-07.md` exists, its chunk is in the author collection, and the writing prompt serves it instead of the sheet's section 7
+
 ### Requirement: Plan under the bible's facts
 
 The plan node SHALL derive invariant facts from the world chunks of the
@@ -117,9 +131,10 @@ found in the scene and confirmed by the counter-call.
 
 The graph SHALL close with a `render` node that assembles the chapter Markdown
 with both stage markers into `chapter_md` from the state field `assembly`,
-always; when the state field `render` is true it SHALL write
-`output/chapitre.md`, unload the QA model and render `output/chapitre.wav`,
-returning the voice metrics in `audio`. A voice failure SHALL leave the
+always; when the state field `render` is true it SHALL write `chapitre.md`
+into `artifacts_dir` (the run directory; `output/` without a run), unload the
+QA model and render `chapitre.wav` next to it, returning the voice metrics in
+`audio`. A voice failure SHALL leave the
 chapter on disk, set `audio` to None and note it for the operator.
 
 #### Scenario: Voice unavailable

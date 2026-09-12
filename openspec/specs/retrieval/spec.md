@@ -9,8 +9,9 @@ Current behaviour of indexing (`factory.retrieval.indexer`) and context assembly
 
 ### Requirement: The index is derived from the bible under the firewall
 
-Indexing SHALL read only `bible/**/*.md` not starting with `_`, SHALL skip
-`profond/` and `style-auteur.md` entirely, SHALL keep only `[SURFACE]` layer
+Indexing SHALL read only `bible/**/*.md` not starting with `_` (generated
+narrative states and promoted scenes included), SHALL skip `profond/` and
+`style-auteur.md` entirely, SHALL keep only `[SURFACE]` layer
 blocks in mixed files and only numbered sections in character sheets, SHALL
 copy only whitelisted metadata keys, and SHALL translate the narrator's first
 name to "la narratrice" in the indexed text and labels. It SHALL be
@@ -25,6 +26,8 @@ collection.
 
 A chunk SHALL be one `## ` section, id `{doc_id}::{slug}` with the section
 number stripped, document prefixed `[doc_id / Title]`, HTML comments removed.
+A file whose frontmatter carries `chapter: N` SHALL get the suffix `::chNN`
+on its ids and the metadata `chapter`.
 
 #### Scenario: A numbered section
 - **WHEN** the sheet has `## 1. Voix`
@@ -33,9 +36,11 @@ number stripped, document prefixed `[doc_id / Title]`, HTML comments removed.
 ### Requirement: Writing context by deterministic id
 
 The system prompt for writing SHALL include, for each present character, the
-`voix`, `etat_narratif_courant` and `psychologie` chunks fetched by id; fact
-derivation SHALL use `psychologie`, `histoire`, `relations`; acting SHALL use
-the six acting sections. Previous entries SHALL NOT be served during writing.
+`voix`, `etat_narratif_courant` and `psychologie` chunks fetched by id; when
+a chapter is given and `{doc_id}::etat_narratif_courant::chNN` exists it
+SHALL replace the sheet's state chunk. Fact derivation SHALL use
+`psychologie`, `histoire`, `relations`; acting SHALL use the six acting
+sections. Previous entries SHALL NOT be served during writing.
 
 #### Scenario: Writing prompt
 - **WHEN** the system prompt is assembled with RAG for `judith`
@@ -64,8 +69,8 @@ collections it queried.
 ### Requirement: The seal is proven, not presumed
 
 The seal test SHALL audit the content of the author collection against a
-manifest of allowed sources, a lexicon of leak words and a list of deep
-markers, SHALL test the splitter on the narrator sheet, SHALL inject a deep
+manifest of allowed sources (exact paths or globs: generated states,
+promoted scenes), a lexicon of leak words and a list of deep markers, SHALL test the splitter on the narrator sheet, SHALL inject a deep
 chunk as a positive witness and require it to come back before removing it,
 and SHALL fail explicitly on an empty set.
 

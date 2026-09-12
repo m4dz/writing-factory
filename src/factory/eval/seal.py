@@ -20,6 +20,7 @@ lui, un vert ne distingue pas « rien à trouver » de « incapable de trouver �
 Usage : python3 outillage/etancheite.py > rapport-etancheite.md
 """
 
+import fnmatch
 import re
 import sys
 
@@ -114,10 +115,17 @@ def chapter_material(root=CHAPTERS_DIR) -> list[str]:
     return out
 
 
-def chapter_leaks(documents: list[str], material: list[str] | None = None) -> list[str]:
-    """The chapter lines found verbatim inside indexed documents."""
+def chapter_leaks(documents: list[str], material: list[str] | None = None,
+                  metadatas: list[dict | None] | None = None) -> list[str]:
+    """The chapter lines found verbatim inside indexed documents.
+
+    Promoted scenes (`type: scene`) are skipped: a promoted chapter carries
+    its anchor quotation, which the brief also carries, by construction — the
+    owner put it there. Everything else must be free of chapter material."""
     material = chapter_material() if material is None else material
-    body = flatten(" ".join(documents))
+    kept = [d for d, mt in zip(documents, metadatas or [None] * len(documents))
+            if (mt or {}).get("type") != "scene"]
+    body = flatten(" ".join(kept))
     return [line for line in material if line in body]
 
 
@@ -140,7 +148,7 @@ def main(argv: list[str] | None = None) -> int:
             "| id | source | statut |", "|---|---|---|"]
     for i, mt in zip(ids, metas):
         src = (mt or {}).get("source_file", "?")
-        ok = src in MANIFESTO
+        ok = any(fnmatch.fnmatchcase(src, pattern) for pattern in MANIFESTO)
         if not ok:
             failures.append(f"inventaire : `{i}` vient de `{src}`, hors manifeste")
         out.append(f"| `{i}` | `{src}` | {'✓' if ok else '⛔ HORS MANIFESTE'} |")
@@ -245,12 +253,14 @@ def main(argv: list[str] | None = None) -> int:
             "ne le lit jamais. Contrôle : aucune ligne de ces fichiers dans "
             "`auteur` ni dans `sessions`.", ""]
     material = chapter_material()
-    all_docs = list(docs)
+    all_docs, all_metas = list(docs), list(metas)
     try:
-        all_docs += retrieval.sessions_collection().get(include=["documents"])["documents"] or []
+        sessions = retrieval.sessions_collection().get(include=["documents", "metadatas"])
+        all_docs += sessions["documents"] or []
+        all_metas += sessions.get("metadatas") or [None] * len(sessions["documents"] or [])
     except Exception as exc:                          # noqa: BLE001
         out.append(f"- ⚠ collection `sessions` non lue ({type(exc).__name__})")
-    leaked = chapter_leaks(all_docs, material)
+    leaked = chapter_leaks(all_docs, material, all_metas)
     if not material:
         failures.append("chapitres : aucun matériau trouvé sous chapters/ — le contrôle "
                         "porterait sur un ensemble vide")

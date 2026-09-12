@@ -190,16 +190,28 @@ def _without_examples(section: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", _SERVED_EXAMPLE.sub("", section)).strip()
 
 
-def character_context(doc_id: str) -> str:
+STATE_SECTION = "etat_narratif_courant"
+
+
+def character_context(doc_id: str, chapter: int | None = None) -> str:
     """Récupère, par id déterministe, les chunks d'écriture d'un personnage.
 
     Retourne le texte assemblé (déjà préfixé `[doc_id / Titre]` à l'index),
     ou une chaîne vide si le personnage n'est pas encore dans la bible.
+
+    `chapter` : l'état narratif est PAR CHAPITRE (étape 6). Le chunk
+    `{doc_id}::etat_narratif_courant::chNN`, généré par le nœud d'état
+    narratif, est servi s'il existe ; sinon la section 7 de la fiche, comme
+    avant — un chapitre dont l'état n'a pas été généré n'est pas une erreur.
     """
     ids = [f"{doc_id}::{section}" for section in WRITING_SECTIONS]
-    got = _collection().get(ids=ids, include=["documents"])
+    scoped = f"{doc_id}::{STATE_SECTION}::ch{chapter:02d}" if chapter else None
+    asked = ids + ([scoped] if scoped else [])
+    got = _collection().get(ids=asked, include=["documents"])
     # Chroma renvoie les ids trouvés dans l'ordre demandé ; on filtre les absents.
     found = {i: d for i, d in zip(got["ids"], got["documents"])}
+    if scoped and scoped in found:
+        found[f"{doc_id}::{STATE_SECTION}"] = found[scoped]
     blocks = [found[i] for i in ids if i in found]
     return "\n\n".join(blocks)
 
@@ -305,6 +317,7 @@ def assemble_system_prompt(
     rag: bool = True,
     style: tuple[str, ...] = WRITING_STYLE,
     epistemic: bool = True,
+    chapter: int | None = None,
 ) -> str:
     """Construit le prompt système d'une entrée.
 
@@ -335,7 +348,7 @@ def assemble_system_prompt(
         return "\n\n".join(parts)
 
     for doc_id in characters:
-        block = character_context(doc_id)
+        block = character_context(doc_id, chapter)
         if block:
             parts.append(f"=== NARRATRICE : {doc_id} ===\n{block}")
 

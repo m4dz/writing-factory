@@ -35,3 +35,7 @@ experiments/runs/**/*.wav
 .ruff_cache/
 *.egg-info/
 *.egg-info/
+
+# Generated narrative state (derived from the pilot table by the narrative_state
+# node, regenerated at every run): never versioned, always reindexable.
+bible/generated/

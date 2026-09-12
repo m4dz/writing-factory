@@ -1,38 +1,32 @@
-#!/usr/bin/env python3
-"""Génère le chunk 7 (état narratif) de la fiche Judith — item 2, session 5.
+"""The narrative state of chapter N: what chapter N-1 left, told in the
+language of the world, from the author's pilot table.
 
-Le chunk ne COPIE plus la table de pilotage, il la RACONTE en langue du monde.
-C'est tout l'objet du correctif : servi en langue de production (« Régime 1,
-grade 1. Verdict imposé : erreur de relevé. Ratio : commentaire dominant. »),
-il apprenait au modèle à remplir un formulaire — et l'étage B a écrit des
-formulaires. Un contexte en langue de tableau produit de la prose en langue de
-tableau.
+The table (`bible/profond/chronologie-partie-double.md`) is the source; the
+state is a GENERATED artifact, one file per chapter under
+`bible/generated/narrative-state/ch-NN.md`, indexed by the indexer and by the
+`narrative_state` node with the chunk id
+`judith::etat_narratif_courant::chNN` and the metadata `chapter: N`.
+Retrieval serves the chunk of the chapter being written and falls back to
+the sheet's section 7.
 
-Discipline canonique (notes d'outillage §6) : **la table est la source, le
-chunk est un artefact généré**. Jamais l'inverse, jamais d'édition à la main
-entre deux chapitres.
-
-Le chunk décrit l'état au MOMENT OÙ ELLE OUVRE le chapitre N — donc ce que le
-chapitre N-1 a laissé. Écrire l'état du chapitre courant reviendrait à lui
-donner sa propre fin avant de l'avoir écrite.
-
-Usage :
-  python3 outillage/build_etat_narratif.py --chapitre 2
-  python3 outillage/build_etat_narratif.py --chapitre 2 --dry-run
-
-Stdlib uniquement.
+The deep column of the table (the real event) is never read: the state says
+what she noticed, concluded and decided — never what happened. The chunk
+describes the moment she OPENS chapter N, so it is derived from row N-1; a
+state written from row N would hand her the end of a chapter not yet written.
 """
 
-import argparse
+from __future__ import annotations
+
 import re
-import sys
+from pathlib import Path
 
-from factory.paths import REPO_ROOT as RACINE
-TABLE = RACINE / "bible" / "profond" / "chronologie-partie-double.md"
-SHEET = RACINE / "bible" / "fiche-judith.md"
+from factory.settings import settings
 
-# Le début de chapitre 1 n'a pas de veille : rien à raconter, seulement le
-# dispositif en place.
+TABLE_FILE = "profond/chronologie-partie-double.md"
+SHEET_FILE = "fiche-judith.md"
+NARRATOR_DOC_ID = "judith"
+
+# Chapter 1 has no eve: nothing to tell, only the setup in place.
 OPENING = (
     "Le dispositif est installé depuis peu : le cahier du soir, le manuscrit "
     "qui tarde, le carnet pour garder la main. Elle relit chaque soir l'entrée "
@@ -40,44 +34,31 @@ OPENING = (
 )
 
 
-def read_table() -> dict[int, dict]:
-    """Lignes de la table de pilotage, indexées par numéro de chapitre.
-
-    La table vit dans un fichier FIREWALLÉ côté modèle. L'outillage a le droit
-    de la lire : un générateur n'est pas un modèle, il ne raconte rien de ce
-    qu'il ne doit pas — c'est précisément son travail de traduire.
-    """
+def read_table(table: Path | None = None) -> dict[int, dict]:
+    """Rows of the pilot table by chapter number. The deep column is not read."""
+    table = table or settings.bible_dir / TABLE_FILE
     lines: dict[int, dict] = {}
-    if not TABLE.is_file():
+    if not table.is_file():
         return lines
-    for line in TABLE.read_text(encoding="utf-8").splitlines():
+    for line in table.read_text(encoding="utf-8").splitlines():
         cells = [c.strip() for c in line.split("|")]
         if len(cells) > 12 and cells[1].isdigit():
             lines[int(cells[1])] = {
                 "verdict": cells[5], "marche": cells[6], "objets": cells[10],
-                # La colonne « Événement réel payeur » est LA COLONNE RÉELLE —
-                # la vérité profonde de la partie double. Elle n'est PAS lue :
-                # la traduire reviendrait à servir au modèle auteur ce que tout
-                # le firewall existe pour lui cacher. (Et sur le chapitre 1
-                # elle produisait « le journal prescrit », où « journal » est
-                # de surcroît un mot banni du brief.)
             }
     return lines
 
 
-def read_anchors() -> dict[int, str]:
-    """Ancres de continuité, lues dans les blocs [VALEURS] de la fiche.
-
-    Côté PERÇU, contrairement à la colonne réelle de la table : l'ancre dit ce
-    qu'elle a constaté, pas ce qui s'est produit. C'est la seule formulation de
-    la divergence qu'on ait le droit de lui servir.
-    """
+def read_anchors(sheet: Path | None = None) -> dict[int, str]:
+    """Continuity anchors, from the `[VALEURS]` blocks of the narrator sheet:
+    the PERCEIVED side of the divergence, the only one she may be served."""
+    sheet = sheet or settings.bible_dir / SHEET_FILE
     anchors: dict[int, str] = {}
-    if not SHEET.is_file():
+    if not sheet.is_file():
         return anchors
     for block in re.finditer(
             r"### \[VALEURS — chapitre (\d+).*?\](.*?)(?=^### |^## |\Z)",
-            SHEET.read_text(encoding="utf-8"), re.MULTILINE | re.DOTALL):
+            sheet.read_text(encoding="utf-8"), re.MULTILINE | re.DOTALL):
         m = re.search(r"Ancre\s*:\s*([^.]*(?:\.[^.]*?)??)(?=\s*(?:Interdits|$))",
                       block.group(2), re.DOTALL)
         if m:
@@ -86,24 +67,15 @@ def read_anchors() -> dict[int, str]:
 
 
 def narrate(previous: dict | None) -> str:
-    """Traduit une ligne de table en langue du monde.
-
-    Aucun terme de pilotage ne survit : ni régime, ni grade, ni ratio, ni
-    chaleur — ce sont des réglages de fabrication, pas des faits qu'elle
-    pourrait connaître. Ne restent que ce qu'elle a constaté, ce qu'elle a
-    conclu, et ce qu'elle a décidé.
-    """
+    """One table row → a few sentences in the language of the world. No
+    pilot term survives (régime, grade, ratio, chaleur): only what she
+    noticed, concluded and decided."""
     if previous is None:
         return OPENING
 
     verdict = previous["verdict"]
     sentences: list[str] = []
 
-    # L'ancre porte souvent DÉJÀ le verdict et la résolution : elle est écrite
-    # comme une phrase de récit, pas comme un champ. On ne rajoute donc que ce
-    # qu'elle ne dit pas — sans quoi l'état narratif répète le verdict deux
-    # fois en trois lignes, et c'est exactement la langue de formulaire qu'on
-    # cherche à faire disparaître.
     anchor = (previous.get("ancre") or "").strip()
     if anchor:
         sentences.append(anchor[0].upper() + anchor[1:] + ".")
@@ -124,8 +96,6 @@ def narrate(previous: dict | None) -> str:
         if not already_said(first):
             sentences.append(f"L'explication qu'elle s'est donnée : {first}.")
 
-    # La résolution de pointer plus précisément RÉPOND à une anomalie : après
-    # un chapitre sans verdict, elle ne suit rien.
     if core and not any(m in anchor.lower()
                          for m in ("résolution", "résolu", "pointer")):
         sentences.append("Elle a résolu de pointer plus précisément.")
@@ -137,58 +107,47 @@ def narrate(previous: dict | None) -> str:
     return " ".join(sentences)
 
 
-def main() -> int:
-    p = argparse.ArgumentParser()
-    p.add_argument("--chapitre", type=int, required=True)
-    p.add_argument("--dry-run", action="store_true")
-    args = p.parse_args()
-
+def state_text(chapter: int) -> str:
+    """The narrative state at the opening of `chapter`, from row chapter-1."""
+    if chapter <= 1:
+        return narrate(None)
     table, anchors = read_table(), read_anchors()
-    previous = table.get(args.chapitre - 1)
-    if previous is not None:
-        previous = {**previous, "ancre": anchors.get(args.chapitre - 1, "")}
-    if args.chapitre > 1 and previous is None:
-        print(f"ERREUR : pas de ligne pour le chapitre {args.chapitre - 1} "
-              f"dans {TABLE}", file=sys.stderr)
-        return 1
+    previous = table.get(chapter - 1)
+    if previous is None:
+        raise LookupError(f"aucune ligne pour le chapitre {chapter - 1} dans la table de pilotage")
+    return narrate({**previous, "ancre": anchors.get(chapter - 1, "")})
 
-    narrative = narrate(previous)
-    narrative_block = (
-        "### [SURFACE]\n\n"
-        f"<!-- GÉNÉRÉ par outillage/build_etat_narratif.py --chapitre "
-        f"{args.chapitre} — ne pas éditer à la main : la table de pilotage est "
-        "la source. -->\n\n"
-        f"{narrative}\n"
+
+def state_dir() -> Path:
+    return settings.generated_dir / "narrative-state"
+
+
+def state_path(chapter: int) -> Path:
+    return state_dir() / f"ch-{chapter:02d}.md"
+
+
+def render_state_file(chapter: int, text: str) -> str:
+    return (
+        "---\n"
+        f"doc_id: {NARRATOR_DOC_ID}\n"
+        "type: character\n"
+        f"chapter: {chapter}\n"
+        "layer: SURFACE\n"
+        "---\n\n"
+        f"# État narratif — chapitre {chapter}\n\n"
+        "## 7. État narratif courant\n\n"
+        "<!-- GÉNÉRÉ par le nœud narrative_state — ne pas éditer à la main : la "
+        "table de pilotage est la source. -->\n\n"
+        f"{text}\n"
     )
 
-    if args.dry_run:
-        print("## 7. État narratif courant\n\n" + narrative_block)
-        return 0
 
-    text = SHEET.read_text(encoding="utf-8")
-    section = re.compile(r"^## 7\. État narratif courant.*?(?=^## |\Z)",
-                         re.MULTILINE | re.DOTALL)
-    if not section.search(text):
-        print(f"ERREUR : section 7 introuvable dans {SHEET}", file=sys.stderr)
-        return 1
-
-    # On ne RECONSTRUIT pas la section : on remplace le seul bloc [SURFACE], ou
-    # on l'insère s'il n'existe pas encore. Reconstruire dupliquait [GABARIT] et
-    # [VALEURS] à chaque passe — et ces blocs sont la SOURCE dont ce script se
-    # nourrit. Un générateur qui abîme sa propre source ne tourne qu'une fois.
-    def substitute(m: re.Match) -> str:
-        body = m.group(0)
-        surface = re.compile(r"^### \[SURFACE\].*?(?=^### |\Z)",
-                             re.MULTILINE | re.DOTALL)
-        if surface.search(body):
-            return surface.sub(lambda _: narrative_block + "\n", body, count=1)
-        title, rest = body.split("\n", 1)
-        return f"{title}\n\n{narrative_block}\n{rest.lstrip()}"
-
-    SHEET.write_text(section.sub(substitute, text, count=1), encoding="utf-8")
-    print(f"Section 7 régénérée pour le chapitre {args.chapitre} :\n\n{narrative}")
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+def write_state_file(chapter: int) -> tuple[Path, bool]:
+    """Write `ch-NN.md`; idempotent (returns whether the file changed)."""
+    content = render_state_file(chapter, state_text(chapter))
+    path = state_path(chapter)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_file() and path.read_text(encoding="utf-8") == content:
+        return path, False
+    path.write_text(content, encoding="utf-8")
+    return path, True

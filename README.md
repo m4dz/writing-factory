@@ -37,10 +37,11 @@ Running the pipeline for real needs Ollama, ChromaDB and the models; see the
 runbook. The entry point is one command:
 
 ```bash
-.venv/bin/factory doctor       # machine, backends, models, voice
-.venv/bin/factory index        # bible → ChromaDB
-.venv/bin/factory generate     # chapter 7, artifacts in output/
-.venv/bin/factory serve        # the API the deck talks to
+.venv/bin/factory doctor              # machine, backends, models, voice
+.venv/bin/factory index               # bible → ChromaDB
+.venv/bin/factory generate --chapter 7   # one run under experiments/runs/
+.venv/bin/factory promote <run_id>    # a read chapter becomes canon (bible/scenes/)
+.venv/bin/factory serve               # the API the deck talks to
 ```
 
 ## Layout
@@ -50,7 +51,8 @@ src/factory/    the package: cli (the `factory` command), pipeline, API,
                 actor mode, retrieval and indexer, eval (lint, grid, seal),
                 infra, settings
 docker/         the indexer image (installs the package)
-bible/          canon; surface/ is indexed, profond/ never is
+bible/          canon; surface/ is indexed, profond/ never is; generated/ (derived
+                narrative state) and scenes/ (promoted chapters)
 chapters/       per-chapter spec.yaml and briefs, author-owned, never indexed
 experiments/    runs with manifests, journal of failed draws, grids, reports
 openspec/       project context, specs, change proposals

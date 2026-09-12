@@ -43,17 +43,22 @@ def bible_chroma() -> FakeChromaClient:
 
 @pytest.fixture
 def fake_chroma(monkeypatch, bible_chroma):
-    """Route every retrieval call to the fake collections; no embeddings."""
+    """Route every retrieval call to a fresh copy of the fake collections; no
+    embeddings. A copy per test: the narrative-state node and `promote` upsert
+    chunks, and one test's index must not become the next test's bible."""
+    import copy
+
     from factory.retrieval import context as retrieval
     from factory.roleplay import session as roleplay
 
-    monkeypatch.setattr(retrieval, "_client", bible_chroma)
+    client = copy.deepcopy(bible_chroma)
+    monkeypatch.setattr(retrieval, "_client", client)
     monkeypatch.setattr(retrieval, "embed", lambda text: [0.0] * 768)
     # `from retrieval import embed` bound the name in roleplay at import time.
     monkeypatch.setattr(roleplay, "embed", lambda text: [0.0] * 768)
     retrieval.clear_routing()
-    bible_chroma.reset_sessions()
-    return bible_chroma
+    client.reset_sessions()
+    return client
 
 
 @pytest.fixture

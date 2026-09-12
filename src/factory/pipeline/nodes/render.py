@@ -27,12 +27,12 @@ CHAPTER_FILE = "chapitre.md"
 AUDIO_FILE = "chapitre.wav"
 
 
-def chapter_path() -> Path:
-    return settings.output_dir / CHAPTER_FILE
+def chapter_path(directory: Path | None = None) -> Path:
+    return (directory or settings.output_dir) / CHAPTER_FILE
 
 
-def audio_path() -> Path:
-    return settings.output_dir / AUDIO_FILE
+def audio_path(directory: Path | None = None) -> Path:
+    return (directory or settings.output_dir) / AUDIO_FILE
 
 
 def render_node(state: dict) -> dict:
@@ -41,12 +41,14 @@ def render_node(state: dict) -> dict:
     if not state.get("render"):
         return {"chapter_md": chapter_md}
 
-    settings.output_dir.mkdir(parents=True, exist_ok=True)
-    chapter_path().write_text(chapter_md, encoding="utf-8")
+    # The run's directory when there is a run (ADR-0003), `output/` otherwise.
+    target = Path(state["artifacts_dir"]) if state.get("artifacts_dir") else settings.output_dir
+    target.mkdir(parents=True, exist_ok=True)
+    chapter_path(target).write_text(chapter_md, encoding="utf-8")
     progress.phase("Restitution", "préparation")
     unload(settings.qa_model)
     try:
-        audio = render_chapter(chapter_md, audio_path())
+        audio = render_chapter(chapter_md, audio_path(target))
     except Exception as exc:                        # noqa: BLE001
         progress.note(f"lecture indisponible : {exc} — chapitre servi sans lecture")
         return {"chapter_md": chapter_md, "audio": None}

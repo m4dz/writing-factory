@@ -68,6 +68,10 @@ class Settings:
     sessions_collection: str = "sessions"
     bible_dir: Path = paths.BIBLE_DIR
     style_path: Path = paths.BIBLE_DIR / "style-auteur.md"
+    generated_dir: Path = paths.BIBLE_DIR / "generated"   # derived bible files (narrative state)
+
+    # --- runs -----------------------------------------------------------------
+    runs_dir: Path = paths.EXPERIMENTS_DIR / "runs"
 
     # --- API and stage --------------------------------------------------------
     api_host: str = "0.0.0.0"
@@ -136,6 +140,8 @@ class Settings:
         "sessions_collection": ("CHROMA_SESSIONS", str),
         "bible_dir": ("BIBLE_DIR", _path),
         "style_path": ("STYLE_PATH", _path),
+        "generated_dir": ("GENERATED_DIR", _path),
+        "runs_dir": ("RUNS_DIR", _path),
         "api_host": ("API_HOST", str),
         "api_port": ("API_PORT", int),
         "cors_origin": ("API_CORS_ORIGIN", str),

@@ -29,6 +29,9 @@ from factory.text import FRENCH_GUARD
 class OllamaClient:
     def __init__(self, config: Settings | None = None):
         self.settings = config or settings
+        # When a list, every call appends {model, system, user, ...}: the run
+        # writes it as its `prompts.md` (the served prompt is a deliverable).
+        self.recording: list[dict] | None = None
 
     # --- lifecycle ------------------------------------------------------------
 
@@ -212,6 +215,13 @@ class OllamaClient:
             # « length » = coupé par num_predict ; « stop » = fin naturelle (EOS).
             "done_reason": data.get("done_reason", "?"),
         }
+        if self.recording is not None:
+            self.recording.append({
+                "model": model, "system": system,
+                "user": turns[-1].get("content", "") if turns else "",
+                "turns": len(turns), "num_predict": num_predict,
+                "temperature": temperature, "gen_toks": ec, "wall_s": metrics["wall_s"],
+            })
         return data["message"]["content"].strip(), metrics
 
 
