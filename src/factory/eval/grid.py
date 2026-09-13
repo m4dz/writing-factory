@@ -155,7 +155,7 @@ def main(argv: list[str] | None = None) -> int:
     out = [
         "# Grille de lint",
         "",
-        "Généré par `outillage/grille_session.py`. **Ne pas éditer les lignes "
+        "Généré par `factory eval grid`. **Ne pas éditer les lignes "
         "AUTO** : elles se régénèrent. Remplir les lignes vides à la main, "
         "après lecture à voix haute.",
         "",

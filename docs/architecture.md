@@ -63,10 +63,11 @@ docs/                architecture, runbook, doctrines, adr/, plans/
 tests/               fakes, unit, stages, snapshots
 ```
 
-Module names and identifiers are English (ADR-0001); comments and docstrings
-are still French until the language pass of step 7. Data keys stay French
-where they are data: run frontmatter, lint reports, the entry-spec dicts that
-step 5 turns into YAML, the JSON the keynote deck reads.
+Module names, identifiers, comments and docstrings are English (ADR-0001);
+the language audit (`tests/unit/test_language.py`) keeps them so. French
+stays where it is the author's material or the machine's French face:
+prompts, messages, warnings, labels, run frontmatter, lint reports, the JSON
+the deck reads.
 
 ## The graph
 
@@ -178,5 +179,6 @@ not either (`factory.paths`). The variable table is in the runbook, §1.6.
 
 ## Target
 
-`docs/plans/2026-09-revamp.md` §4. Steps 1 to 6 are done; step 7 (the
-language pass on comments and docstrings) remains.
+`docs/plans/2026-09-revamp.md` §4: reached. The seven steps of the revamp
+are done; experiments resume on this layout, each as an openspec change plus
+a run directory with its manifest and report (ADR-0003).

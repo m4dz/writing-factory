@@ -30,3 +30,8 @@ notes, and dated at the time they were taken.
 | 0018 | [The code owns the gestures](0018-code-owns-the-gestures.md) | 2026-08-22 | accepted |
 | 0019 | [The movement method](0019-movement-method.md) | 2026-08-27 | accepted |
 | 0020 | [Chapter 7: capped beats, best-of-N, pruning](0020-chapter-7-beats-best-of-pruning.md) | 2026-08-29 → 31 | accepted |
+| 0021 | [Accumulation thresholds and the asymmetric tolerance](0021-accumulation-thresholds.md) | 2026-09-13 | accepted |
+| 0022 | [Arbitrations of the lint and the grid](0022-grid-and-lint-arbitrations.md) | 2026-09-13 | accepted |
+| 0023 | [Chapter-scoped reading rules stay in the eval package](0023-chapter-scoped-eval-knowledge.md) | 2026-09-13 | accepted |
+| 0024 | [Operational arbitrations of the API and the machine layer](0024-operational-arbitrations.md) | 2026-09-13 | accepted |
+| 0025 | [Served constants that remain in code](0025-served-constants-in-code.md) | 2026-09-13 | accepted |

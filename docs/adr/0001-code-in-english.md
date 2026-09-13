@@ -45,3 +45,10 @@ belongs.
   where they are; nothing is deleted before it has a new home.
 - Reviewers of a change that adds a French identifier or an English string
   inside a prompt template reject it.
+
+## Note, 2026-09-13
+
+The language pass is done (revamp step 7). Comments and docstrings are
+English under `src/factory/` and `tests/`; the audit is
+`tests/unit/test_language.py`. Arbitrations that lived only in comments are
+recorded in ADR-0021 to ADR-0025.

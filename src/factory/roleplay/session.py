@@ -406,7 +406,7 @@ class Session:
         path.parent.mkdir(parents=True, exist_ok=True)
         body = (
             f"# Session de roleplay — {self.name}\n\n"
-            f"<!-- Généré par orchestrator/roleplay.py. Source canonique de la\n"
+            f"<!-- Généré par factory.roleplay.session. Source canonique de la\n"
             f"     mémoire conversationnelle : éditable à la main, réindexable.\n"
             f"     Deux sections, deux usages : le RÉSUMÉ nourrit les sessions\n"
             f"     suivantes (c'est lui qui est indexé), la TRANSCRIPTION se\n"

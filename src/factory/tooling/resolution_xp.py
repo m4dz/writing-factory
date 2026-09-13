@@ -120,7 +120,7 @@ def main() -> int:
         rule = "RÉSOUT" if r >= 2 else ("tient" if r == 0 else "partagé")
         md_lines.append(f"- **{name}** : {r}/{DRAWS} → {rule}")
 
-    output = RACINE / "journal-des-murs" / f"{timestamp}-xp-resolution-C5.md"
+    output = RACINE / "experiments" / "journal" / f"{timestamp}-xp-resolution-C5.md"
     output.write_text("\n".join(md_lines + verbatims) + "\n", encoding="utf-8")
     print(f"\nÉcrit : {output.relative_to(RACINE)}")
     return 0

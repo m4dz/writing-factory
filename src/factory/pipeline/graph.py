@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
-"""Orchestrateur « mode auteur » (LangGraph).
+"""The author-mode orchestrator (LangGraph).
 
-Pipeline montré sur scène (strate 4 du talk) :
+The pipeline shown onstage (layer 4 of the talk):
 
-    plan d'entrées → écriture entrée par entrée → relecture → cohérence
+    entry plan → writing entry by entry → review → coherence
 
-C'est un graphe SÉQUENTIEL avec une boucle sur les entrées. Le contrôle de
-flux est déterministe (LangGraph), la créativité est déléguée au modèle à
-chaque nœud. Le contexte est ré-assemblé depuis la bible à chaque entrée
-(RAG dynamique, cf. retrieval.py), jamais figé.
+A SEQUENTIAL graph with one loop over the entries. Flow control is
+deterministic (LangGraph); the model supplies the matter at each node. The
+context is re-assembled from the bible at every entry (dynamic RAG,
+`factory.retrieval.context`), never frozen.
 
-L'unité de composition est l'ENTRÉE DATÉE de carnet : L'Involontaire est un
-journal, et les quotas de la fiche de style se comptent par entrée. Le champ
-`rag` de l'état commande le branchement du retrieval — c'est l'unique variable
-qui sépare les deux étages de la session 4, et elle vit dans l'état pour qu'on
-ne puisse pas la changer par mégarde entre deux runs.
+The unit of composition is the DATED notebook ENTRY: L'Involontaire is a
+journal, and the style-sheet quotas count per entry. The state field `rag`
+switches retrieval — the one variable that separates the two stages of
+session 4; it lives in the state so it cannot drift between two runs.
 """
 
 import difflib
@@ -43,82 +42,80 @@ from factory.pipeline.gestures import (assemble, compose_drift, passage_valid,
                     validate_accumulation)
 from factory.eval.lint import repeated_paragraphs
 
-# Modèle des micro-nœuds. nemo par défaut, et non Qwen : les nœuds tournent DANS
-# la boucle d'écriture, nemo chaud — un appel Qwen y coûterait deux bascules par
-# entrée (mesurées à 139-222 s dans `plan_node` en session 4). Surtout,
-# `accumulate` écrit le marqueur le plus audible du style et sa phrase reste
-# dans le chapitre : c'est de la voix, pas de la QA. Paramétrable pour que
-# l'alternative reste mesurable en un run (`settings.gesture_model`).
-# Passe d'assemblage : pruning DÉTERMINISTE du résidu diffus (journée dehors,
-# présence, récursion, tell de résolution) que le best-of-N ne rattrape pas
-# quand TOUS les variants le portent. La piste cross-modèle Qwen a été falsifiée
-# et écartée : Qwen coupe le bon (éditeur) et ne détecte pas la sortie oblique
-# (détecteur, « NON » sur « le départ, la réunion, la départementale, le garage »
-# — le nœud cohérence a le même angle mort). Le code, lui, matche sans ambiguïté.
-# Débrayable par `settings.pruning_enabled`.
+# Model of the gesture micro-nodes: nemo, not Qwen. They run INSIDE the writing
+# loop with nemo warm; a Qwen call there costs two swaps per entry (139-222 s
+# measured in `plan_node`, session 4). And `accumulate` writes the most audible
+# marker of the style, a sentence that stays in the chapter: voice, not QA
+# (ADR-0008). `settings.gesture_model` keeps the alternative measurable.
+# Assembly pass: DETERMINISTIC pruning of the diffuse residue (day outside,
+# presence, recursion, resolution tell) that best-of-N cannot catch when ALL
+# variants carry it. The cross-model Qwen route was falsified: as editor Qwen
+# cuts the good sentences, as detector it misses the oblique outing (« NON » to
+# « le départ, la réunion, la départementale, le garage » — the coherence node
+# has the same blind spot). Code matches without ambiguity (ADR-0020).
+# Switched off by `settings.pruning_enabled`.
 
-# L'unité de composition est l'ENTRÉE DATÉE de carnet, plus la scène. Le roman
-# est un journal : ce que le plan découpe, ce sont des soirs. Les quotas de la
-# fiche (accumulation, physiologie, couperet) se comptent par entrée — les
-# laisser sur « scène » ferait compter la machine et la grille sur des unités
-# différentes.
+# The unit of composition is the DATED notebook ENTRY, not the scene. The novel
+# is a journal: what the plan cuts are evenings. The sheet's quotas
+# (accumulation, physiology, cleaver) count per entry — counting them per
+# « scène » would make the machine and the grid count different units.
 WORDS_PER_ENTRY = (450, 600)
 
-# Une seule reprise du plan. La replanification coûte un rechargement de nemo
-# (13 GB) : au-delà, on perdrait plus de temps de scène qu'on n'en sauverait, et
-# un modèle qui rate deux fois la contrainte ne la comprendra pas à la troisième.
+# One replan only. Replanning costs a reload of nemo (13 GB): beyond that we
+# lose more stage time than we save, and a model that misses the constraint
+# twice will not get it the third time.
 MAX_PLAN_ATTEMPTS = 2
 
-# Une seule continuation par génération coupée. Monter `num_predict` ne résout
-# rien — un modèle qui n'a pas fini à 1400 tokens remplira aussi bien 1800 :
-# il occupe l'espace offert. La continuation, elle, ne coûte que quand le cas
-# se produit (une scène sur quatre au run du 2026-08-06, ~50 s).
+# One continuation per cut generation. Raising `num_predict` solves nothing — a
+# model that has not finished at 1400 tokens fills 1800 just as well: it
+# occupies the space offered. A continuation costs only when the case occurs
+# (one scene in four in the 2026-08-06 run, ~50 s).
 MAX_CONTINUATIONS = 1
 
-# Deux tentatives pour l'accumulation, comme le protocole le fixe.
+# Two attempts for the accumulation, as the protocol sets.
 MAX_GESTURE_ATTEMPTS = 2
 
 
-# --- État du graphe ----------------------------------------------------------
+# --- Graph state -------------------------------------------------------------
 
 class ChapterState(TypedDict):
-    brief: str            # objectif du chapitre (entrée humaine)
-    characters: list[str] # doc_ids des personnages présents
-    facts: list[str]      # invariants dérivés de la bible (contraignent le plan)
-    plan: list[str]       # beats de scènes (sortie du nœud plan)
-    plan_report: str      # confrontation du plan aux faits, AVANT rédaction
-    idx: int              # index de la scène en cours d'écriture
-    scenes: list[str]     # prose brute, une entrée par scène
-    reviewed: list[str]   # prose après relecture (nemo)
-    repaired: list[str]   # prose après réparation linguistique (Qwen QA)
-    coherence: str        # rapport de cohérence fait par fait (Qwen QA)
-    metrics: list[dict]   # timing par appel LLM (compte à rebours / profilage)
-    warnings: list[str]   # alertes du lint de style (fuites, tokens corrompus)
-    rag: bool             # étage A (False) ou B (True) — l'unique variable
-    expected_entries: int  # 1 = brief mono-entrée, le plan est court-circuité
-    prefix: str          # ancre de citation, POSÉE PAR LE CODE (item 5)
-    start_day: str      # « Mardi » — ancre de la séquence d'en-têtes
-    start_number: int    # 12 — les dates suivantes se dérivent, consécutives
-    micro_nodes: bool    # étage C : accumulate + glisse actifs
-    active_objects: str    # matériau du chapitre, source du fait matériel
-    verdict: str          # terme du chapitre — REPÈRE d'épissure de l'accumulation
-    start_weather: str     # météo de la 1re entrée, quand le plan est court-circuité
-    accumulation: str     # phrase produite par accumulate, mise de côté
-    gestures: list[dict]    # un jeu de gestes par entrée, posé après repair
-    segments: bool        # session 6 : `write` en trois appels — LA variable mesurée
-    reconstruction: str   # le segment du milieu, contexte propre d'accumulate
-    entry_specs: list    # plan d'entrées explicite — le ch. 7 en a deux le MÊME jour
-    imposed_plan: list     # un beat par entrée, découpé du brief : le plan ne se demande pas
-    placed_fall: str      # dernière ligne imposée au mot près — posée par le code
-    served_prompts: list  # (segment, prompt) — livrable, et mesure de la recopie
-    placed_header: str      # l'en-tête composé pour l'entrée courante — re-tamponné
-    placed_anchor: str      # l'ancre de citation posée — re-tamponnée après repair
-    seed: int           # tirage du glissement, consigné au frontmatter du run
-    chapter: int         # numéro du chapitre — scope des interdits matériels
-    drawn_approaches: list[str]  # jamais deux fois la même dans un chapitre
+    brief: str            # chapter objective (human input)
+    characters: list[str] # doc_ids of the characters present
+    facts: list[str]      # invariants derived from the bible (constrain the plan)
+    plan: list[str]       # scene beats (output of the plan node)
+    plan_report: str      # the plan checked against the facts, BEFORE writing
+    idx: int              # index of the scene being written
+    scenes: list[str]     # raw prose, one item per scene
+    reviewed: list[str]   # prose after review (nemo)
+    repaired: list[str]   # prose after linguistic repair (Qwen QA)
+    coherence: str        # fact-by-fact coherence report (Qwen QA)
+    metrics: list[dict]   # timing per LLM call (countdown / profiling)
+    warnings: list[str]   # style-lint alerts (leaks, corrupted tokens)
+    rag: bool             # stage A (False) or B (True) — the one variable
+    expected_entries: int  # 1 = single-entry brief, the plan is short-circuited
+    prefix: str          # quotation anchor, POSED BY THE CODE (item 5)
+    start_day: str      # « Mardi » — anchor of the header sequence
+    start_number: int    # 12 — the following dates derive from it, consecutive
+    micro_nodes: bool    # stage C: accumulate + drift active
+    active_objects: str    # the chapter's material, source of the material fact
+    verdict: str          # the chapter's verdict — splice LANDMARK of the accumulation
+    start_weather: str     # weather of the 1st entry, when the plan is short-circuited
+    accumulation: str     # sentence produced by accumulate, set aside
+    gestures: list[dict]    # one gesture set per entry, posed after repair
+    segments: bool        # session 6: `write` in three calls — THE measured variable
+    reconstruction: str   # the middle segment, accumulate's own context
+    entry_specs: list    # explicit entry plan — ch. 7 has two entries the SAME day
+    imposed_plan: list     # one beat per entry, cut from the brief: the plan is not asked
+    placed_fall: str      # last line imposed word for word — posed by the code
+    served_prompts: list  # (segment, prompt) — deliverable, and the copy measurement
+    placed_header: str      # the header composed for the current entry — re-stamped
+    placed_anchor: str      # the quotation anchor posed — re-stamped after repair
+    seed: int           # drift draw, recorded in the run frontmatter
+    chapter: int         # chapter number — scope of the material interdicts
+    drawn_approaches: list[str]  # never the same one twice in a chapter
     # --- chapter knowledge, from the spec (step 5) ---------------------------
     stations: list[str]   # stations of the reconstruction segment
-    accumulation_fall: str  # the object the accumulation falls on
+    accumulation_fall: str  # the object the accumulation ends upon
     drift_bank: dict      # {approaches: [...], facts: [...]} for the drift draw
     # --- machine nodes (ADR-0002, item 5) ------------------------------------
     preflight: object     # None/False: skipped; True or {strict, timer}: checked first
@@ -126,100 +123,98 @@ class ChapterState(TypedDict):
     narrative_state_path: str
     artifacts_dir: str    # the run directory the render node writes into ("" : output/)
     preflight_warnings: list[str]
-    render: bool          # write chapitre.md and render the WAV after coherence
+    render: bool          # write `chapitre.md` and render the WAV after coherence
     assembly: dict        # kwargs of assembly.assemble (switch mode, imposed fall)
     chapter_md: str       # the assembled chapter, both markers, always produced
     audio: object         # TTS metrics dict, or None when the voice failed / was not asked
 
 
-# --- Nœuds -------------------------------------------------------------------
+# --- Nodes -------------------------------------------------------------------
 
 
-# --- En-têtes composés par le CODE (bloc B) ---------------------------------
+# --- Headers composed by the CODE (block B) ---------------------------------
 #
-# Le plan n'émet plus de texte d'en-tête. B′C avait produit « Lundi 2, nuageux. »
-# — virgule au lieu du point : détection cassée, et avec elle le point de
-# bascule audio de `lire_chapitre.py`. Un format que la scène dépend de ne se
-# demande pas à un modèle, il se compose.
+# The plan emits no header text. B′C produced « Lundi 2, nuageux. » — a comma
+# instead of the period: detection broke, and the audio switch with it. A
+# format the stage depends upon is not asked of a model, it is composed
+# (ADR-0018).
 #
-# Les DATES ne sont même pas demandées : elles se DÉRIVENT d'une ancre (jour de
-# semaine + numéro de départ, donnés par le brief). B′C avait produit
-# [8, 7, 7, 7, 7, 9, 10, 7] — des dates qui reculent et se répètent. Dérivées,
-# elles sont consécutives par construction, et la cohérence jour ↔ date que le
-# lint vérifie devient vraie par construction plutôt que par chance.
+# DATES are not even asked: they DERIVE from an anchor (weekday + start number,
+# given by the brief). B′C produced [8, 7, 7, 7, 7, 9, 10, 7] — dates that go
+# back and repeat. Derived, they are consecutive by construction, and the
+# day ↔ date coherence the lint checks becomes true by construction, not by
+# luck.
 #
-# Seule la MÉTÉO vient du plan : la coder en dur ferait revenir le même temps à
-# chaque run, et on remplacerait une liturgie par une autre.
+# Only the WEATHER comes from the plan: hard-coding it would bring the same
+# weather back every run, one liturgy replacing another.
 WEEKDAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi",
                  "Dimanche"]
 
 
 def header(start_day: str, start_number: int, offset: int,
            weather: str) -> str:
-    """« Mardi 12. Ciel couvert. » — format canonique, composé, jamais demandé."""
+    """« Mardi 12. Ciel couvert. » — canonical format, composed, never asked."""
     i = WEEKDAYS.index(start_day.capitalize())
     day = WEEKDAYS[(i + offset) % 7]
     weather = (weather or "Temps calme").strip().rstrip(".")
     return f"{day} {start_number + offset}. {weather[0].upper()}{weather[1:]}."
 
 
-# La météo demandée au plan, en champ isolé : `1. [Ciel couvert] ce qu'elle…`
+# The weather asked of the plan, as an isolated field: `1. [Ciel couvert] ce qu'elle…`
 BEAT_WEATHER = re.compile(r"^\s*\[([^\]]{2,40})\]\s*(.*)$")
 
-# Un en-tête daté émis PAR LE MODÈLE, où que ce soit dans sa génération. Le code
-# est propriétaire du format : il en compose un par entrée, donc tout en-tête
-# produit par le modèle est parasite par définition. C1 en a inventé un second
-# (« Vendredi 15. Pluie fine. ») dans une entrée censée être unique, et le lint
-# découpait deux entrées là où il n'y en avait qu'une.
-# Le numéro est OPTIONNEL : le modèle produit aussi « Samedi. Beau temps. »,
-# un en-tête sans date qui a traversé tous les filtres et s'est retrouvé sous
-# celui du code, dans le texte lu par la voix clonée. Le code est propriétaire
-# du format ; une imitation approximative reste une imitation.
+# A dated header emitted BY THE MODEL, anywhere in its generation. The code owns
+# the format and composes one per entry, so any header the model produces is
+# parasitic by definition. C1 invented a second one (« Vendredi 15. Pluie
+# fine. ») in an entry meant to be unique, and the lint split two entries where
+# there was one.
+# The number is OPTIONAL: the model also produces « Samedi. Beau temps. », a
+# dateless header that passed every filter and ended up under the code's own,
+# in the text read by the cloned voice. An approximate imitation is still one.
 STRAY_HEADER = re.compile(
-    # ⚠ PAS de `re.IGNORECASE` global : il rendrait la classe [A-Z] sensible aux
-    # minuscules, et c'est précisément la majuscule de la météo qui distingue un
-    # en-tête d'une phrase ouvrant sur un jour. L'insensibilité est limitée aux
-    # noms de jours, par un groupe en ligne.
+    # ⚠ NO global `re.IGNORECASE`: it would make the [A-Z] class match lowercase,
+    # and the weather's capital is precisely what tells a header from a sentence
+    # opening with a weekday. Case-insensitivity is limited to the day names, by
+    # an inline group.
     r"^[ \t]*(?i:Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)"
     r"(?:"
-    # avec numéro : la forme complète, celle que le code compose
+    # with number: the full form, the one the code composes
     r"[ \t]+\d{1,2}[.,][^\n]{0,40}"
-    # SANS numéro : « Samedi. Beau temps. » — un en-tête sans date, qui a
-    # traversé tous les filtres et s'est retrouvé dans le texte lu par la voix
-    # clonée. Reconnu par la majuscule de la météo et la fin de ligne.
+    # WITHOUT number: « Samedi. Beau temps. » — a dateless header that passed
+    # every filter and reached the text read by the cloned voice. Recognised by
+    # the weather's capital and the end of line.
     r"|[.,][ \t]*[A-ZÀÂÇÉÈÊËÎÏÔÛÙÜŒ][^\n,]{1,28}\."
     r")[ \t]*\n+", re.MULTILINE)
 
-# Les POINTS DE SUSPENSION du modèle. La fiche est explicite : ils n'existent
-# nulle part ailleurs que comme marque du glissement — « c'est leur seul
-# emploi ». Le code est propriétaire de ce marqueur comme il l'est des en-têtes,
-# donc tout « … » produit par le modèle est parasite par la même logique. Sur
-# C2, les DEUX occurrences venaient de lui (« une, deux, trois... trois
-# assiettes », « depuis... depuis qu'elle est partie ») alors que le geste
-# composé avait été abandonné : M1 tombait à 2 sans qu'un seul glissement
-# existe. On les remplace par la ponctuation que le contexte demande.
-# Deux formes, dans cet ordre. Le marqueur PORTAIT souvent une répétition
-# (« depuis… depuis son départ », « trois… trois assiettes ») : le retirer seul
-# laissait le mot doublé, donc du texte cassé à la place d'un défaut de style.
-# On absorbe donc la répétition avec lui, et à défaut on retombe sur une virgule
-# — la ponctuation que l'hésitation demandait.
+# The model's SUSPENSION POINTS. The sheet is explicit: they exist nowhere but
+# as the drift marker — « c'est leur seul emploi ». The code owns this marker as
+# it owns the headers, so any « … » the model produces is parasitic by the same
+# logic. In C2 BOTH occurrences came from the model —
+# « une, deux, trois... trois assiettes », « depuis... depuis qu'elle est partie »
+# — while the composed gesture had been abandoned: M1 fell to 2 without a single
+# drift existing. They are replaced by the punctuation the context asks for.
+# Two forms, in this order. The marker often CARRIED a repetition
+# (« depuis… depuis son départ », « trois… trois assiettes »): removing it alone
+# left the doubled word, broken text in place of a style defect. The repetition
+# is absorbed with it; failing that, a comma — the punctuation the hesitation
+# called for.
 REPEATED_SUSPENSION = re.compile(
     r"\b(\w+)\s*(?:…|\.\.\.)\s*\1\b", re.IGNORECASE)
 STRAY_SUSPENSION = re.compile(r"\s*(?:…|\.\.\.)\s*")
 
 
 def split_weather(beat: str) -> tuple[str, str]:
-    """Sépare la météo du corps du beat. Rend ('', beat) si absente."""
+    """Split the weather from the beat body. Returns ('', beat) when absent."""
     m = BEAT_WEATHER.match(beat)
     return (m.group(1).strip(), m.group(2).strip()) if m else ("", beat)
 
 
 def _tag(metrics: list[dict], node: str) -> list[dict]:
-    """Étiquette des métriques du nœud qui les a produites.
+    """Label the metrics with the node that produced them.
 
-    Le livrable de session demande les durées PAR NŒUD — c'est sur elles que se
-    calcule la marge des 28 minutes de la keynote. Sans étiquette, la liste des
-    appels ne dit que le total, et un nœud qui dérape reste invisible.
+    The session deliverable asks for durations PER NODE — the margin of the
+    keynote's 28 minutes is computed from them. Without the label the list of
+    calls only gives the total, and a node that slips stays invisible.
     """
     for m in metrics:
         m.setdefault("noeud", node)
@@ -227,22 +222,22 @@ def _tag(metrics: list[dict], node: str) -> list[dict]:
 
 
 def _strip_approximate_restart(prefix: str, continuation: str) -> str:
-    """Retire du début de `suite` une reprise APPROXIMATIVE du préfixe.
+    """Remove from the start of `continuation` an APPROXIMATE restart of the prefix.
 
-    `_recoller` ne sait retirer qu'un chevauchement EXACT. Or le défaut mesuré
-    en B′1 n'est pas une recopie, c'est une RECOMPOSITION : « Je les ai
-    laissées » pour « Je l'ai laissée ». Sans ce filtre, la concaténation rend
-    l'ancre juste du préfixe SUIVIE de la version fautive du modèle — un
-    doublon, dont l'une des deux moitiés est fausse.
+    `_reattach` only removes an EXACT overlap. The defect measured in B′1 is
+    not a copy but a RECOMPOSITION: « Je les ai laissées » for « Je l'ai
+    laissée ». Without this filter the concatenation gives the correct anchor
+    from the prefix FOLLOWED by the model's faulty version — a doublet, one
+    half of it wrong.
 
-    On compare le premier passage cité de la suite au dernier passage cité du
-    préfixe : au-delà de 70 % de similarité, c'est la même phrase mal recopiée.
+    The first quoted passage of the continuation is compared with the last
+    quoted passage of the prefix: above 70 % similarity it is the same
+    sentence badly copied.
     """
     start = continuation.lstrip()
-    # L'EN-TÊTE d'abord. Le modèle réémet son propre « Mardi 12. Ciel
-    # couvert. » — le brief le lui demandait encore — et le préfixe du code
-    # venait s'ajouter devant : deux en-têtes, deux ancres. Le filtre ne
-    # regardait que le passage cité.
+    # The HEADER first. The model re-emits its own « Mardi 12. Ciel couvert. »
+    # — the brief still asked for it — and the code's prefix landed in front:
+    # two headers, two anchors. The filter only looked at the quoted passage.
     for _ in range(2):
         m_tete = re.match(
             r"^(?:Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)\s+\d{1,2}[.,]"
@@ -264,28 +259,27 @@ def _strip_approximate_restart(prefix: str, continuation: str) -> str:
 
 
 def _reattach(start: str, continuation: str) -> str:
-    """Recolle une continuation en supprimant le chevauchement.
+    """Reattach a continuation, removing the overlap.
 
-    Le modèle recommence volontiers par la dernière phrase qu'il vient
-    d'écrire, malgré la consigne : on cherche le plus long préfixe de la suite
-    déjà présent dans la queue du début et on l'ôte.
+    The model gladly restarts with the last sentence it just wrote, despite
+    the instruction: the longest prefix of the continuation already present at
+    the tail of the start is found and removed.
 
-    La jointure demande un peu de soin. Si la coupe est tombée en pleine phrase
-    et que la suite ouvre une phrase NEUVE au lieu de finir la précédente
-    (observé : « …dans un coin de la pièce Elle s'en approcha »), le fragment
-    reste orphelin. On le ferme plutôt que de le supprimer — le supprimer
-    coûterait une phrase entière de récit :
-      * devant une réplique (tiret cadratin, guillemet), les points de
-        suspension, qui sont la ponctuation française de la parole ou de la
-        pensée interrompue. Un point donnerait « Il hésita, puis. — Tu mens » ;
-      * devant une majuscule ordinaire, un point simple.
+    The join needs care. If the cut fell mid-sentence and the continuation
+    opens a NEW sentence instead of finishing the previous one (observed:
+    « …dans un coin de la pièce Elle s'en approcha »), the fragment is
+    orphaned. It is closed rather than deleted — deleting it would cost a
+    whole sentence of narrative:
+      * before a line of speech (em dash, guillemet), suspension points, the
+        French punctuation of interrupted speech or thought. A period would
+        give « Il hésita, puis. — Tu mens » ;
+      * before an ordinary capital, a plain period.
     """
     s = continuation.lstrip()
     queue = start[-800:]
-    # Chevauchement EXACT, cherché au caractère près : un pas plus grossier
-    # laisse un résidu de découpe au milieu du texte (« du marteau u qui »).
-    # 30 caractères minimum pour ne pas confondre une coïncidence avec une
-    # recopie.
+    # EXACT overlap, searched character by character: a coarser step leaves a
+    # cutting residue in the middle of the text (« du marteau u qui »). 30
+    # characters minimum, so a coincidence is not taken for a copy.
     for k in range(min(len(queue), len(s)), 29, -1):
         if s.startswith(queue[-k:]):
             s = s[k:].lstrip()
@@ -304,17 +298,17 @@ def _reattach(start: str, continuation: str) -> str:
 def _generate_whole(system: str, user: str, *, num_predict: int,
                     temperature: float, label: str,
                     keep_going: bool = True) -> tuple[str, list[dict], list[str]]:
-    """Génère un texte ENTIER : relance si `num_predict` a coupé la génération.
+    """Generate a WHOLE text: relaunch if `num_predict` cut the generation.
 
-    Ollama ne signale l'amputation que par `done_reason: "length"` — le texte
-    revient coupé en plein mot, sans erreur. Observé au run du 2026-08-06 sur
-    une scène (1400/1400 tokens) : la relecture a ensuite travaillé sur un
-    texte tronqué, et la scène suivante a hérité d'un état narratif inachevé.
+    Ollama signals the amputation only through `done_reason: "length"` — the
+    text comes back cut mid-word, without error. Observed in the 2026-08-06
+    run (one scene at 1400/1400 tokens): review then worked from a truncated
+    text, and the next scene inherited an unfinished narrative state.
 
-    Deux dispositifs, dans cet ordre : une continuation (le texte est rendu
-    entier), puis en filet une coupe à la dernière phrase complète si le modèle
-    dépasse encore. Le filet n'est jamais le premier recours : il rend une
-    scène qui s'arrête tôt, donc sans l'état final que le plan lui demandait.
+    Two devices, in this order: a continuation (the text is returned whole),
+    then as a net a cut at the last complete sentence if the model still
+    overflows. The net is never the first resort: it returns a scene that
+    stops early, so without the final state the plan asked of it.
     """
     text, m = chat(system, user, num_predict=num_predict, temperature=temperature,
                    on_token=progress.token_sink())
@@ -344,12 +338,12 @@ def _generate_whole(system: str, user: str, *, num_predict: int,
     if ends_mid_sentence(text):
         cut = trim_to_sentence(text)
         if cut != text:
-            # Dire CE QU'ON RETIRE, pas seulement qu'on a retiré. Au run du
-            # 2026-08-06, le filet a tiré sur deux scènes dont aucune n'avait
-            # été coupée par `num_predict` (nemo émet parfois son EOS en pleine
-            # phrase) : sans l'extrait, impossible de distinguer un fragment
-            # pendant légitimement supprimé d'une vraie fin de scène mal
-            # reconnue par la détection de ponctuation.
+            # Say WHAT is removed, not only that something was. In the
+            # 2026-08-06 run the net cut two scenes neither of which
+            # `num_predict` had truncated (nemo sometimes emits its EOS
+            # mid-sentence): without the excerpt there is no telling a dangling
+            # fragment rightly removed from a real scene ending misread by the
+            # punctuation detection.
             removed = text[len(cut):].strip()
             warns.append(
                 f"{label} : fin coupée à la dernière phrase complète, "
@@ -363,7 +357,7 @@ def _generate_whole(system: str, user: str, *, num_predict: int,
 
 
 def _parse_beats(text: str) -> list[str]:
-    """Extrait les lignes numérotées « 1. … » d'une réponse de plan."""
+    """Extract the numbered lines « 1. … » from a plan answer."""
     beats = [
         re.sub(r"^\s*\d+[.)]\s*", "", line).strip()
         for line in text.splitlines()
@@ -373,7 +367,7 @@ def _parse_beats(text: str) -> list[str]:
 
 
 def _plan_user(brief: str, facts: list[str], feedback: str) -> str:
-    """Prompt de planification, avec les invariants de la bible en contrainte."""
+    """Planning prompt, with the bible invariants as constraints."""
     constraints = ""
     if facts:
         listing = "\n".join(f"  - {f}" for f in facts)
@@ -382,12 +376,12 @@ def _plan_user(brief: str, facts: list[str], feedback: str) -> str:
             "doit RIEN prévoir qui les contredise — ni une révélation, ni un "
             f"aveu, ni une découverte qu'elles excluent :\n{listing}\n"
         )
-    # La consigne de format ouvre ET ferme le prompt. Au premier essai elle
-    # n'était qu'en fin de message, derrière un brief long et très détaillé :
-    # nemo a RÉDIGÉ le chapitre au lieu de le planifier — trois entrées de
-    # prose complète, avec des éléments inventés (une voix, un intrus). Un
-    # brief qui ressemble à une consigne d'écriture se fait exécuter comme
-    # telle si rien ne le contredit des deux côtés.
+    # The format instruction opens AND closes the prompt. At the first try it
+    # sat only at the end, behind a long, detailed brief: nemo WROTE the
+    # chapter instead of planning it — three entries of full prose, with
+    # invented elements (a voice, an intruder). A brief that looks like a
+    # writing instruction gets executed as one if nothing contradicts it from
+    # both sides.
     return (
         "Tu es un PLANIFICATEUR, pas un rédacteur. Tu ne produis QUE des "
         "lignes numérotées. Tu n'écris AUCUNE prose, AUCUN dialogue, AUCUNE "
@@ -413,7 +407,7 @@ def _plan_user(brief: str, facts: list[str], feedback: str) -> str:
 
 
 def _plan_feedback(violations: list[tuple[int, str, str]]) -> str:
-    """Reproche adressé au planificateur : la contrainte violée, et où."""
+    """Reproach addressed to the planner: the violated constraint, and where."""
     lines = "\n".join(
         f"  - tu avais prévu « {quotation} », ce qui contredit : {fact}"
         for _, fact, quotation in violations
@@ -427,32 +421,32 @@ def _plan_feedback(violations: list[tuple[int, str, str]]) -> str:
 
 
 def plan_node(state: ChapterState) -> dict:
-    """Dérive les invariants de la bible, puis planifie SOUS cette contrainte.
+    """Derive the bible invariants, then plan UNDER that constraint.
 
-    L'ordre des modèles est dicté par la mémoire, pas par l'élégance : les
-    faits sont dérivés par Qwen (4,8 GB) AVANT que nemo (13 GB) ne chauffe, et
-    chaque bascule décharge le précédent. Les deux ensemble font 17,8 GB sur
-    19,3 GB — la pression exacte qui a fait paniquer la machine.
+    The model order is dictated by memory, not elegance: the facts are derived
+    by Qwen (4.8 GB) BEFORE nemo (13 GB) warms up, and each swap unloads the
+    previous one. Both together make 17.8 GB of 19.3 GB — the exact pressure
+    that panicked the machine (ADR-0008).
 
-    Pourquoi vérifier le plan ici plutôt que se fier au rapport de cohérence
-    final : celui-ci arrive après quatorze minutes de rédaction. Il constate,
-    il ne prévient pas, et sur scène on ne réécrit pas. Un plan tient en quatre
-    lignes : le confronter coûte quelques secondes, le corriger coûte un
-    rechargement de nemo — sans commune mesure avec un chapitre à jeter.
+    Why check the plan here rather than trust the final coherence report: that
+    report comes after fourteen minutes of writing. It observes, it does not
+    prevent, and onstage nothing is rewritten. A plan is four lines: checking
+    it costs seconds, fixing it costs a reload of nemo — no comparison with a
+    chapter to throw away (ADR-0010).
     """
     metrics: list[dict] = []
     warnings: list[str] = []
     rag = state.get("rag", True)
 
-    # COURT-CIRCUIT MONO-ENTRÉE (item 10). Planifier une entrée unique est
-    # dégénéré : le modèle rédige au lieu de découper, et on se replie sur le
-    # brief. En étage B, ce détour coûtait 139 à 222 secondes — pour rien.
-    # COURT-CIRCUIT SUR PLAN FOURNI. Quand le brief porte déjà un beat par
-    # entrée (`imposed_plan`), planifier n'ajoute rien et peut tout défaire : au
-    # premier tirage du chapitre 7, le nœud n'a produit aucune ligne numérotée
-    # sur un brief en prose formatée, et le repli a donné le brief ENTIER à
-    # chaque entrée — les deux ont donc reçu la consigne décrivant les deux.
-    # Planifier ce qui est déjà écrit, c'est offrir l'occasion de le défaire.
+    # SINGLE-ENTRY SHORT-CIRCUIT (item 10). Planning a single entry is
+    # degenerate: the model writes instead of cutting, and the fallback is the
+    # brief. In stage B this detour cost 139 to 222 seconds — for nothing.
+    # SHORT-CIRCUIT WHEN THE PLAN IS GIVEN. When the brief already carries one
+    # beat per entry (`imposed_plan`), planning adds nothing and can undo
+    # everything: at the first draw of chapter 7 the node produced no numbered
+    # line from a brief in formatted prose, and the fallback gave the WHOLE
+    # brief to each entry — both received the instruction describing both.
+    # Planning what is already written is an invitation to undo it.
     if state.get("imposed_plan"):
         progress.phase("Plan", f"fourni par le brief "
                                f"({len(state['imposed_plan'])} entrées)")
@@ -471,11 +465,11 @@ def plan_node(state: ChapterState) -> dict:
             "idx": 0, "scenes": [], "metrics": [], "warnings": [],
         }
 
-    # Sans RAG, les faits n'ont pas de source : `derive_facts` lit les fiches
-    # via Chroma. Toute la chaîne de contrainte (vérification du plan, rapport
-    # de cohérence) est donc inerte à l'étage A — par construction, pas par
-    # accident. L'écart A → B portera cette variable EN PLUS de la matière
-    # servie à l'écriture : à garder en tête à la lecture des grilles.
+    # Without RAG the facts have no source: `derive_facts` reads the sheets
+    # through Chroma. The whole constraint chain (plan check, coherence report)
+    # is therefore inert in stage A — by construction, not by accident. The
+    # A → B gap carries this variable AS WELL AS the matter served to the
+    # writing: keep it in mind when reading the grids.
     if not rag:
         facts: list[str] = []
         warnings.append(
@@ -488,7 +482,7 @@ def plan_node(state: ChapterState) -> dict:
         facts, mf = derive_facts(state["characters"])
         metrics.extend(_tag([mf], "plan/faits"))
         progress.note(f"{len(facts)} faits dérivés, ils contraignent le plan")
-        unload(settings.qa_model)  # place nette avant de charger nemo
+        unload(settings.qa_model)  # clear the deck before loading nemo
 
     beats: list[str] = []
     report = "Plan non vérifié (aucun fait dérivé de la bible)."
@@ -496,9 +490,9 @@ def plan_node(state: ChapterState) -> dict:
     for attempt in range(1, MAX_PLAN_ATTEMPTS + 1):
         progress.phase("Plan d'entrées",
                        f"(nemo, tentative {attempt}/{MAX_PLAN_ATTEMPTS})")
-        # Le plan est une structure, pas de la prose : il reçoit le préambule
-        # et la règle du récit, pas le contrat de style — servir *Narration*
-        # et *Interdits* à un planificateur gonfle le prompt sans rien cadrer.
+        # The plan is structure, not prose: it gets the preamble and the rule
+        # of the narrative, not the style contract — serving *Narration* and
+        # *Interdits* to a planner inflates the prompt and frames nothing.
         system = assemble_system_prompt(
             characters=state["characters"], scene_brief=state["brief"],
             rag=rag, style=(), include_scenes=False,
@@ -508,27 +502,27 @@ def plan_node(state: ChapterState) -> dict:
                        num_predict=500, temperature=0.5,
                        on_token=progress.token_sink())
         metrics.extend(_tag([m], "plan"))
-        # Le plan passe au lint comme la prose : un token collé dans un beat
-        # (« maisonly », observé au run du 2026-08-06) contamine ensuite le
-        # brief de la scène, donc le prompt d'écriture. La réparation par Qwen
-        # n'intervient qu'en fin de pipeline, bien trop tard pour un brief.
+        # The plan goes through the lint like prose: a glued token in a beat
+        # (« maisonly », 2026-08-06 run) then contaminates the scene brief, so
+        # the writing prompt. Qwen's repair only comes at the end of the
+        # pipeline, far too late for a brief.
         text, w = delint(text)
         warnings.extend(f"plan (tentative {attempt}): {x}" for x in w)
         candidate = _parse_beats(text)
-        # Un plan illisible n'est pas une violation : on garde le précédent
-        # s'il existait, sinon on laisse la suite du graphe s'en apercevoir.
+        # An unreadable plan is not a violation: keep the previous one if there
+        # was one, otherwise let the rest of the graph notice.
         if candidate:
             beats = candidate
         if not facts or not beats:
             break
 
-        unload()  # nemo → Qwen pour la vérification
+        unload()  # nemo → Qwen for the check
         progress.phase("Contrôle du plan contre la bible", "(Qwen)")
         violations, report, mv = check_plan(facts, beats)
         metrics.extend(_tag(mv, "plan/controle"))
-        # Tracer la tentative : un plan refusé PUIS corrigé est le moment le
-        # plus parlant du dispositif, et sans cette ligne le rapport final est
-        # indiscernable d'un plan bon du premier coup.
+        # Trace the attempt: a plan refused THEN corrected is the most telling
+        # moment of the device, and without this line the final report is
+        # indistinguishable from a plan right the first time.
         report = f"tentative {attempt}/{MAX_PLAN_ATTEMPTS} — {report}"
         if not violations or attempt == MAX_PLAN_ATTEMPTS:
             if violations:
@@ -541,13 +535,13 @@ def plan_node(state: ChapterState) -> dict:
         warnings.append(f"plan (tentative {attempt}) refusé : {refusal}")
         progress.note(f"PLAN REFUSÉ — {refusal}. Replanification.")
         feedback = _plan_feedback(violations)
-        unload(settings.qa_model)  # Qwen → nemo pour la reprise
+        unload(settings.qa_model)  # Qwen → nemo for the retry
 
-    # Filet : un plan illisible ne doit pas faire tomber le graphe. `write_node`
-    # indexe `plan[idx]` et lèverait un IndexError — une génération de chapitre
-    # perdue parce que le planificateur a mal formaté sa réponse. Le brief lui
-    # même fait alors office d'unique entrée : c'est le comportement juste pour
-    # un brief mono-entrée, et le moins mauvais pour les autres.
+    # Net: an unreadable plan must not bring the graph down. `write_node`
+    # indexes `plan[idx]` and would raise IndexError — a chapter generation
+    # lost because the planner misformatted its answer. The brief itself then
+    # serves as the single entry: the right behaviour for a single-entry
+    # brief, the least bad for the others.
     if not beats:
         beats = [state["brief"]]
         warnings.append(
@@ -558,18 +552,18 @@ def plan_node(state: ChapterState) -> dict:
         )
         progress.note("plan non découpé : le brief fait office d'entrée unique")
 
-    # LE PLAN D'ENTRÉES FAIT LOI SUR LE NOMBRE (micro-lot, correctif CH7).
+    # THE ENTRY PLAN RULES THE COUNT (micro-batch, chapter 7 fix).
     #
-    # `entry_specs` décrit une structure imposée par le brief — deux entrées du
-    # même jour pour le chapitre 7. Le nœud de plan, lui, n'en savait rien : il
-    # a rendu QUATRE beats, et les entrées 3 et 4, hors spec, sont retombées sur
-    # les dates dérivées (« Lundi 16 », « Mardi 17 »). Un chapitre de 2281 mots
-    # là où le brief en demande deux entrées, et une structure de scène détruite
-    # — la bascule se pose sur le second en-tête, elle aurait ouvert l'audio sur
-    # une entrée qui n'existe pas au brief.
+    # `entry_specs` describes a structure imposed by the brief — two entries
+    # the same day for chapter 7. The plan node knew nothing of it: it returned
+    # FOUR beats, and entries 3 and 4, outside the spec, fell back to derived
+    # dates (« Lundi 16 », « Mardi 17 »). A chapter of 2281 words where the
+    # brief asks for two entries, and a destroyed scene structure — the switch
+    # sits at the second header; it would have opened the audio at an entry
+    # the brief does not have.
     #
-    # Quand la structure est donnée, elle n'est pas négociable : on coupe. Et on
-    # le DIT — un plan tronqué en silence se relit comme un plan obéi.
+    # A given structure is not negotiable: cut. And SAY so — a plan truncated
+    # in silence reads as a plan obeyed.
     spec = state.get("entry_specs") or []
     if spec and len(beats) != len(spec):
         warnings.append(
@@ -581,8 +575,8 @@ def plan_node(state: ChapterState) -> dict:
         while len(beats) < len(spec):
             beats.append(state["brief"])
 
-    # L'écriture veut nemo seul : Qwen a pu rester chaud après la vérification.
-    # Sans RAG, Qwen n'a jamais été chargé — rien à décharger.
+    # Writing wants nemo alone: Qwen may have stayed warm after the check.
+    # Without RAG Qwen was never loaded — nothing to unload.
     if rag:
         unload(settings.qa_model)
     return {
@@ -592,74 +586,73 @@ def plan_node(state: ChapterState) -> dict:
 
 
 def write_node(state: ChapterState) -> dict:
-    """Rédige la scène courante (state['idx']) avec un contexte ré-assemblé.
+    """Write the current scene (state['idx']) with a re-assembled context.
 
-    Anti-répétition (défaut du jalon précédent : les scènes se rejouaient) :
-    le modèle reçoit le PLAN COMPLET avec sa position marquée (il sait ce qui
-    est déjà couvert et ce qui vient) ET le récit déjà écrit (2 dernières
-    scènes en entier), avec consigne explicite de CONTINUER sans rejouer.
+    Anti-repetition (defect of the previous milestone: scenes replayed each
+    other): the model gets the FULL PLAN with its position marked (it knows
+    what is covered and what comes next) and an explicit instruction to
+    CONTINUE without replaying. Previous entries are no longer served (see
+    the anchor continuity below).
     """
     idx = state["idx"]
     beat = state["plan"][idx]
-    # La fiche de CETTE entrée, lue en tête du nœud : elle commande l'en-tête,
-    # la citation, la cible de mots et le découpage. Vide hors chapitre 7 —
-    # tout le reste du pipeline est alors inchangé.
+    # THIS entry's sheet, read at the top of the node: it commands the header,
+    # the quotation, the word target and the cut. Empty outside chapter 7 —
+    # the rest of the pipeline is then unchanged.
     spec = state.get("entry_specs") or []
     sheet: EntrySpec = spec[idx] if idx < len(spec) else EMPTY_ENTRY
     progress.phase("Écriture", f"entrée {idx + 1}/{len(state['plan'])} (nemo)",
                    i=idx + 1, n=len(state["plan"]))
     system = assemble_system_prompt(
         characters=state["characters"], scene_brief=beat,
-        include_scenes=False,  # continuité gérée par le threading explicite ci-dessous
+        include_scenes=False,  # continuity handled by the explicit threading below
         chapter=state.get("chapter"),
         rag=state.get("rag", True),
     )
 
-    # Plan annoté : [fait] / >> à écrire / [à venir].
+    # Annotated plan: [fait] / >> to write / [à venir].
     plan_lines = []
     for j, b in enumerate(state["plan"]):
         mark = ">>" if j == idx else ("[fait]" if j < idx else "[à venir]")
         plan_lines.append(f"  {j + 1}. {mark} {b}")
     plan_txt = "\n".join(plan_lines)
 
-    # CONTINUITÉ PAR ANCRE (item 4). On n'injecte plus les deux dernières
-    # entrées pleines : montrer des entrées entières faisait recopier des
-    # paragraphes d'une entrée à l'autre — AC produisait huit en-têtes dont un
-    # répété cinq fois. La continuité passe désormais par l'ÉTAT NARRATIF, déjà
-    # servi dans le prompt système, et par le plan annoté ci-dessus qui dit ce
-    # qui est fait. Une ancre décrit où l'on en est ; un texte complet invite à
-    # le continuer mot pour mot.
+    # CONTINUITY BY ANCHOR (item 4). The last two full entries are no longer
+    # injected: showing whole entries made the model copy paragraphs from one
+    # entry to the next — AC produced eight headers, one repeated five times.
+    # Continuity now goes through the NARRATIVE STATE, already served in the
+    # system prompt, and the annotated plan above that says what is done. An
+    # anchor says where we are; a full text invites word-for-word continuation.
     prior_block = ""
 
-    lo, hi = sheet.words or WORDS_PER_ENTRY  # cible propre à l'entrée
-    # PRÉFIXAGE PAR LE CODE (item 5) : l'en-tête et la citation ancre ne sont
-    # pas DEMANDÉS au modèle, ils lui sont DONNÉS déjà écrits — il continue.
-    # A3 avait altéré l'ancre et corrompu les beats 2-3 qui en dépendaient ;
-    # une consigne n'empêche pas une altération, un texte déjà posé si.
-    # PRÉFIXAGE PAR CONCATÉNATION RÉELLE, plus par consigne. La version
-    # précédente disait « recopie-le à l'identique » : c'était une INSTRUCTION,
-    # donc B′1 a pu l'altérer — et l'a fait, au pluriel (« Je les ai laissées »
-    # pour « Je l'ai laissée »). Si l'ancre a pu bouger, c'est qu'elle était
-    # servie en consigne. Désormais le code écrit ce début et le modèle ne fait
-    # que continuer : l'ancre devient inaltérable par construction.
-    # L'en-tête est COMPOSÉ ici, jamais demandé, et concaténé avec l'ancre de
-    # citation quand le brief en fournit une. La météo vient du plan ; la date
-    # se dérive de l'ancre de séquence, donc les entrées d'un chapitre sont
-    # consécutives sans qu'on ait à le vérifier.
+    lo, hi = sheet.words or WORDS_PER_ENTRY  # the entry's own target
+    # PREFIXING BY THE CODE (item 5): the header and the anchor quotation are
+    # not ASKED of the model, they are GIVEN already written — it continues.
+    # A3 had altered the anchor and corrupted beats 2-3 that depended upon it;
+    # an instruction does not prevent an alteration, a text already posed does.
+    # By REAL CONCATENATION, not by instruction. The previous version said
+    # « recopie-le à l'identique »: an INSTRUCTION, so B′1 could alter it — and
+    # did, to the plural (« Je les ai laissées » for « Je l'ai laissée »). The
+    # code writes this start and the model only continues: the anchor is
+    # unalterable by construction (ADR-0018).
+    # The header is COMPOSED here, never asked, and concatenated with the
+    # anchor quotation when the brief gives one. Weather comes from the plan;
+    # the date derives from the sequence anchor, so the entries of a chapter
+    # are consecutive without a check.
     weather, beat = split_weather(beat)
-    # PLAN D'ENTRÉES EXPLICITE (session 7) — le brief le fournit, au lieu que le
-    # code le dérive. Sans lui, rien ne change : les dates se dérivent comme
-    # depuis la session 5, et les chapitres 1-6 et 8-11 sont inchangés.
+    # EXPLICIT ENTRY PLAN (session 7) — the brief supplies it instead of the
+    # code deriving it. Without it nothing changes: dates derive as since
+    # session 5, chapters 1-6 and 8-11 are untouched.
     #
-    # Il existe pour le CHAPITRE 7, qui demande DEUX ENTRÉES DU MÊME JOUR
-    # (« Samedi 14. » deux fois : l'après-midi et la nuit de l'anniversaire).
-    # Trois dispositifs s'y opposaient, tous construits délibérément :
-    #   · `entete()` dérive `numero_depart + idx` — l'entrée 2 sortait
-    #     « Dimanche 15 », et la structure du chapitre était impossible ;
-    #   · `entetes_coherents` refuse deux en-têtes identiques ;
-    #   · les 450-600 mots en trois segments contre « entrée 1 : DEUX PHRASES ».
-    # L'enjeu n'est pas cosmétique : la bascule audio se place sur le SECOND
-    # en-tête normalisé. Pas d'en-tête conforme, pas de coïncidence scénique.
+    # It exists for CHAPTER 7, which asks for TWO ENTRIES THE SAME DAY
+    # (« Samedi 14. » twice: the afternoon and the night of the anniversary).
+    # Three devices stood against it, all built deliberately:
+    #   · `header()` derives `start_number + idx` — entry 2 came out
+    #     « Dimanche 15 », and the chapter structure was impossible;
+    #   · `consistent_headers` refuses two identical headers;
+    #   · 450-600 words in three segments against « entrée 1 : DEUX PHRASES ».
+    # The stake is not cosmetic: the audio switch sits at the SECOND normalised
+    # header. No conforming header, no stage coincidence (ADR-0013).
     start_day = state.get("start_day") or "Mardi"
     start_number = state.get("start_number") or 12
     if sheet.weekday:
@@ -668,9 +661,9 @@ def write_node(state: ChapterState) -> dict:
     else:
         head = header(start_day, start_number, idx,
                       weather or (state.get("start_weather") if idx == 0 else ""))
-    # La citation d'ancre devient un champ de l'entrée : au chapitre 7, l'entrée
-    # 1 NE CITE PAS (« première entorse au rituel, premier signal ») et l'entrée
-    # 2 s'ouvre sur [CIT-2]. Servir la même ancre aux deux détruirait le signal.
+    # The anchor quotation becomes an entry field: in chapter 7, entry 1 does
+    # NOT quote (« première entorse au rituel, premier signal ») and entry 2
+    # opens with [CIT-2]. Serving the same anchor to both would kill the signal.
     anchor = (sheet.citation if sheet.citation is not None
              else state.get("prefix") or "")
     prefix = f"{head}\n\n{anchor}" if anchor else head
@@ -691,40 +684,40 @@ def write_node(state: ChapterState) -> dict:
         "NE réécris AUCUN événement déjà noté ci-dessus — tu enchaînes dans la "
         "continuité stricte. Montre la tension sans la nommer. Prose seule, "
         "sans titre ni méta-commentaire.\n"
-        # CONSIGNE DE MASSE (bloc B). Les runs plafonnent à 185-366 mots : le
-        # squelette se coche, il ne se remplit pas — et le verdict oral du
-        # 2026-08-19 attribue à ce manque l'absence de voix. On ne demande pas
-        # « plus long », on dit OÙ la longueur se prend.
+        # MASS INSTRUCTION (block B). Runs plateau at 185-366 words: the
+        # skeleton gets ticked, not filled — and the oral verdict of 2026-08-19
+        # traces the absence of voice to this lack. Not « plus long »: say
+        # WHERE the length comes from.
         "La reconstruction occupe au moins la moitié de l'entrée — la soirée "
         "entière, du retour à la cuisine au coucher, avant le verdict."
-        # « fais entendre les voix distinctes » a disparu : une seule voix,
-        # aucun dialogue. La consigne poussait vers ce que la fiche interdit.
+        # « fais entendre les voix distinctes » is gone: one voice, no dialogue.
+        # The instruction pushed towards what the sheet forbids.
     )
-    # --- LA VARIABLE MESURÉE DE LA SESSION 6 ------------------------------
-    # Un seul appel traitait cinq beats : le modèle écrivait un paragraphe par
-    # beat et s'arrêtait. La masse vit dans UN beat — la reconstruction — et
-    # elle n'avait jamais eu d'appel à elle. On décompose, ce qui est le
-    # principe qui vient de gagner l'accumulation, appliqué un cran plus haut.
+    # --- THE MEASURED VARIABLE OF SESSION 6 -------------------------------
+    # One call handled five beats: the model wrote one paragraph per beat and
+    # stopped. The mass lives in ONE beat — the reconstruction — and it never
+    # had a call of its own. Decompose: the principle that just won the
+    # accumulation, applied one level up.
     #
-    # Hors étage S6, la branche d'origine reste intacte À L'OCTET PRÈS : c'est
-    # par elle que tout le pipeline a été chronométré, et l'habillage d'un
-    # étage ne doit jamais rejouer la validation d'un autre.
+    # Outside stage S6 the original branch stays intact TO THE BYTE: the whole
+    # pipeline was timed through it, and dressing one stage must never replay
+    # the validation of another.
     reconstruction = ""
-    # Le PROMPT SERVI est conservé : c'est un livrable de la méthode du
-    # mouvement (« dump du prompt servi »), et c'est aussi ce qui permet de
-    # mesurer la recopie — le contrôle qui manquait au tirage 6.
+    # The SERVED PROMPT is kept: a deliverable of the movement method
+    # (« dump du prompt servi »), and what measures copying — the check draw 6
+    # lacked.
     served_prompts: list[tuple[str, str]] = []
     if sheet.strategy == "beats" and sheet.beats:
-        # CAP-CODE STRUCTUREL (entrée 2, v5). Chaque beat est un appel court,
-        # servi SEUL (pas le mouvement entier — cf. `_prompt_beat`), borné en
-        # phrases ET en tokens par le code. Le texte déjà écrit devient le
-        # préfixe du beat suivant (doctrine du préfixage), et `_recoller`
-        # absorbe une reprise. Le glissement et la chute restent posés en aval
-        # par `poser_gestes_node` : rien de neuf dans le pipeline des gestes.
+        # STRUCTURAL CODE CAP (entry 2, v5). Each beat is a short call, served
+        # ALONE (not the whole movement — see `_prompt_beat`), bounded in
+        # sentences AND tokens by the code. The text already written becomes
+        # the prefix of the next beat (prefixing doctrine), and `_reattach`
+        # absorbs a restart. Drift and fall stay posed downstream by
+        # `place_gestures_node`: nothing new in the gesture pipeline (ADR-0020).
         text, ms, wg = "", [], []
-        # FIX RACINE : voix servie SANS les étapes verdict/couperet (cf.
-        # `_VOIX_VERDICT`). Réassignation locale — les autres branches sont en
-        # `elif`, et le tail commun n'utilise pas `system` pour générer.
+        # ROOT FIX: voice served WITHOUT the verdict/cleaver steps (see
+        # `_VERDICT_VOICE`). Local reassignment — the other branches are
+        # `elif`, and the common tail does not use `system` to generate.
         system = _VERDICT_VOICE.sub("", system)
         beats = sheet.beats
         first_name = beats[0].name
@@ -740,11 +733,11 @@ def write_node(state: ChapterState) -> dict:
                 "répète rien de ce qui précède.\n" if already else "")
             beat_user = _prompt_beat(instruction, block)
             served_prompts.append((name, beat_user))
-            # BEST-OF-N par beat. Les échecs de nemo sont CORRÉLÉS (il résout /
-            # redémarre dans tous les tirages, différemment) : on tire N
-            # variants et le code garde celui qui porte le MOINS de défauts
-            # nommés (`_scorer_beat`). La sélection est une lecture déterministe,
-            # pas un juge de goût — falsifiable, donc digne de confiance.
+            # BEST-OF-N per beat. nemo's failures are CORRELATED (it resolves /
+            # restarts in every draw, differently): N variants are drawn and
+            # the code keeps the one with the FEWEST named defects
+            # (`_score_beat`). Selection is a deterministic reading, not a
+            # judge of taste — falsifiable, so trustworthy.
             variants = []
             beats_n = settings.beats_n
             for k in range(beats_n):
@@ -760,7 +753,7 @@ def write_node(state: ChapterState) -> dict:
                                            state.get("chapter") or 0)
                 variants.append({"score": sc, "k": k, "seg": seg,
                                   "defauts": defects, "m": m, "w": w + wn + wb})
-            # Meilleur score ; à égalité, le premier tiré (stable, rejouable).
+            # Best score; ties go to the first drawn (stable, replayable).
             variants.sort(key=lambda v: (-v["score"], v["k"]))
             winner = variants[0]
             seg = winner["seg"]
@@ -774,11 +767,11 @@ def write_node(state: ChapterState) -> dict:
                 + " ; ".join(f"#{v['k'] + 1} score {v['score']}"
                              for v in variants[1:]))
             text = _reattach(text, seg) if text else seg
-            # Métriques de TOUS les variants — les jetons rejetés sont dépensés
-            # (doctrine 5 : aucun chiffre sans son horloge).
+            # Metrics of ALL variants — rejected tokens were spent (doctrine 5:
+            # no figure without its clock).
             ms += [dict(m2, beat=name, variant=v["k"])
                    for v in variants for m2 in v["m"]]
-        # L'accumulation prend l'entrée entière pour contexte : elle est courte.
+        # The accumulation takes the whole entry as context: it is short.
         reconstruction = text
     elif sheet.uses_segments(state.get("segments")):
         text, ms, wg = "", [], []
@@ -786,10 +779,10 @@ def write_node(state: ChapterState) -> dict:
             progress.phase("Écriture", f"entrée {idx + 1}/"
                            f"{len(state['plan'])} — {name}",
                            i=idx + 1, n=len(state["plan"]))
-            # Le texte déjà écrit devient le PRÉFIXE du segment suivant :
-            # doctrine du préfixage étendue, sans mécanisme nouveau. La
-            # continuité est garantie par construction, et `_recoller` absorbe
-            # la reprise si le modèle redonne la fin malgré la consigne.
+            # The text already written becomes the PREFIX of the next segment:
+            # the prefixing doctrine extended, no new mechanism. Continuity is
+            # guaranteed by construction, and `_reattach` absorbs the restart
+            # if the model repeats the end despite the instruction.
             already = f"{prefix}\n\n{text}".strip() if prefix else text.strip()
             block = (
                 "L'entrée est DÉJÀ COMMENCÉE par ce texte, que tu ne réécris "
@@ -802,8 +795,8 @@ def write_node(state: ChapterState) -> dict:
                 f"  {k}. {place_name}" for k, place_name in
                 enumerate(state.get("stations") or (), 1))
             if sheet.movement:
-                # Méthode du mouvement : le brief porte tout, les consignes de
-                # segment ne portent plus que la POSITION dans la trajectoire.
+                # Movement method: the brief carries everything, the segment
+                # instructions only carry the POSITION in the trajectory.
                 seg_user = _movement_prompt(
                     sheet, target_words, TRAJECTORY_POSITION[name], block)
             else:
@@ -821,10 +814,10 @@ def write_node(state: ChapterState) -> dict:
             seg, m, w = _generate_whole(
                 system, seg_user, num_predict=num_predict, temperature=0.7,
                 label=f"entrée {idx + 1}/{name}")
-            # Les filtres propriétaires du code s'appliquent AU SEGMENT, avant
-            # qu'il devienne le préfixe du suivant : un en-tête réémis en tête
-            # de la reconstruction serait recopié par la fermeture, qui le lit
-            # comme du texte légitime déjà écrit.
+            # The code's proprietary filters apply TO THE SEGMENT, before it
+            # becomes the next prefix: a header re-emitted at the top of the
+            # reconstruction would be copied by the closing, which reads it as
+            # legitimate text already written.
             seg, wn = _clean_segment(seg, f"entrée {idx + 1}/{name}")
             wg += w + wn
             if name == "reconstruction":
@@ -832,18 +825,19 @@ def write_node(state: ChapterState) -> dict:
             text = _reattach(text, seg) if text else seg
             ms += [dict(m2, segment=name) for m2 in m]
     else:
-        # `num_predict` DÉRIVÉ DE LA CIBLE quand le brief en donne une.
+        # `num_predict` DERIVED FROM THE TARGET when the brief gives one.
         #
-        # Le modèle occupe l'espace offert — mesuré trois fois (l'accumulation à
-        # 214 mots sans plafond, la scène à 1400/1400, et ici l'entrée 1 du
-        # chapitre 7 à 471 mots là où le brief en demande DEUX PHRASES). Offrir
-        # 1400 tokens pour soixante mots, c'est demander soixante mots et en
-        # autoriser six cents : la consigne dit une chose, le budget en dit une
-        # autre, et c'est le budget qui gagne.
-        # LA MÉTHODE DU MOUVEMENT VAUT AUSSI SANS DÉCOUPAGE. Quand la fiche
-        # porte un mouvement, l'appel unique reçoit le même ordre de service —
-        # sinon on retomberait sur le prompt de cases que la méthode remplace,
-        # et la comparaison ne porterait plus sur le seul nombre d'appels.
+        # The model occupies the space offered — measured three times (the
+        # accumulation at 214 words without a cap, the scene at 1400/1400, and
+        # here entry 1 of chapter 7 at 471 words where the brief asks for TWO
+        # SENTENCES). Offering 1400 tokens for sixty words asks for sixty and
+        # allows six hundred: the instruction says one thing, the budget
+        # another, and the budget wins.
+        # THE MOVEMENT METHOD ALSO HOLDS WITHOUT SEGMENTATION. When the sheet
+        # carries a movement, the single call gets the same order of service —
+        # otherwise we would fall back to the box prompt the method replaces,
+        # and the comparison would no longer bear upon the number of calls
+        # alone.
         if sheet.movement:
             user = _movement_prompt(
                 sheet, f"{lo} à {hi} mots",
@@ -851,19 +845,18 @@ def write_node(state: ChapterState) -> dict:
                 prefix_block)
             served_prompts.append(("entrée entière", user))
         budget = (int(hi * 1.6) + 40 if sheet.words else 1400)
-        # PAS DE CONTINUATION quand la brièveté est VOULUE. La continuation
-        # existe contre l'amputation accidentelle — un texte coupé en plein mot
-        # à 1400 tokens. Sur une entrée bornée à soixante mots, `done_reason:
-        # length` est le résultat DEMANDÉ, et relancer défait la borne : le
-        # tirage précédent est reparti pour 300 tokens et a rendu 314 mots.
-        # On coupe à la dernière phrase complète, ce que `_generate_whole` fait
-        # déjà en filet.
+        # NO CONTINUATION when brevity is WANTED. Continuation exists against
+        # accidental amputation — a text cut mid-word at 1400 tokens. For an
+        # entry bounded at sixty words, `done_reason: length` is the REQUESTED
+        # result, and relaunching undoes the bound: the previous draw went
+        # back for 300 tokens and returned 314 words. Cut at the last complete
+        # sentence, which `_generate_whole` already does as a net.
         best_of = sheet.best_of.n if sheet.best_of else 0
         if best_of:
-            # BEST-OF-N sur l'entrée ENTIÈRE (entrée 1). On SCORE la version
-            # bornée à `sentences_max` — ce qui est réellement servi — via le
-            # scorer nommé par `critere`. Même principe que les beats : la
-            # sélection est une lecture déterministe, pas un juge de goût.
+            # BEST-OF-N over the WHOLE entry (entry 1). The version bounded to
+            # `sentences_max` — what is really served — is SCORED through the
+            # scorer named by the spec criterion. Same principle as the beats:
+            # selection is a deterministic reading, not a judge of taste.
             phr = sheet.sentences_max
             cont = not sheet.words
             cands = []
@@ -874,10 +867,11 @@ def write_node(state: ChapterState) -> dict:
                 t, m, w = _generate_whole(
                     system, user, num_predict=budget, temperature=0.7,
                     label=f"entrée {idx + 1}#{k + 1}", keep_going=cont)
-                # Nettoyer l'en-tête parasite AVANT de scorer : sinon la borne à
-                # deux phrases capture « Samedi 14. Beau temps. » (deux fins de
-                # phrase) au lieu du corps, et les trois variants scorent pareil
-                # — la sélection ne discrimine plus (mesuré au run précédent).
+                # Strip the stray header BEFORE scoring: otherwise the
+                # two-sentence bound captures « Samedi 14. Beau temps. » (two
+                # sentence ends) instead of the body, and all three variants
+                # score alike — the selection stops discriminating (measured
+                # in the previous run).
                 t_clean = STRAY_HEADER.sub("", t).strip()
                 to_score = (_bound_sentences(t_clean, phr, idx, "")[0]
                             if phr else t_clean)
@@ -899,15 +893,15 @@ def write_node(state: ChapterState) -> dict:
             text, ms, wg = _generate_whole(
                 system, user, num_predict=budget, temperature=0.7,
                 label=f"entrée {idx + 1}", keep_going=not sheet.words)
-    # La concaténation elle-même. `_recoller` retire le chevauchement au
-    # caractère près si le modèle a redonné l'en-tête ou l'ancre malgré la
-    # consigne — on ne veut ni doublon, ni ancre recomposée.
-    # Le code est PROPRIÉTAIRE du format d'en-tête : il en compose un par
-    # entrée. Tout en-tête daté que le modèle produit est donc parasite par
-    # définition — C1 en a inventé un second (« Vendredi 15. Pluie fine. »)
-    # dans une entrée censée être unique, et le lint découpait deux entrées là
-    # où il n'y en avait qu'une. On les retire, sans le redemander au modèle :
-    # une consigne de plus se serait ajoutée à celle qu'il vient d'ignorer.
+    # The concatenation itself. `_reattach` removes the overlap character by
+    # character if the model repeated the header or the anchor despite the
+    # instruction — neither a doublet nor a recomposed anchor is wanted.
+    # The code OWNS the header format and composes one per entry. Any dated
+    # header the model produces is parasitic by definition — C1 invented a
+    # second one (« Vendredi 15. Pluie fine. ») in an entry meant to be unique,
+    # and the lint split two entries where there was one. They are removed
+    # without asking the model again: one more instruction would join the one
+    # it just ignored.
     text, repeated = REPEATED_SUSPENSION.subn(r"\1", text)
     text, isolated = STRAY_SUSPENSION.subn(", ", text)
     suspensions = repeated + isolated
@@ -922,23 +916,22 @@ def write_node(state: ChapterState) -> dict:
     if prefix:
         text = _reattach(prefix, _strip_approximate_restart(prefix, text))
 
-    # LES VÉTOS SUR LE TEXTE DE SCÈNE (lot orthogonal du chapitre 7).
+    # THE VETOS OVER THE SCENE TEXT (orthogonal batch of chapter 7).
     #
-    # Jusqu'ici les interdits matériels et les marques n'étaient bloquants que
-    # DANS `accumulate` : ils vivaient donc dans le texte d'écriture, où rien ne
-    # les relançait. Sur un chapitre qui monte sur scène, le décor générique
-    # n'est pas un défaut de style, c'est un objet qui n'existe pas — et une
-    # marque déposée date le texte et le sort du monde clos de la maison.
+    # Until here the material interdicts and the brands were blocking only IN
+    # `accumulate`: they lived in the writing text, where nothing relaunched
+    # them. In a chapter that goes onstage, generic decor is not a style
+    # defect, it is an object that does not exist — and a brand dates the text
+    # and takes it out of the closed world of the house.
     #
-    # Une seule relance, comme partout ailleurs : au-delà, on garde et on crie.
+    # One relaunch, as everywhere else: beyond that, keep and shout.
     text, wv = _scene_vetos(text, idx, state, attempt_no=1)
     wg += wv
 
-    # BORNE EN PHRASES quand le brief en pose une. La borne en mots a divisé
-    # l'entrée 1 du chapitre 7 par cinq sans jamais compter les phrases : huit
-    # produites là où le brief en demande deux, et c'est l'entrée que le
-    # locuteur lit à voix nue. Une contrainte de scène se compte dans l'unité
-    # de la scène.
+    # SENTENCE BOUND when the brief sets one. The word bound divided entry 1 of
+    # chapter 7 by five without ever counting sentences: eight produced where
+    # the brief asks for two, and that is the entry the speaker reads with the
+    # bare voice. A stage constraint is counted in the stage's unit.
     if sheet.sentences_max:
         text, wp = _bound_sentences(text, sheet.sentences_max, idx, prefix)
         wg += wp
@@ -947,13 +940,13 @@ def write_node(state: ChapterState) -> dict:
     return {
         "scenes": state["scenes"] + [text],
         "idx": idx + 1,
-        # Le segment de reconstruction est mis de côté pour `accumulate` : c'est
-        # LUI qui devient son contexte, plus l'entrée entière. Le découpage rend
-        # cette matière identifiable sans avoir à la deviner dans le texte.
+        # The reconstruction segment is set aside for `accumulate`: IT becomes
+        # its context, not the whole entry. The cut makes this matter
+        # identifiable without guessing it inside the text.
         "reconstruction": reconstruction,
-        # Ce que le code a COMPOSÉ pour cette entrée, mis de côté pour le
-        # tampon de `poser_gestes_node` : lui seul peut le reposer à l'identique
-        # après que la réparation l'a réécrit.
+        # What the code COMPOSED for this entry, set aside for the stamp of
+        # `place_gestures_node`: it alone can re-pose it identically after the
+        # repair has rewritten it.
         "placed_header": head,
         "placed_anchor": anchor,
         "placed_fall": sheet.fall,
@@ -965,29 +958,28 @@ def write_node(state: ChapterState) -> dict:
 
 
 
-# --- `write` en trois segments (session 6, §1) --------------------------------
+# --- `write` in three segments (session 6, §1) --------------------------------
 #
-# Trois appels séquentiels, chacun préfixé du précédent. Le découpage n'ajoute
-# aucun mécanisme : il réemploie le préfixage par concaténation réelle, déjà
-# éprouvé sur l'en-tête et l'ancre. Ce qu'il change, c'est le RAPPORT DE FORCE
-# entre les beats — la reconstruction cesse d'être un beat parmi cinq et devient
-# une tâche narrative nourrie, avec sa propre matière servie.
+# Three sequential calls, each prefixed with the previous one. The cut adds no
+# mechanism: it reuses prefixing by real concatenation, already proven for the
+# header and the anchor. What it changes is the BALANCE OF POWER between the
+# beats — the reconstruction stops being one beat among five and becomes a fed
+# narrative task, with its own served matter.
 #
-# Aucune de ces consignes ne nomme un terme d'atelier : c'est notre propre
-# squelette servi qui avait fait sortir « Couperet : » en texte sur C2 et C3.
-# Une assertion le vérifie plus bas — la relecture ne suffit pas, elle a déjà
-# laissé passer le cas.
-# LES CONSIGNES SONT EN FAITS, PLUS EN INTENTIONS (session 7).
+# None of these instructions names a workshop term: our own served skeleton had
+# made « Couperet : » come out as text in C2 and C3. An assertion checks it
+# below — proofreading is not enough, it already let the case through.
+# THE INSTRUCTIONS ARE IN FACTS, NO LONGER IN INTENTIONS (session 7).
 #
-# « Elle rétablit sa soirée » nomme ce que le personnage DÉCIDE de faire, et le
-# modèle rend la décision en texte : « Je décide de rétablir ma soirée », « Je
-# décide de refaire le fil de ma soirée ». Mesuré ×3 sur « je décide de » à la
-# session 6 (sept occurrences sur S6-1, six sur S6-3), et les occurrences sont
-# DISPERSÉES dans l'entrée — ce n'est donc pas la couture des segments, c'est la
-# forme de la consigne. Une consigne qui décrit une intention produit un
-# personnage qui décrit ses intentions.
+# « Elle rétablit sa soirée » names what the character DECIDES to do, and the
+# model renders the decision as text: « Je décide de rétablir ma soirée »,
+# « Je décide de refaire le fil de ma soirée ». Measured ×3 for « je décide de »
+# in session 6 (seven occurrences in S6-1, six in S6-3), SCATTERED through the
+# entry — so not the segment seam but the form of the instruction. An
+# instruction that describes an intention produces a character who describes
+# her intentions (doctrine 8).
 #
-# On ne demande donc plus une intention, on donne des FAITS et des LIEUX.
+# So no intention is asked; FACTS and PLACES are given.
 _SEG_OPENING = """Écris seulement le DÉBUT de l'entrée, {words}.
 
 Le soir, le cahier ouvert : la phrase relue, l'écart entre ce qu'elle lit et \
@@ -995,14 +987,14 @@ ce dont elle se souvient, la chaise repoussée.
 
 ARRÊTE-TOI AU SEUIL DE LA CUISINE. N'écris pas ce qu'elle y trouve."""
 
-# LES STATIONS (session 7). Le plancher de masse devient mécanique : on ne
-# demande plus « raconte longuement » — une consigne de longueur que le modèle
-# lit comme un ton —, on donne des lieux à traverser. Une station traversée est
-# un paragraphe ; six stations font une reconstruction.
+# THE STATIONS (session 7). The mass floor becomes mechanical: no more
+# « raconte longuement » — a length instruction the model reads as a tone —
+# but places to go through. A station gone through is a paragraph; six
+# stations make a reconstruction.
 #
-# Aucune station ne fait revenir la narratrice de l'extérieur : elle travaille à
-# la table du séjour. C'est par cette porte que « je suis revenue du travail »
-# entrait (S6-3, C3), alors qu'elle ne sort pas.
+# No station brings the narrator back from outside: she works at the
+# living-room table. That door let « je suis revenue du travail » in (S6-3,
+# C3), while she does not go out.
 _SEG_RECONSTRUCTION = """Écris maintenant le MILIEU de l'entrée, {words} — \
 c'est la partie la plus longue, et de loin.
 
@@ -1030,18 +1022,17 @@ LA DERNIÈRE LIGNE REFERME, ELLE NE CONSOLE PAS : aucune promesse au \
 lendemain, aucune adresse à personne, aucun réconfort. Elle constate et \
 s'arrête."""
 
-# Le programme du jour — les stations du chapitre 2. Elles viennent de la table
-# de pilotage côté PERÇU : ce sont les lieux d'une soirée ordinaire chez elle.
 # Stations of the reconstruction segment come from the chapter spec
-# (`state["stations"]`): the CONSTATED state of each object, never the
-# intention — repeating it in intention language brings back « je décide de ».
+# (`state["stations"]`), the pilot table's PERCEIVED side: the CONSTATED state
+# of each object, never the intention — repeating it in intention language
+# brings back « je décide de ».
 
-# (nom, num_predict, mots visés, consigne)
+# (name, num_predict, target words, instruction)
 #
-# `num_predict` est dimensionné segment par segment plutôt que laissé à 1400
-# pour tous : offrir l'espace de l'entrée entière à l'ouverture, c'est l'inviter
-# à écrire l'entrée entière — le modèle occupe l'espace offert, mesuré deux fois
-# (l'accumulation à 214 mots sans plafond, la scène à 1400/1400).
+# `num_predict` is sized segment by segment rather than left at 1400 for all:
+# offering the whole entry's space to the opening invites it to write the
+# whole entry — the model occupies the space offered, measured twice (the
+# accumulation at 214 words without a cap, the scene at 1400/1400).
 SEGMENTS = (
     ("ouverture", 300, "80 à 120 mots", _SEG_OPENING),
     ("reconstruction", 800, "250 à 350 mots", _SEG_RECONSTRUCTION),
@@ -1049,24 +1040,22 @@ SEGMENTS = (
 )
 
 
-# --- LA MÉTHODE DU MOUVEMENT (2026-08-27) -----------------------------------
+# --- THE MOVEMENT METHOD (2026-08-27, ADR-0019) ------------------------------
 #
-# Le prompt cesse de décrire des cases à traverser. Il déclare un MOUVEMENT à
-# accomplir, des directives de PROSE, une MATIÈRE disponible — dans cet ordre,
-# et l'ordre fait partie de la méthode : l'intention avant la matière.
+# The prompt stops describing boxes to go through. It declares a MOVEMENT to
+# accomplish, PROSE directives, an available MATERIAL — in this order, and the
+# order is part of the method: intention before matter.
 #
-# Ce qui a rendu ce changement nécessaire se mesure. Le tirage 6 du chapitre 7
-# s'ouvre sur « Le soir, le cahier ouvert : la phrase relue, l'écart entre ce
-# que je lis et ce dont je me souviens, la chaise repoussée » — c'est la
-# consigne d'ouverture, RECOPIÉE, à 0,94 de similarité. Sur les runs du
-# chapitre 2 elle ne dépasse pas 0,37 : elle y décrit le rituel du chapitre et
-# se fond. Au chapitre 7 elle est étrangère, donc le modèle l'a transcrite.
+# What made the change necessary is measured. Draw 6 of chapter 7 opens with
+# « Le soir, le cahier ouvert : la phrase relue, […] la chaise repoussée » — the
+# opening instruction, COPIED, at 0.94 similarity. In the chapter 2 runs it
+# stays under 0.37: there it describes the chapter's ritual and blends in. In
+# chapter 7 it is foreign, so the model transcribed it.
 #
-# C'est la leçon de la session 3 (« ce qui est montré se recopie ») retournée
-# contre notre propre correctif : la session 6 avait écrit les consignes « en
-# faits, plus en intentions » pour tuer les « je décide de ». Devenues de la
-# prose, elles se sont fait recopier. Une consigne doit être une INSTRUCTION,
-# reconnaissable comme telle.
+# Session 3's lesson (« ce qui est montré se recopie ») turned against our own
+# fix: session 6 had written the instructions « en faits, plus en intentions »
+# to kill « je décide de ». Having become prose, they got copied. An
+# instruction must be an INSTRUCTION, recognisable as such.
 TRAJECTORY_POSITION = {
     "ouverture": "Tu écris le DÉBUT de cette trajectoire.",
     "reconstruction": "Tu écris la SUITE de cette trajectoire — c'est la partie "
@@ -1076,14 +1065,14 @@ TRAJECTORY_POSITION = {
 
 
 def _without_machinery(directive: str) -> str:
-    """Retire d'une directive servie la clause qui parle de notre machinerie.
+    """Remove from a served directive the clause that speaks of our machinery.
 
-    Le brief est écrit pour deux lecteurs à la fois : l'implémenteur et le
-    modèle. « Rien ne se résout… : la dernière ligne est posée d'office par le
-    code » — la première moitié est une directive de prose, la seconde une note
-    d'implémentation. Servir la seconde apprend au modèle qu'un code pose des
-    lignes derrière lui, et c'est exactement ce que le firewall des méta-termes
-    existe pour empêcher.
+    The brief is written for two readers at once: the implementer and the
+    model. The directive
+    « Rien ne se résout… : la dernière ligne est posée d'office par le code »
+    is half a prose directive, half an implementation note. Serving the second
+    half teaches the model that a code poses lines behind it, exactly what the
+    meta-term firewall exists to prevent.
     """
     pieces = re.split(r"\s*(?:—|:)\s*", directive)
     guards = [m for m in pieces if not MACHINERY.search(m)]
@@ -1092,10 +1081,10 @@ def _without_machinery(directive: str) -> str:
     return (" : ".join(guards) if guards else "").rstrip(" :,;") + "."
 
 
-# CRITÈRES DE SÉLECTION d'un variant de beat (best-of-N). Contrôles de LECTURE,
-# déterministes et falsifiables — jamais un juge de goût (doctrine 3 : compter
-# n'est pas lire). On ne note pas la prose ; on REJETTE des défauts nommés que
-# dix tirages ont rendus récurrents. Le variant retenu porte le moins de défauts.
+# SELECTION CRITERIA for a beat variant (best-of-N). READING checks,
+# deterministic and falsifiable — never a judge of taste (doctrine 3: counting
+# is not reading). Prose is not graded; named defects that ten draws made
+# recurrent are REJECTED. The retained variant carries the fewest.
 _BEAT_RESOLVES = re.compile(
     r"je\s+me\s+(?:souviens|rappelle)\s+(?:soudain|maintenant|enfin|"
     r"à\s+nouveau|de\s+tout|de\s+chaque|bien|parfaitement)"
@@ -1110,11 +1099,11 @@ _BEAT_DISMISS = re.compile(
     r"|oubli[ée]\s+de\s+(?:le\s+)?noter|me\s+résous\s+à\s+croire"
     r"|j'avais\s+(?:simplement|juste)\s+oublié"
     r"|j'ai\s+dû\s+m'endormir|je\s+me\s+suis\s+endormie", re.IGNORECASE)
-# RÉCURSION MÉTAFICTION : le beat re-lit la ligne du beat précédent (« je relis
-# la phrase que j'ai écrite hier soir : "…" ») ou reprend le gabarit « je relève
-# un détail qui me trouble » — nouvelle forme de litanie (v14). On distingue de
-# la relève légitime (« la phrase que je viens de recopier »), qui n'est pas un
-# ré-emprunt au passé.
+# METAFICTIONAL RECURSION: the beat re-reads the previous beat's line
+# (« je relis la phrase que j'ai écrite hier soir : "…" ») or reuses the
+# template « je relève un détail qui me trouble » — a new form of litany (v14).
+# Distinct from the legitimate note (« la phrase que je viens de recopier »),
+# which does not borrow from the past.
 _BEAT_RECURSION = re.compile(
     r"je\s+relis\s+(?:la|cette|ma|une|l')\s*(?:phrase|entrée)\s+"
     r"(?:d'hier|que\s+j'ai\s+[ée]crite?)"
@@ -1131,12 +1120,12 @@ _BEAT_DOUBT = re.compile(
 
 def _score_beat(variant: str, is_first: bool,
                  chapter: int = 2) -> tuple[int, list[str]]:
-    """Note un variant de beat par contrôles de lecture. Plus haut = mieux.
+    """Score a beat variant by reading checks. Higher is better.
 
-    Falsifié dans les deux sens (doctrine 4) : il DOIT rejeter les paragraphes
-    de résolution / présence / redémarrage / récursion / décor interdit des
-    tirages v8–v14 et ACCEPTER le doute ouvert. Le redémarrage (réveil) n'est un
-    défaut que HORS premier beat.
+    Falsified both ways (doctrine 4): it MUST reject the resolution / presence
+    / restart / recursion / forbidden-decor paragraphs of draws v8–v14 and
+    ACCEPT the open doubt. The restart (waking) is a defect only OUTSIDE the
+    first beat.
     """
     defects: list[str] = []
     score = 0
@@ -1155,9 +1144,9 @@ def _score_beat(variant: str, is_first: bool,
     if _BEAT_RECURSION.search(variant):
         score -= 6
         defects.append("récursion (re-lit sa propre ligne / gabarit répété)")
-    # DÉCOR INTERDIT : le détecteur existe déjà (`interdits_materiels`), on le
-    # BRANCHE dans la sélection. Un beat qui nomme la télévision, le
-    # lave-vaisselle, le sac à main… ne doit jamais gagner (v14 : il a gagné).
+    # FORBIDDEN DECOR: the detector already exists (`material_forbidden`); it
+    # is WIRED into the selection. A beat that names the television, the
+    # dishwasher, the handbag… must never win (v14: it won).
     forbidden = material_forbidden(variant, chapter)
     if forbidden:
         score -= 8
@@ -1167,18 +1156,18 @@ def _score_beat(variant: str, is_first: bool,
     return score, defects
 
 
-# The criterion of the best-of on a whole entry is named by the chapter spec
+# The criterion of the best-of over a whole entry is named by the chapter spec
 # (`best_of.criterion`) and resolved in `factory.pipeline.scorers`; its lexical
 # lists travel with the spec.
 
 
-# FIX RACINE (xp C5, 2026-08-31) : le squelette de voix servi finit par
-# « 5. verdict de correction … 7. couperet ». L'xp a mesuré que c'est CE
-# squelette (pas le modèle) qui force la résolution du doute — 12/12 tirages
-# tiennent le doute quand on ne le sert pas. On l'ampute des étapes 5 et 7 DANS
-# LE PROMPT SERVI AUX BEATS du corps, jamais dans la fiche (le squelette reste
-# la voix canonique ailleurs). La chute « Constat » reste posée par le code en
-# dernier ; l'étape 6 (notation physiologique) est gardée — c'est le beat-corps.
+# ROOT FIX (xp C5, 2026-08-31): the served voice skeleton ends with « 5. verdict
+# de correction … 7. couperet ». The xp measured that THIS skeleton (not the
+# model) forces the resolution of the doubt — 12/12 draws hold the doubt when
+# it is not served. Steps 5 and 7 are amputated IN THE PROMPT SERVED TO THE
+# BODY BEATS, never in the sheet (the skeleton stays the canonical voice
+# elsewhere). The « Constat » fall stays posed last by the code; step 6
+# (physiological notation) is kept — it is the body beat (ADR-0020).
 _VERDICT_VOICE = re.compile(
     r"^\s*(?:5\. Le verdict de correction|7\. Le couperet)[^\n]*\n?",
     re.MULTILINE)
@@ -1198,19 +1187,19 @@ _BEAT_SUFFIX = (
 
 
 def _prompt_beat(instruction: str, block: str) -> str:
-    """Assemble le prompt d'UN beat — cap-code structurel de l'entrée 2 (v5).
+    """Assemble the prompt of ONE beat — structural code cap of entry 2 (v5).
 
-    Ne sert QUE ce beat et le véto commun, JAMAIS le mouvement entier. Le mode
-    segments re-servait `_prompt_mouvement` à chaque segment (intention +
-    quatre directives + matière + vétos) avec une simple ligne de position :
-    chaque segment tentait donc tout l'arc — c'est la cause mesurée des « trois
-    arcs ». Ici chaque appel ne reçoit que sa propre tâche, courte, et le code
-    borne la génération en phrases. Le spiral « je vais tout noter » de v5 n'a
-    plus d'appel où s'écrire : le beat du doute s'arrête sur sa question, et la
-    chute est posée en aval.
+    Serves ONLY this beat and the common veto, NEVER the whole movement.
+    Segment mode re-served `_movement_prompt` at each segment (intention +
+    four directives + matter + vetos) with a bare position line: each segment
+    then attempted the whole arc — the measured cause of the « trois arcs ».
+    Here each call receives only its own short task, and the code bounds the
+    generation in sentences. The « je vais tout noter » spiral of v5 has no
+    call left to be written in: the doubt beat stops at its question, and the
+    fall is posed downstream.
 
-    Même garde d'entrée que `_prompt_mouvement` : l'assemblage servi ne doit
-    porter aucun terme d'atelier ni de machinerie.
+    Same entry guard as `_movement_prompt`: the served assembly must carry no
+    workshop or machinery term.
     """
     prompt = "\n\n".join(b for b in (instruction.strip(), block.strip(),
                                      _BEAT_SUFFIX) if b)
@@ -1224,11 +1213,11 @@ def _prompt_beat(instruction: str, block: str) -> str:
 
 def _movement_prompt(sheet: EntrySpec, target_words: str, position: str,
                       prefix_block: str) -> str:
-    """Assemble le prompt d'une entrée sous méthode du mouvement.
+    """Assemble the prompt of an entry under the movement method.
 
-    Ordre STRICT : intention → trajectoire → matière → vétos. Rien avant
-    l'intention ; la matière ne vient qu'après le comportement de la prose,
-    parce qu'elle est à disposition et non à cocher.
+    STRICT order: intention → trajectory → matter → vetos. Nothing before the
+    intention; the matter comes only after the prose behaviour, because it is
+    available, not to be ticked (ADR-0019).
     """
     blocks = [f"MOUVEMENT À ACCOMPLIR — {sheet.movement}"]
     if sheet.trajectory:
@@ -1249,8 +1238,8 @@ def _movement_prompt(sheet: EntrySpec, target_words: str, position: str,
         vetos.append("Pas de phrase-récapitulatif.")
     if sheet.vetos:
         vetos.append(sheet.vetos)
-    # Le libellé aussi est servi : « VÉTOS » est un mot de notre atelier. Ce
-    # que le modèle doit lire, c'est ce que le texte ne fait pas.
+    # The label is served too: « VÉTOS » is a word of our workshop. What the
+    # model must read is what the text does not do.
     blocks.append("CE QUE LE TEXTE NE FAIT PAS :\n"
                  + "\n".join(f"  - {v}" for v in vetos))
     blocks.append(prefix_block.strip() if prefix_block else "")
@@ -1258,10 +1247,10 @@ def _movement_prompt(sheet: EntrySpec, target_words: str, position: str,
                  "méta-commentaire.")
     prompt = "\n\n".join(b for b in blocks if b)
 
-    # LA GARDE D'ENTRÉE, sur le prompt ASSEMBLÉ et non sur ses morceaux : c'est
-    # l'assemblage qui est servi. Elle a déjà attrapé « matériau » (session 6)
-    # et `fiche-romane.md` (session 7) ; élargie à la machinerie, elle attrape
-    # les neuf termes que le §5 du brief servait tels quels.
+    # THE ENTRY GUARD, over the ASSEMBLED prompt and not its pieces: the
+    # assembly is what is served. It already caught « matériau » (session 6)
+    # and `fiche-romane.md` (session 7); widened to machinery, it catches the
+    # nine terms §5 of the brief served as is.
     leaks = sorted({m.group(0).lower() for m in META_TERMS.finditer(prompt)}
                     | {m.group(0).lower() for m in MACHINERY.finditer(prompt)}
                     | set(re.findall(r"\b[\w-]+\.md\b", prompt)))
@@ -1271,27 +1260,28 @@ def _movement_prompt(sheet: EntrySpec, target_words: str, position: str,
 
 
 def _reconstruction_material(state: ChapterState) -> str:
-    """La matière propre de l'appel de reconstruction.
+    """The reconstruction call's own matter.
 
-    ⚠ Le protocole dit « la micro-scène du chapitre (grade, objet, événement) —
-    depuis la table de pilotage ». Pris au mot, cela lit
-    `bible/profond/chronologie-partie-double.md`, dont la colonne « Événement
-    réel payeur » est LA COLONNE RÉELLE de la partie double : la vérité que tout
-    le firewall existe pour cacher au modèle auteur. Inoffensive par coïncidence
-    au chapitre 2, elle dit « *ce genre de veuve* écrit » au chapitre 3.
+    ⚠ The protocol says
+    « la micro-scène du chapitre (grade, objet, événement) — depuis la table de pilotage ».
+    Taken literally this reads `bible/profond/chronologie-partie-double.md`,
+    whose « Événement réel payeur » column is THE REAL COLUMN of the double
+    entry: the truth the whole firewall exists to hide from the author model.
+    Harmless by coincidence in chapter 2, it says « *ce genre de veuve* écrit »
+    in chapter 3.
 
-    C'est l'erreur exacte de la session 5, où la traduction diégétique lisait
-    cette colonne et sortait « le journal prescrit ». On passe donc par les deux
-    fonctions qui savent déjà où regarder : `lire_table` (qui SAUTE cette
-    colonne, commentaire à l'appui) et `lire_ancres`, qui lit l'Ancre du bloc
-    [VALEURS] — l'événement tel que la narratrice le PERÇOIT.
+    That is the exact error of session 5, where the diegetic translation read
+    this column and produced « le journal prescrit ». So we go through the two
+    functions that already know where to look: `read_table` (which SKIPS that
+    column, comment to match) and `read_anchors`, which reads the Ancre of the
+    [VALEURS] block — the event as the narrator PERCEIVES it (ADR-0017).
 
-    Les interdits matériels sont servis en CATÉGORIES, jamais en instances.
-    Nommer « télévision » et « sac à main » pour les interdire, c'est les
-    montrer, et le projet a mesuré trois fois que ce qui est montré se recopie.
-    Ce qui tient l'interdit est le validateur d'`accumulate`, bloquant ; le
-    prompt ne fait que préparer le terrain — en donnant du mobilier RÉEL, parce
-    que le nœud inventait faute d'en avoir.
+    Material interdicts are served as CATEGORIES, never as instances. Naming
+    « télévision » and « sac à main » to forbid them shows them, and the
+    project measured three times that what is shown gets copied. What holds
+    the interdict is the blocking validator of `accumulate`; the prompt only
+    prepares the ground — by giving REAL furniture, because the node invented
+    for lack of it.
     """
     ch = state.get("chapter") or 0
     objects = state.get("active_objects") or ""
@@ -1306,9 +1296,9 @@ def _reconstruction_material(state: ChapterState) -> str:
             lines.append(f"Ce par quoi elle explique l'écart : "
                           f"{table['marche']}.")
     except Exception as exc:                       # pragma: no cover
-        # Un échec de lecture ne doit pas coûter l'entrée : on écrit sans cette
-        # matière, en le DISANT. Un contexte silencieusement amputé est ce qui a
-        # produit le manuscrit intérieur de B′C.
+        # A read failure must not cost the entry: write without this matter,
+        # and SAY so. A silently amputated context is what produced B′C's
+        # inner manuscript.
         progress.note(f"matière de reconstruction indisponible ({exc}) — "
                       "l'appel se fait sans elle")
     if objects:
@@ -1322,13 +1312,13 @@ def _reconstruction_material(state: ChapterState) -> str:
 
 def _scene_vetos(text: str, idx: int, state: ChapterState,
                     attempt_no: int) -> tuple[str, list[str]]:
-    """Signale le décor générique et les marques dans le texte d'écriture.
+    """Flag generic decor and brands in the writing text.
 
-    On SIGNALE sans réécrire : contrairement à l'en-tête ou à l'ancre, le code
-    n'est pas propriétaire de ces phrases — retirer « l'enceinte Bluetooth »
-    laisserait un trou dans une phrase qu'il faudrait recoudre, et recoudre de
-    la prose est exactement ce qu'on refuse de faire depuis six sessions.
-    L'avertissement nomme l'objet et cite l'extrait ; le véto vit dans la grille.
+    FLAG without rewriting: unlike the header or the anchor, the code does not
+    own these sentences — removing « l'enceinte Bluetooth » would leave a hole
+    in a sentence that would need re-sewing, and re-sewing prose is exactly
+    what six sessions have refused to do. The warning names the object and
+    quotes the excerpt; the veto lives in the grid.
     """
     warns: list[str] = []
     ch = state.get("chapter") or 0
@@ -1343,10 +1333,10 @@ def _scene_vetos(text: str, idx: int, state: ChapterState,
 
 def _bound_sentences(text: str, maximum: int, idx: int,
                        prefix: str) -> tuple[str, list[str]]:
-    """Coupe l'entrée à `maxi` phrases APRÈS le préfixe, sur une fin de phrase.
+    """Cut the entry to `maximum` sentences AFTER the prefix, at a sentence end.
 
-    Le préfixe (en-tête, ancre) n'est pas compté : il est posé par le code, il
-    n'appartient pas au texte que le brief borne.
+    The prefix (header, anchor) is not counted: the code posed it, it does not
+    belong to the text the brief bounds.
     """
     body = text[len(prefix):] if prefix and text.startswith(prefix) else text
     ends = sentence_ends(body)
@@ -1361,13 +1351,13 @@ def _bound_sentences(text: str, maximum: int, idx: int,
 
 
 def _clean_segment(seg: str, label: str) -> tuple[str, list[str]]:
-    """Retire du segment les marqueurs dont le CODE est propriétaire.
+    """Remove from the segment the markers the CODE owns.
 
-    Appliqué segment par segment, et non seulement sur l'entrée assemblée : un
-    en-tête réémis en tête de la reconstruction deviendrait le préfixe de la
-    fermeture, qui le lirait comme du texte légitime déjà écrit et enchaînerait
-    dessus. Le code propriétaire d'un marqueur doit le nettoyer partout — et
-    « partout » inclut les états intermédiaires.
+    Applied segment by segment, not only to the assembled entry: a header
+    re-emitted at the top of the reconstruction would become the closing's
+    prefix, which would read it as legitimate text already written and
+    continue from it. The code that owns a marker must clean it everywhere —
+    and « partout » includes the intermediate states.
     """
     warns: list[str] = []
     seg, repeated = REPEATED_SUSPENSION.subn(r"\1", seg)
@@ -1383,25 +1373,25 @@ def _clean_segment(seg: str, label: str) -> tuple[str, list[str]]:
     return seg.strip(), warns
 
 
-# LA GARDE D'ENTRÉE EST LE LINT DE SORTIE. Le détecteur qui attrape « Couperet »
-# dans le texte est celui qui aurait dû interdire de le servir.
+# THE ENTRY GUARD IS THE OUTPUT LINT. The detector that catches « Couperet » in
+# the text is the one that should have forbidden serving it.
 for _name, _, _, _instruction in SEGMENTS:
     _leaks = sorted({m.group(0).lower() for m in META_TERMS.finditer(_instruction)})
     assert not _leaks, (f"consigne du segment « {_name} » : termes d'atelier "
                          f"servis au modèle — {_leaks}")
 
 
-# --- Micro-nœuds d'assemblage (étage C) --------------------------------------
+# --- Assembly micro-nodes (stage C) ------------------------------------------
 #
-# Le reproche ne MONTRE aucun texte d'exemple. La session 3 a mesuré qu'un
-# étalon montré se recopie caractère pour caractère, et `valider_accumulation`
-# le détecte. On décrit le mouvement, on chiffre la contrainte, on ancre dans
-# les objets de l'entrée.
-# LA CHUTE EST IMPOSÉE (session 6, §3.1). « celui qui cloche » laissait le
-# modèle choisir l'anomalie, et il en choisissait une à lui — un robinet resté
-# ouvert (C1). L'anomalie du chapitre est un fait du roman, pas une trouvaille
-# de fin de phrase : elle se donne, comme le verdict et le fait imposé.
-# The object the accumulation falls on comes from the chapter spec
+# The reproach SHOWS no example text. Session 3 measured that a shown reference
+# gets copied character for character, and `validate_accumulation` detects it.
+# The movement is described, the constraint is numbered, the sentence is
+# anchored in the entry's objects (doctrine 6).
+# THE FALL IS IMPOSED (session 6, §3.1). « celui qui cloche » let the model
+# pick the anomaly, and it picked one of its own — a tap left running (C1).
+# The chapter's anomaly is a fact of the novel, not a find at the end of a
+# sentence: it is given, like the verdict and the imposed fact.
+# The object the accumulation falls upon comes from the chapter spec
 # (`state["accumulation_fall"]`); without one, « celui qui cloche ».
 
 _ACC_INSTRUCTION = """Voici la partie d'une entrée de carnet où la narratrice \
@@ -1431,20 +1421,19 @@ jamais ce qu'elle ressent ni ce qu'elle conclut.
 
 Rends la phrase seule, rien d'autre."""
 
-# La consigne du glissement a été RETIRÉE, pas commentée : le geste ne se
-# demande plus au modèle, il se prend en banque (cf. `glisse_node`). Une
-# consigne morte laissée en place se relit un jour comme une consigne active.
+# The drift instruction was REMOVED, not commented out: the gesture is no
+# longer asked of the model, it is drawn from the bank (see `drift_node`). A
+# dead instruction left in place reads one day as a live one.
 
 
 
 def _gestures_allowed(state: ChapterState) -> bool:
-    """Cette entrée accueille-t-elle les gestes signatures ?
+    """Does this entry admit the signature gestures?
 
-    Le chapitre 7 le décide par entrée : l'entrée 1 tient en deux phrases,
-    elle n'a la place ni d'une accumulation ni d'un glissement. Au tirage
-    précédent, l'accumulation y a été épissée quand même — 471 mots au lieu de
-    deux phrases, et c'est par elle que « les courses » et « la télévision »
-    sont entrés dans le chapitre.
+    Chapter 7 decides it per entry: entry 1 is two sentences long, with room
+    for neither an accumulation nor a drift. In the previous draw the
+    accumulation was spliced in anyway — 471 words instead of two sentences,
+    and that is how « les courses » and « la télévision » entered the chapter.
     """
     spec = state.get("entry_specs") or []
     idx = len(state["scenes"]) - 1
@@ -1454,23 +1443,23 @@ def _gestures_allowed(state: ChapterState) -> bool:
 
 
 def accumulate_node(state: ChapterState) -> dict:
-    """Produit la phrase d'accumulation. Le CODE la valide et la placera.
+    """Produce the accumulation sentence. The CODE validates and will place it.
 
-    Quatre sessions ont établi qu'elle ne s'obtient ni par la fiche (trois
-    formulations) ni par une boucle de reproche (jamais une authentique). Elle
-    est donc assemblée : le modèle fournit la matière, le code la forme.
+    Four sessions established that it comes neither from the sheet (three
+    formulations) nor from a reproach loop (never an authentic one). So it is
+    assembled: the model supplies the matter, the code the form (ADR-0018).
     """
     if not state.get("micro_nodes") or not state["scenes"]:
         return {}
     if not _gestures_allowed(state):
         return {}
-    # LE CONTEXTE EST LE SEGMENT DE RECONSTRUCTION, plus l'entrée entière.
-    # `accumulate` était devenu le canal de famine de l'étage C : il ne recevait
-    # que l'entrée et une consigne de forme, donc quand la reconstruction était
-    # mince il inventait les étapes manquantes depuis ses priors — télévision et
-    # messages (C1), « revenue du travail » (C3), sac à main et barquette (CC).
-    # Le monde générique de nemo, chassé de `write` par le RAG, rentrait par ici.
-    # Le découpage de `write` rend ce segment identifiable sans le deviner.
+    # THE CONTEXT IS THE RECONSTRUCTION SEGMENT, not the whole entry.
+    # `accumulate` had become stage C's famine channel: it got only the entry
+    # and a form instruction, so when the reconstruction was thin it invented
+    # the missing steps from its priors — television and messages (C1),
+    # « revenue du travail » (C3), handbag and tray (CC). nemo's generic world,
+    # driven out of `write` by the RAG, came back in here (doctrine 7). The cut
+    # of `write` makes this segment identifiable without guessing.
     entry = state.get("reconstruction") or state["scenes"][-1]
     instruction = _ACC_INSTRUCTION.format(
         objects=state.get("active_objects") or "le cahier, l'assiette, l'égouttoir",
@@ -1483,14 +1472,14 @@ def accumulate_node(state: ChapterState) -> dict:
                       temperature=settings.gesture_temperature, num_predict=300)
         metrics.append(m)
         candidate = " ".join(txt.strip().split())
-        # L'accumulation est un AUTRE nœud, posé APRÈS le `delint` du write —
-        # les collages « j'aiallumé » y survivaient. On nettoie ici, avant la
-        # validation (pour que le compte de mots porte sur le texte corrigé).
+        # The accumulation is ANOTHER node, run AFTER the write's `delint` —
+        # glued tokens (« j'aiallumé ») survived there. Clean here, before
+        # validation (so the word count bears upon the corrected text).
         candidate, _ = delint(candidate)
-        # Compter des ÉTAPES est une opération que le modèle sait faire ;
-        # compter des MOTS non — il rendait 48 mots pour un plancher de 60,
-        # deux fois de suite. Le code, lui, continue de vérifier en mots : la
-        # consigne vise ce qui est atteignable, la garde mesure ce qui compte.
+        # Counting STEPS is something the model can do; counting WORDS is not
+        # — it returned 48 words for a floor of 60, twice in a row. The code
+        # keeps checking in words: the instruction aims at what is reachable,
+        # the guard measures what counts.
         ok, reason = validate_accumulation(
             candidate, last_attempt=(try_no == MAX_GESTURE_ATTEMPTS),
             chapter=state.get("chapter") or 0)
@@ -1511,26 +1500,27 @@ def accumulate_node(state: ChapterState) -> dict:
 
 
 def drift_node(state: ChapterState) -> dict:
-    """Compose le glissement DEPUIS LA BANQUE, puis met les gestes de côté.
+    """Compose the drift FROM THE BANK, then set the gestures aside.
 
-    LE GESTE A QUITTÉ LE MODÈLE (session 6, §2). Onze runs, trois modes d'échec
-    distincts, zéro glissement : la difficulté n'est pas la longueur mais la
-    NATURE de la demande — approcher un sujet puis s'interrompre est un geste de
-    sens, pas de forme. La matière est donc écrite main, dans `BANQUE_GLISSEMENT`,
-    et le code choisit, coupe et colle. C'est la doctrine des citations du
-    cahier, étendue : ce qu'il y a de plus intime dans le roman est déjà écrit.
+    THE GESTURE LEFT THE MODEL (session 6, §2). Eleven runs, three distinct
+    failure modes, zero drift: the difficulty is not length but the NATURE of
+    the request — approaching a subject then breaking off is a gesture of
+    meaning, not of form. The matter is written by hand in the chapter's
+    drift bank, and the code chooses, cuts and pastes (ADR-0018). The doctrine
+    of the notebook quotations, extended: the most intimate part of the novel
+    is already written.
 
-    Ce nœud ne fait plus AUCUN appel au modèle. Il en reste un nœud parce que
-    l'assemblage doit vivre après `accumulate` : les deux positions se calculent
-    sur le texte ORIGINAL, et si `accumulate` avait déjà inséré sa phrase, les
-    offsets du glissement porteraient sur un texte décalé.
+    This node makes NO model call any more. It stays a node because the
+    assembly must live after `accumulate`: both positions are computed against
+    the ORIGINAL text, and had `accumulate` already inserted its sentence, the
+    drift offsets would point into a shifted text.
     """
     if not state.get("micro_nodes") or not state["scenes"]:
         return {}
     if not _gestures_allowed(state):
-        # L'entrée n'accueille pas de geste : on pousse un jeu VIDE pour que
-        # l'indexation de `gestes` reste alignée sur celle des entrées. Sans ce
-        # jeu vide, les gestes de l'entrée 2 seraient posés dans l'entrée 1.
+        # The entry admits no gesture: push an EMPTY set so the indexing of
+        # `gestures` stays aligned with the entries. Without it, the gestures
+        # of entry 2 would be posed in entry 1.
         gestures = list(state.get("gestures") or [])
         gestures.append({})
         return {"gestures": gestures, "accumulation": ""}
@@ -1539,11 +1529,11 @@ def drift_node(state: ChapterState) -> dict:
     idx = len(state["scenes"]) - 1
     sheet: EntrySpec = spec[idx] if 0 <= idx < len(spec) else EMPTY_ENTRY
 
-    # PASSAGE RÉDIGÉ (méthode du mouvement) : le brief le fournit entier, avec
-    # sa frontière. Plus de suture approche + « … » + fait — l'interruption
-    # porte l'approche et le retour au matériel EST la découverte suivante.
-    # Les deux formes cohabitent : la banque reste pour les chapitres non
-    # migrés, et c'est la présence du champ qui tranche.
+    # WRITTEN PASSAGE (movement method): the brief supplies it whole, with its
+    # frontier. No more approach + « … » + fact suture — the interruption
+    # carries the approach and the return to the material IS the next
+    # discovery. Both forms coexist: the bank stays for the chapters not yet
+    # migrated, and the presence of the field decides (ADR-0019).
     if sheet.drift and sheet.drift.text:
         passage = sheet.drift.text
         ok, reason = passage_valid(passage)
@@ -1568,9 +1558,9 @@ def drift_node(state: ChapterState) -> dict:
     drift = ""
     if approach:
         progress.phase("Glissement", f"entrée {len(state['scenes'])} (banque)")
-        # Le fait matériel se prend dans les objets actifs quand le chapitre en
-        # donne d'autres que celui de la banque — la variation reste possible
-        # sans que la forme dépende du modèle.
+        # The material fact is taken from the active objects when the chapter
+        # gives others than the bank's — variation stays possible without the
+        # form depending upon the model.
         drift = compose_drift(approach, fact)
         drawn.append(approach)
     else:
@@ -1578,11 +1568,11 @@ def drift_node(state: ChapterState) -> dict:
                      "approche disponible en banque pour ce chapitre — M1 se "
                      "lit « non prévu », pas « manqué »")
 
-    # Les fragments sont MIS DE CÔTÉ, pas insérés ici. Posés dans `scenes`, ils
-    # traversaient ensuite `review` (« resserre la prose ») et `repair` — qui
-    # réécrivent l'entrée entière et dissolvaient l'accumulation : une phrase de
-    # soixante mots est précisément ce qu'une consigne de resserrement casse. Le
-    # geste se pose donc sur le texte FINAL, dans `poser_gestes`.
+    # The fragments are SET ASIDE, not inserted here. Put into `scenes`, they
+    # then went through `review` (« resserre la prose ») and `repair` — which
+    # rewrite the whole entry and dissolved the accumulation: a sixty-word
+    # sentence is precisely what a tightening instruction breaks. The gesture
+    # is posed in the FINAL text, in `place_gestures_node`.
     gestures = list(state.get("gestures") or [])
     gestures.append({"accumulation": state.get("accumulation") or "",
                    "glissement": drift,
@@ -1594,29 +1584,27 @@ def drift_node(state: ChapterState) -> dict:
             "warnings": state["warnings"] + warns}
 
 
-# Un en-tête daté, même MAL FORMÉ — virgule au lieu du point, minuscule à la
-# météo. C'est ce que le tampon doit reconnaître pour le remplacer plutôt que
-# d'en ajouter un second à côté.
+# A dated header, even MALFORMED — comma instead of the period, lowercase
+# weather. This is what the stamp must recognise in order to replace it rather
+# than add a second one beside it.
 NEAR_HEADER = re.compile(
     r"^\s*(?:Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)\s+\d{1,2}"
     r"\s*[.,;:]?\s*\S", re.IGNORECASE)
 
 
 def _restamp(entry: str, *, head: str, anchor: str) -> tuple[str, list[str]]:
-    """Repose l'en-tête et l'ancre, exactement, en tête de l'entrée.
+    """Re-pose the header and the anchor, exactly, at the top of the entry.
 
-    Le code POSSÈDE ces deux marqueurs. Le préfixage par concaténation réelle
-    (session 5) les rendait inaltérables pendant l'écriture — mais `review` et
-    `repair` reçoivent l'entrée ENTIÈRE et la réécrivent, ancre comprise. Mesuré :
-    0/3 verbatim à B′, 2/3 à l'étage C, ✗ sur S6-1, où les guillemets français
-    étaient devenus droits.
+    The code OWNS both markers. Prefixing by real concatenation (session 5)
+    made them unalterable during writing — but `review` and `repair` get the
+    WHOLE entry and rewrite it, anchor included. Measured: 0/3 verbatim at B′,
+    2/3 at stage C, ✗ in S6-1, where the French guillemets had become straight.
 
-    L'enjeu n'est pas typographique. `chapitre.py` et `lire_chapitre.py` placent
-    la bascule audio sur l'en-tête normalisé : un en-tête réécrit, c'est une
-    bascule perdue sur scène.
+    The stake is not typographic. The assembly places the audio switch at the
+    normalised header (ADR-0013): a rewritten header is a switch lost onstage.
 
-    On remplace le premier bloc s'il RESSEMBLE à ce qu'on repose (le modèle l'a
-    altéré) ; on l'insère s'il a disparu.
+    The first block is replaced if it RESEMBLES what is re-posed (the model
+    altered it); it is inserted if it vanished.
     """
     notes: list[str] = []
     paras = [p for p in entry.split("\n\n") if p.strip()]
@@ -1626,7 +1614,7 @@ def _restamp(entry: str, *, head: str, anchor: str) -> tuple[str, list[str]]:
             return
         for k, para in enumerate(paras[:3]):
             if para.strip() == expected.strip():
-                return                          # déjà exact, rien à faire
+                return                          # already exact, nothing to do
             if recognizes(para):
                 if difflib.SequenceMatcher(None, para.strip(),
                                            expected.strip()).ratio() > 0.55:
@@ -1634,33 +1622,33 @@ def _restamp(entry: str, *, head: str, anchor: str) -> tuple[str, list[str]]:
                                  f"« {' '.join(para.split())[:70]} »")
                     paras[k] = expected
                     return
-        # Disparu : on le repose en tête, dans l'ordre en-tête puis ancre.
+        # Vanished: re-pose at the top, header first then anchor.
         notes.append(f"{what} ABSENT après réparation — reposé par le code")
         paras.insert(0 if what == "en-tête" else min(1, len(paras)), expected)
 
-    # Le reconnaisseur d'en-tête accepte AUSSI la forme abîmée : `ENTETE_ENTREE`
-    # exige le point, or c'est précisément la virgule que la réparation
-    # introduit (B′C : « Lundi 2, nuageux. »). Ne reconnaître que la forme
-    # correcte faisait INSÉRER le bon en-tête sans retirer le mauvais — deux
-    # en-têtes, soit le défaut que ce tampon existe pour éteindre.
+    # The header recogniser ALSO accepts the damaged form: `ENTRY_HEADER`
+    # demands the period, and the comma is precisely what repair introduces
+    # (B′C: « Lundi 2, nuageux. »). Recognising only the correct form INSERTED
+    # the right header without removing the wrong one — two headers, the very
+    # defect this stamp exists to put out.
     place(head,
           lambda p: bool(ENTRY_HEADER.match(p.strip()))
           or bool(NEAR_HEADER.match(p.strip())), "en-tête")
     place(anchor, lambda p: re.match(r'^\s*[«"“]', p.strip()), "ancre")
-    # L'ANCRE EN DOUBLE. Le code la pose en tête ; le modèle l'a parfois
-    # recopiée juste après, en ouverture de son propre texte. Deux fois la même
-    # citation à trois lignes d'intervalle se lit comme un bégaiement — et sur
-    # le chapitre 7, c'est la ligne la plus chargée du roman.
+    # THE DOUBLED ANCHOR. The code poses it at the top; the model sometimes
+    # copied it right after, opening its own text. The same quotation twice,
+    # three lines apart, reads as a stutter — and in chapter 7 it is the most
+    # loaded line of the novel.
     if anchor:
         core = " ".join(anchor.split()).strip('«»"“” ')
         guard, seen_flag = [], False
         for para in paras:
             flat = " ".join(para.split()).strip('«»"“” ')
             if flat and (flat in core or core in flat):
-                # La PREMIÈRE est l'ancre que le code vient de poser ; les
-                # suivantes sont les recopies du modèle. Garder la première et
-                # non « toutes sauf le premier paragraphe » : l'en-tête occupe
-                # déjà l'index 0, et la version naïve retirait les DEUX copies.
+                # The FIRST is the anchor the code just posed; the following
+                # ones are the model's copies. Keep the first, not « all but
+                # the first paragraph »: the header already holds index 0, and
+                # the naive version removed BOTH copies.
                 if seen_flag:
                     notes.append("ancre recopiée par le modèle — doublon retiré")
                     continue
@@ -1671,13 +1659,12 @@ def _restamp(entry: str, *, head: str, anchor: str) -> tuple[str, list[str]]:
 
 
 def place_gestures_node(state: ChapterState) -> dict:
-    """Insère les gestes dans le texte FINAL, après relecture et réparation.
+    """Insert the gestures into the FINAL text, after review and repair.
 
-    C'est le seul endroit où ils survivent : en amont, `review` et `repair`
-    réécrivent l'entrée et emportent l'accumulation avec le reste. Les gestes
-    sont des artefacts COMPOSÉS par le code — les soumettre à une passe de
-    réécriture revenait à demander au modèle de défaire ce qu'on venait de
-    construire.
+    The only place they survive: upstream, `review` and `repair` rewrite the
+    entry and take the accumulation with the rest. The gestures are artefacts
+    COMPOSED by the code — submitting them to a rewrite pass asked the model
+    to undo what had just been built (ADR-0018).
     """
     if not state.get("micro_nodes"):
         return {}
@@ -1689,52 +1676,53 @@ def place_gestures_node(state: ChapterState) -> dict:
     outputs, warns = [], []
     for i, entry in enumerate(final_entries):
         g = gestures[i] if i < len(gestures) else {}
-        # BORNES DE LA RECONSTRUCTION, retrouvées par RECHERCHE et non par
-        # comptage d'offsets : entre la génération et ici, le texte a traversé
-        # `review` puis `repair`, qui le réécrivent. Des offsets mémorisés
-        # pointeraient à côté ; le début du segment, lui, survit assez pour être
-        # retrouvé — et s'il ne survit pas, le repli lexical joue.
+        # RECONSTRUCTION BOUNDS, found by SEARCH and not by offset counting:
+        # between generation and here the text went through `review` then
+        # `repair`, which rewrite it. Stored offsets would point beside; the
+        # start of the segment survives well enough to be found — and if it
+        # does not, the lexical fallback plays.
         recon = (g.get("reconstruction") or "").strip()
         bounds = None
         if recon:
             head = " ".join(recon.split()[:6])
-            # `debut`, PAS `i` : la version précédente écrasait l'index de la
-            # boucle avec un offset de caractère, si bien que les avertissements
-            # d'assemblage annonçaient « entrée 26 » sur un run d'UNE entrée
-            # (relevé tel quel dans S6-2). Un message qui désigne la mauvaise
-            # entrée envoie relire le mauvais texte.
+            # `start`, NOT `i`: the previous version overwrote the loop index
+            # with a character offset, so the assembly warnings announced
+            # « entrée 26 » in a ONE-entry run (recorded as such in S6-2). A
+            # message that names the wrong entry sends the reader to the wrong
+            # text.
             start = entry.find(head)
             if start >= 0:
                 bounds = (start, start + len(recon))
 
-        # LE TAMPON (session 7). Le code est PROPRIÉTAIRE de l'en-tête et de
-        # l'ancre : le préfixage les garantissait jusqu'à la fin de l'écriture,
-        # mais `review` et `repair` repassent sur l'entrée entière et les
-        # réécrivent — guillemets français devenus droits, 0/3 verbatim à B′,
-        # ✗ sur S6-1. Ce nœud est le dernier à toucher le texte : il les repose.
+        # THE STAMP (session 7). The code OWNS the header and the anchor:
+        # prefixing guaranteed them to the end of writing, but `review` and
+        # `repair` go over the whole entry and rewrite them — French guillemets
+        # turned straight, 0/3 verbatim at B′, ✗ in S6-1. This node is the last
+        # to touch the text: it re-poses them.
         entry, buffered_notes = _restamp(
             entry, head=g.get("entete") or "", anchor=g.get("ancre") or "")
 
-        # LA CHUTE, POSÉE PAR LE CODE quand le brief l'impose au mot près.
+        # THE FALL, POSED BY THE CODE when the brief imposes it word for word.
         #
-        # « Constat : anniversaire. » est la dernière ligne du chapitre 7 et le
-        # point de bascule du roman : le jour gagne en entrant dans son
-        # vocabulaire. Le modèle l'a manquée TROIS fois sur trois — il referme
-        # sur une ligne du corps et s'arrête là.
+        # « Constat : anniversaire. » is the last line of chapter 7 and the
+        # novel's tipping point: the day wins by entering her vocabulary. The
+        # model missed it THREE times out of three — it closes with a body
+        # line and stops there.
         #
-        # Même raisonnement que pour l'en-tête et l'ancre : ce dont la scène
-        # dépend au mot près ne se demande pas, il se compose. Et comme eux,
-        # elle se pose EN DERNIER, après la réparation qui la réécrirait.
+        # Same reasoning as for the header and the anchor: what the stage
+        # depends upon word for word is not asked, it is composed. And like
+        # them it is posed LAST, after the repair that would rewrite it.
         fall = (g.get("chute") or "").strip()
         if fall and fall not in entry:
             entry = entry.rstrip() + "\n\n" + fall
             buffered_notes.append(f"chute imposée absente — posée par le code : "
                                 f"« {fall} »")
 
-        # LA FRONTIÈRE DÉCLARÉE prime sur le calcul d'offset : elle est un
-        # lieu du récit, pas une position dans le texte. Si l'ancre est
-        # introuvable, on le DIT et on retombe sur l'offset — un geste placé au
-        # hasard est pire qu'un geste absent, mais un geste tu est pire encore.
+        # THE DECLARED FRONTIER wins over the offset computation: it is a
+        # place in the narrative, not a position in the text. If the anchor
+        # cannot be found, SAY so and fall back to the offset — a gesture
+        # placed at random is worse than an absent one, but a silent gesture
+        # is worse still.
         frontier = None
         if g.get("frontiere") and g.get("glissement"):
             frontier = frontier_position(entry, g["frontiere"])
@@ -1747,10 +1735,10 @@ def place_gestures_node(state: ChapterState) -> dict:
                                  state.get("verdict") or "", bounds,
                                  frontier=frontier)
 
-        # LE DÉDOUBLONNAGE, en dernier — après les gestes, pour que les
-        # paragraphes composés soient dans le texte et donc explicitement
-        # protégés. Falsifié sur S6-C : sans protection, les trois plus fortes
-        # similarités du chapitre étaient l'en-tête, l'ancre et le glissement.
+        # DEDUPLICATION last — after the gestures, so the composed paragraphs
+        # are in the text and therefore explicitly protected. Falsified in
+        # S6-C: without protection the three strongest similarities of the
+        # chapter were the header, the anchor and the drift.
         protected = tuple(x for x in (g.get("accumulation"), g.get("glissement"),
                                      g.get("ancre"), g.get("entete")) if x)
         for _, j, ratio, _ in reversed(repeated_paragraphs(text,
@@ -1760,9 +1748,9 @@ def place_gestures_node(state: ChapterState) -> dict:
                 continue
             removed = paras.pop(j)
             text = "\n\n".join(paras)
-            # Dire CE QU'ON RETIRE : la règle du filet de coupe depuis la
-            # session 4. Un retrait muet est indistinguable d'un modèle qui
-            # n'aurait rien écrit là.
+            # Say WHAT is removed: the rule of the cutting net since session
+            # 4. A silent removal is indistinguishable from a model that wrote
+            # nothing there.
             notes.append(f"paragraphe redit retiré ({ratio}) — « "
                          f"{' '.join(removed.split())[:90]}… »")
 
@@ -1776,12 +1764,12 @@ def place_gestures_node(state: ChapterState) -> dict:
 
 
 def route_after_write(state: ChapterState) -> str:
-    """Boucle tant qu'il reste des scènes à écrire, sinon passe à la relecture."""
+    """Loop while scenes remain to write, otherwise move to review."""
     return "write" if state["idx"] < len(state["plan"]) else "review"
 
 
 def _entry_target(state: ChapterState, i: int) -> tuple[int, int]:
-    """Fourchette de mots de l'entrée `i` — celle du brief si elle en donne une."""
+    """Word range of entry `i` — the brief's when it gives one."""
     spec = state.get("entry_specs") or []
     if i < len(spec) and spec[i].words:
         return tuple(spec[i].words)
@@ -1789,45 +1777,45 @@ def _entry_target(state: ChapterState, i: int) -> tuple[int, int]:
 
 
 def _acceptable_cut(before: int, after: int, target: tuple[int, int]) -> bool:
-    """Une coupe qui RAPPROCHE de la cible est bonne, si profonde soit-elle.
+    """A cut that brings the text CLOSER to the target is good, however deep.
 
-    Le seuil des 60 % existe contre l'escamotage : une passe de réécriture ne
-    doit pas faire disparaître l'entrée. Mais il ne regardait que la PROFONDEUR
-    de la coupe, jamais sa DIRECTION — et il a coûté cher.
+    The 60 % threshold exists against vanishing: a rewrite pass must not make
+    the entry disappear. But it only looked at the DEPTH of the cut, never its
+    DIRECTION — and it cost dearly.
 
-    Mesuré sur S6-C : `review` a taillé l'entrée 1 de 1033 à 495 mots et
-    l'entrée 3 de 1567 à 709. Les deux visaient 450-600, les deux ont été
-    rejetées (48 %, 45 %), et le chapitre est resté à 1008 mots par entrée.
-    La relecture faisait exactement le travail qu'on lui demande — corriger une
-    masse en excès — et le garde-fou l'en a empêchée deux fois.
+    Measured in S6-C: `review` trimmed entry 1 from 1033 to 495 words and
+    entry 3 from 1567 to 709. Both aimed at 450-600, both were rejected (48 %,
+    45 %), and the chapter stayed at 1008 words per entry. Review did exactly
+    the work asked of it — correcting excess mass — and the guard stopped it
+    twice.
 
-    La règle devient : si le texte relu tombe DANS la cible, ou s'en approche
-    sans la traverser par le bas, on accepte quelle que soit la profondeur. Le
-    seuil ne s'applique plus qu'aux coupes qui éloignent — celles qui passent
-    sous le plancher, qui sont l'escamotage que le garde-fou visait vraiment.
+    The rule becomes: if the reviewed text lands IN the target, or approaches
+    it without crossing the floor, accept whatever the depth. The threshold
+    only applies to cuts that move away — those that go under the floor, the
+    vanishing the guard really aimed at.
     """
     lo, hi = target
-    if after >= lo:                 # dans la cible ou encore au-dessus
+    if after >= lo:                 # in the target or still above
         return True
-    if before < lo:                  # déjà trop court : toute coupe éloigne
+    if before < lo:                  # already too short: any cut moves away
         return after >= 0.6 * before
-    # La coupe est passée SOUS le plancher : acceptable seulement si elle a
-    # moins éloigné qu'elle n'a rapproché.
+    # The cut went UNDER the floor: acceptable only if it moved away less than
+    # it brought closer.
     return (lo - after) < (before - hi) and after >= 0.6 * before
 
 
 def review_node(state: ChapterState) -> dict:
-    """Relecture prose : resserre, corrige les répétitions, garde la voix.
+    """Prose review: tighten, fix repetitions, keep the voice.
 
-    Passe scène par scène (le modèle relit mieux un bloc court qu'un chapitre
-    entier — mitigation de la limite de cohérence longue distance).
+    Scene by scene (the model reviews a short block better than a whole
+    chapter — mitigation of the long-range coherence limit).
 
-    Deux protections contre la troncature observée au premier jalon :
-      1. `num_predict` adaptatif à la longueur de la scène (une réécriture ne
-         peut pas être plus courte que l'original sans perdre du texte).
-      2. Garde-fou : si la version relue fait moins de 60 % de l'original
-         (le modèle a « avalé » la scène), on conserve l'original. Une scène
-         n'est jamais détruite par la relecture.
+    Two protections against the truncation observed at the first milestone:
+      1. `num_predict` adapts to the scene length (a rewrite cannot be shorter
+         than the original without losing text).
+      2. Guard: if the reviewed version is under 60 % of the original (the
+         model « swallowed » the scene), the original is kept. A scene is
+         never destroyed by review.
     """
     reviewed: list[str] = []
     metrics = list(state["metrics"])
@@ -1842,8 +1830,8 @@ def review_node(state: ChapterState) -> dict:
         progress.phase("Relecture",
                        f"entrée {i + 1}/{len(state['scenes'])} (nemo)",
                        i=i + 1, n=len(state["scenes"]))
-        # ~3,5 caractères par token en français ; on vise 1,6x la longueur
-        # de la scène, borné, pour laisser la place à une réécriture complète.
+        # ~3.5 characters per token in French; aim at 1.6x the scene length,
+        # bounded, to leave room for a complete rewrite.
         budget = min(2000, max(1200, int(len(scene) / 3) + 300))
         user = (
             "Relis et RÉÉCRIS INTÉGRALEMENT cette entrée de carnet pour "
@@ -1859,16 +1847,16 @@ def review_node(state: ChapterState) -> dict:
                                        label=f"relecture entrée {i + 1}")
         metrics.extend(_tag(ms, f"review/{i + 1}"))
         warns.extend(wg)
-        # Garde-fou anti-destruction : relecture trop courte -> on garde
-        # l'original. Il était SILENCIEUX : une réécriture qui resserrait fort
-        # était annulée en bloc sans que rien ne le dise, et un travail de style
-        # visant la concision disparaissait sans trace. On le fait parler.
+        # Anti-destruction guard: a review too short -> keep the original. It
+        # was SILENT: a rewrite that tightened hard was cancelled wholesale
+        # without a word, and style work aiming at concision vanished without
+        # trace. Make it speak.
         before, after = len(scene.split()), len(text.split())
-        # LA CIBLE DE CETTE ENTRÉE, pas celle du chapitre. Sur le ch. 7,
-        # l'entrée 1 vise 25-60 mots : la relecture l'avait ramenée de 315 à
-        # 156 — vers le brief — et le garde l'a rejetée en la comparant à
-        # 450-600. Un garde-fou « conscient de la cible » qui lit la mauvaise
-        # cible combat exactement ce qu'il est censé servir.
+        # THIS ENTRY'S TARGET, not the chapter's. In ch. 7 entry 1 aims at
+        # 25-60 words: review had brought it from 315 to 156 — towards the
+        # brief — and the guard rejected it by comparing with 450-600. A
+        # « target-aware » guard that reads the wrong target fights exactly
+        # what it should serve.
         target = _entry_target(state, i)
         if not _acceptable_cut(before, after, target):
             warns.append(
@@ -1889,14 +1877,14 @@ def review_node(state: ChapterState) -> dict:
 
 
 def repair_node(state: ChapterState) -> dict:
-    """Réparation linguistique (Qwen) : réécrit les fuites d'anglais laissées
-    par nemo, phrase par phrase, sans toucher au sens ni au style.
+    """Linguistic repair (Qwen): rewrites the English leaks left by nemo,
+    sentence by sentence, without touching meaning or style.
 
-    C'est ici qu'Ollama bascule du modèle auteur (nemo) au modèle QA (Qwen) —
-    un seul swap pour toute la phase QA qui suit. On décharge nemo AVANT :
-    nemo (13 GB) + Qwen (4,8 GB) chauds ensemble, c'est 17,8 GB sur 19,3 GB,
-    exactement la pression mémoire qui a fait paniquer la machine. nemo n'a
-    plus rien à produire à ce stade."""
+    Here Ollama swaps from the author model (nemo) to the QA model (Qwen) —
+    one swap for the whole QA phase that follows. nemo is unloaded FIRST: nemo
+    (13 GB) + Qwen (4.8 GB) warm together is 17.8 GB of 19.3 GB, exactly the
+    memory pressure that panicked the machine (ADR-0008). nemo has nothing
+    left to produce at this point."""
     repaired: list[str] = []
     metrics = list(state["metrics"])
     warns = list(state["warnings"])
@@ -1911,14 +1899,14 @@ def repair_node(state: ChapterState) -> dict:
                        i=i + 1, n=len(state["reviewed"]))
         text, m = repair(scene)
         metrics.extend(_tag([m], f"repair/{i + 1}"))
-        # Garde-fou : une réparation ne doit pas escamoter l'entrée. Bavard
-        # pour la même raison que celui de la relecture.
+        # Guard: a repair must not make the entry vanish. Talkative for the
+        # same reason as the review's.
         before, after = len(scene.split()), len(text.split())
-        # LA CIBLE DE CETTE ENTRÉE, pas celle du chapitre. Sur le ch. 7,
-        # l'entrée 1 vise 25-60 mots : la relecture l'avait ramenée de 315 à
-        # 156 — vers le brief — et le garde l'a rejetée en la comparant à
-        # 450-600. Un garde-fou « conscient de la cible » qui lit la mauvaise
-        # cible combat exactement ce qu'il est censé servir.
+        # THIS ENTRY'S TARGET, not the chapter's. In ch. 7 entry 1 aims at
+        # 25-60 words: review had brought it from 315 to 156 — towards the
+        # brief — and the guard rejected it by comparing with 450-600. A
+        # « target-aware » guard that reads the wrong target fights exactly
+        # what it should serve.
         target = _entry_target(state, i)
         if not _acceptable_cut(before, after, target):
             warns.append(
@@ -1932,7 +1920,7 @@ def repair_node(state: ChapterState) -> dict:
             warns.append(
                 f"réparation entrée {i + 1}: coupe profonde ACCEPTÉE "
                 f"({after} mots contre {before}) — elle rapproche de la cible")
-        # Re-lint pour tracer ce qui resterait (anglais tenace, tokens collés).
+        # Re-lint to trace what remains (stubborn English, glued tokens).
         text, w = delint(text)
         warns.extend(f"réparation entrée {i + 1}: {x}" for x in w)
         repaired.append(text)
@@ -1940,20 +1928,21 @@ def repair_node(state: ChapterState) -> dict:
 
 
 def _protected_sentence(sentence: str) -> bool:
-    """Phrases que la suppression ne touche JAMAIS, même si Qwen les signale :
-    en-tête, citation du cahier, fragments de glissement (« … »), chute."""
+    """Sentences the removal NEVER touches, even if Qwen flags them: header,
+    notebook quotation, drift fragments (« … »), fall."""
     n = sentence.strip()
-    return bool(re.match(r"[A-ZÉÈ][a-zé]+ \d+\.", n)   # en-tête « Samedi 14. »
+    return bool(re.match(r"[A-ZÉÈ][a-zé]+ \d+\.", n)   # header « Samedi 14. »
                 or "…" in n
                 or n.startswith("Constat")
-                or ("«" in n and "»" in n))            # citation entre guillemets
+                or ("«" in n and "»" in n))            # quotation in guillemets
 
 
-# PRUNING DÉTERMINISTE du résidu diffus. Qwen a été falsifié dans les deux
-# rôles — éditeur (coupe le bon) ET détecteur (« NON » sur « le départ, la
-# réunion, la départementale, le garage » : il ne relie pas une reconstruction
-# oblique à une sortie). Le code, lui, matche les marqueurs sans ambiguïté. Une
-# phrase qui touche UN motif est retirée en entier. Whack-a-mole, mais FIABLE.
+# DETERMINISTIC PRUNING of the diffuse residue. Qwen was falsified in both
+# roles — editor (cuts the good) AND detector: « NON » to
+# « le départ, la réunion, la départementale, le garage », it does not link an
+# oblique reconstruction to an outing. Code matches the markers without
+# ambiguity. A sentence touching ONE motif is removed whole. Whack-a-mole, but
+# RELIABLE (ADR-0020).
 _PRUNE_PATTERNS = {
     "sortie": re.compile(
         r"\b(r[ée]union|d[ée]partementale|au\s+travail|au\s+bureau|"
@@ -1963,7 +1952,7 @@ _PRUNE_PATTERNS = {
         r"\b(un\s+bruit|des\s+bruits|des\s+pas\b|une\s+sonnerie|quelqu'un|"
         r"une\s+voix|qui\s+rentrait|porter\s+mes\s+cl[ée]s|une?\s+invit[ée]e?)\b",
         re.IGNORECASE),
-    # Même détection que le scorer : une seule regex, alignée par construction.
+    # Same detection as the scorer: one regex, aligned by construction.
     "récursion": _BEAT_RECURSION,
     "résolution": re.compile(
         r"je\s+n'ai\s+pas\s+r[êe]v[ée]|ma\s+m[ée]moire\s+(?:m'a\s+jou|me\s+joue)"
@@ -1973,11 +1962,11 @@ _PRUNE_PATTERNS = {
 
 
 def _assemble_qwen(entry: str) -> tuple[str, list[str]]:
-    """Pruning code du résidu diffus. Nom conservé pour l'appelant.
+    """Code pruning of the diffuse residue. Name kept for the caller.
 
-    Retire les phrases qui touchent un motif nommé (sortie / présence /
-    récursion / résolution), protège en-tête/citation/glissement/chute, et
-    refuse de retirer plus de la moitié (garde de sécurité — au pire, no-op).
+    Removes the sentences touching a named motif (outing / presence /
+    recursion / resolution), protects header/quotation/drift/fall, and
+    refuses to remove more than half (safety guard — at worst, a no-op).
     """
     paras_out, removed_ones = [], []
     for para in entry.split("\n\n"):
@@ -2005,11 +1994,11 @@ def _assemble_qwen(entry: str) -> tuple[str, list[str]]:
 
 
 def assemble_node(state: ChapterState) -> dict:
-    """Pruning déterministe du résidu diffus, sur les entrées en beats.
+    """Deterministic pruning of the diffuse residue, for the beat entries.
 
-    Placé AVANT `poser_gestes`, sur le CORPS seul (`repaired`) : les gestes
-    (glissement, chute, accumulation) ne sont pas encore posés, donc le pruning
-    ne peut pas les toucher, et le code les pose propres sur le corps nettoyé.
+    Placed BEFORE `place_gestures`, over the BODY alone (`repaired`): the
+    gestures (drift, fall, accumulation) are not yet posed, so the pruning
+    cannot touch them, and the code poses them clean over the cleaned body.
     """
     if not settings.pruning_enabled or not state.get("micro_nodes"):
         return {}
@@ -2020,7 +2009,7 @@ def assemble_node(state: ChapterState) -> dict:
     outputs, warns = list(entries), []
     for i, entry in enumerate(entries):
         sheet = spec[i] if i < len(spec) else EMPTY_ENTRY
-        if sheet.strategy != "beats":     # seule l'entrée en beats est nettoyée
+        if sheet.strategy != "beats":     # only the beat entry is cleaned
             continue
         progress.phase("Assemblage", f"entrée {i + 1} (Qwen)")
         outputs[i], w = _assemble_qwen(entry)
@@ -2029,29 +2018,29 @@ def assemble_node(state: ChapterState) -> dict:
 
 
 def coherence_node(state: ChapterState) -> dict:
-    """Cohérence par FAITS (Qwen) : dérive les faits structurants des fiches,
-    puis les vérifie SCÈNE PAR SCÈNE avant d'agréger.
+    """Coherence by FACTS (Qwen): derive the structuring facts from the sheets,
+    then check them SCENE BY SCENE before aggregating.
 
-    Le découpage par scène n'est pas cosmétique : sur le chapitre entier, Qwen
-    bascule en critique d'atelier (suggestions, réécriture) et ne rend plus les
-    verdicts. Sur une entrée courte, il tient le format. Et un fait n'est violé
-    que si une scène le CONTREDIT — le non-mentionné n'est pas une faute.
-    Les faits sont ceux DÉJÀ dérivés par le nœud de plan : mêmes invariants
-    pour contraindre le plan et pour juger le résultat, sinon le rapport final
-    sanctionnerait un chapitre au nom de règles que la planification n'a jamais
-    reçues. Économie accessoire : un appel Qwen de moins.
-    C'est la « strate 4 » finale montrée sur scène."""
+    The per-scene cut is not cosmetic: over the whole chapter Qwen turns into
+    a workshop critic (suggestions, rewriting) and stops returning verdicts.
+    Over a short entry it holds the format. And a fact is violated only if a
+    scene CONTRADICTS it — the unmentioned is not a fault (ADR-0010).
+    The facts are those ALREADY derived by the plan node: the same invariants
+    constrain the plan and judge the result, otherwise the final report would
+    sanction a chapter in the name of rules the planning never received. Side
+    saving: one Qwen call fewer.
+    This is the final « strate 4 » shown onstage."""
     metrics = list(state["metrics"])
     progress.phase("Cohérence par faits", "(Qwen)")
 
     facts = state.get("facts") or []
-    # Sans RAG, il n'y a pas de bible à interroger : re-dériver ici irait
-    # chercher Chroma et ferait tomber tout le run sur un conteneur éteint.
-    # Le nœud est INERTE à l'étage A, par construction — c'est la seconde
-    # variable de l'écart A → B, et elle doit se lire dans le rapport plutôt
-    # que se manifester en trace d'appel.
+    # Without RAG there is no bible to query: re-deriving here would reach for
+    # Chroma and bring the whole run down against a stopped container. The
+    # node is INERT in stage A, by construction — the second variable of the
+    # A → B gap, and it must be read in the report rather than show up as a
+    # call trace.
     if not facts and state.get("rag", True):
-        # Plan court-circuité (test unitaire, reprise) : on redérive.
+        # Plan short-circuited (unit test, resume): re-derive.
         facts, mf = derive_facts(state["characters"])
         metrics.extend(_tag([mf], "coherence/faits"))
     if not facts:
@@ -2067,7 +2056,7 @@ def coherence_node(state: ChapterState) -> dict:
     return {"coherence": report, "metrics": metrics}
 
 
-# --- Assemblage du graphe ----------------------------------------------------
+# --- Graph assembly ----------------------------------------------------------
 
 def build_graph():
     g = StateGraph(ChapterState)
@@ -2089,20 +2078,20 @@ def build_graph():
     g.add_node("accumulate", accumulate_node)
     g.add_node("drift", drift_node)
     g.add_edge("plan", "write")
-    # Les gestes s'assemblent DANS la boucle, une passe par entrée : ils
-    # travaillent sur une entrée close, pas sur un chapitre.
+    # The gestures are assembled INSIDE the loop, one pass per entry: they
+    # work over a closed entry, not a chapter.
     g.add_edge("write", "accumulate")
     g.add_edge("accumulate", "drift")
     g.add_conditional_edges("drift", route_after_write, ["write", "review"])
     g.add_edge("review", "repair")
-    # Les gestes se posent APRÈS la réparation, sur le texte final — et donc
-    # AVANT la cohérence, qui doit juger le chapitre tel qu'il sera lu.
+    # The gestures are posed AFTER the repair, in the final text — and so
+    # BEFORE coherence, which must judge the chapter as it will be read.
     g.add_node("place_gestures", place_gestures_node)
     g.add_node("assemble", assemble_node)
-    # AVANT poser_gestes : `repaired` est le CORPS seul, les gestes (glissement,
-    # chute, accumulation) ne sont pas encore posés — Qwen ne peut donc pas les
-    # abîmer, et le code les pose PROPRES sur le corps nettoyé. repair est déjà
-    # Qwen : pas de swap nemo supplémentaire.
+    # BEFORE place_gestures: `repaired` is the BODY alone, the gestures (drift,
+    # fall, accumulation) are not yet posed — the pruning cannot damage them,
+    # and the code poses them CLEAN over the cleaned body. The pass makes no
+    # model call: no extra swap.
     g.add_edge("repair", "assemble")
     g.add_edge("assemble", "place_gestures")
     g.add_edge("place_gestures", "coherence")

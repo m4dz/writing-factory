@@ -1,26 +1,24 @@
 """Shared fixtures: the fake model, the fake vector store, a quiet progress sink.
 
-The code is the installed ``factory`` package; only ``tests/`` itself is added
-to the path so that ``fakes`` and ``snapshots`` import as modules.
+The code is the installed ``factory`` package; ``fakes`` and ``snapshots``
+import as modules because ``pyproject.toml`` adds ``tests/`` to pytest's
+``pythonpath``.
 """
 
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
 
 import pytest
+
+from fakes.chroma import FakeChromaClient
+from fakes.llm import FakeModel
 
 REPO = Path(__file__).resolve().parent.parent
 # A stray Telegram token in the developer's shell must never make a test post.
 os.environ["TELEGRAM_BOT_TOKEN"] = ""
 os.environ["TELEGRAM_CHAT_ID"] = ""
-
-sys.path.insert(0, str(REPO / "tests"))
-
-from fakes.chroma import FakeChromaClient  # noqa: E402
-from fakes.llm import FakeModel  # noqa: E402
 
 
 def pytest_addoption(parser):
