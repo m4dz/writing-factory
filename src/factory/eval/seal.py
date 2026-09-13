@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
-"""Test d'étanchéité de la collection auteur — session 4, §4 du protocole.
+"""Seal test of the author collection (ADR-0017).
 
-L'étanchéité est une propriété du CONTENU de la collection, pas du routage des
-requêtes. Un test qui se contenterait d'interroger `auteur` et de constater
-qu'aucun chunk profond n'en sort ne prouverait rien : le profond n'y est pas,
-donc il ne peut pas en sortir. Le protocole audite donc ce qui est indexé.
+Sealing is a property of the collection's CONTENT, not of query routing. A test
+that only queried `auteur` and saw no deep chunk come back would prove nothing:
+the deep layer is absent, so it cannot come back. The test audits what is
+indexed.
 
-Cinq contrôles :
-  1. Inventaire — chaque chunk trace vers le manifeste des sources autorisées.
-  2. Lint de contenu — lexique de fuite + marqueurs profonds, zéro match.
-  3. Test du splitter — la fiche Judith seule ; aucune ligne [PROFOND] produite.
-  4. Témoin positif — un chunk profond INJECTÉ doit remonter, preuve que les
-     requêtes ont des dents. Puis retrait, purge, ré-inventaire.
-  5. Routage — journalisé pendant les runs (cf. `retrieval.routage`).
+Controls:
+  1. Inventory: every chunk traces to the manifest of allowed sources.
+  2. Content lint: leak lexicon and deep markers, zero match.
+  3. Splitter test: the Judith sheet alone; no [PROFOND] line produced.
+  4. Positive witness: an INJECTED deep chunk must come back, proof the queries
+     have teeth. Then removal, purge, re-inventory.
+  5. Routing: journaled during the runs (cf. `retrieval.routing`).
+  6. Chapters: no line of `chapters/` in any collection (revamp step 5).
 
-Le quatrième est le seul qui puisse faire échouer le test volontairement : sans
-lui, un vert ne distingue pas « rien à trouver » de « incapable de trouver ».
+The fourth is the only one able to fail deliberately: without it, a green does
+not tell « rien à trouver » from « incapable de trouver » (doctrine 4).
 
-Usage : python3 outillage/etancheite.py > rapport-etancheite.md
+Usage: factory eval seal > report.md
 """
 
 import fnmatch
@@ -55,16 +56,16 @@ WITNESS_TEXT = (
 )
 
 
-# Ajouts du lot correctif de la session 5, à vérifier dans les chunks SERVIS.
-# Les ids, eux, ne sont jamais servis au modèle : la vérification porte sur les
-# documents.
+# Session 5 corrective batch additions, checked in the SERVED chunks. Ids are
+# never served to the model: the check covers the documents.
 #
-#  - le PRÉNOM (item 8) : traduit en « la narratrice » à l'indexation. Il reste
-#    dans la bible, il ne doit plus exister dans la collection.
-#  - les TROIS ANCIENNES INSTANCES (item 9) : les exemples copiables dont la
-#    liturgie d'AC et BC était la récitation. Leurs fragments restent légitimes
-#    dans `citations-cahier.md` — la vérification porte sur la collection
-#    servie, pas sur la bible.
+#  - the FIRST NAME (item 8): translated to « la narratrice » at indexing
+#    (ADR-0017). It stays in the bible; it must no longer exist in the
+#    collection.
+#  - the THREE FORMER INSTANCES (item 9): the copyable examples whose recital
+#    was the liturgy of AC and BC. Their fragments stay legitimate in
+#    `citations-cahier.md`: the check covers the served collection, not the
+#    bible.
 FORBIDDEN_SESSION_5 = [
     "Judith",
     "Jeudi 7. Beau temps.",
@@ -86,14 +87,13 @@ def manifesto() -> list[str]:
 
 
 def flatten(text: str) -> str:
-    """Espaces normalisés avant toute recherche de marqueur.
+    """Whitespace normalised before any marker search.
 
-    Un marqueur multi-mots coupé par un retour à la ligne échappait à
-    `re.escape` : « vérité\nprofonde » ne matche pas « vérité profonde ». Les
-    fichiers de bible étant retournés à la main, la coupe peut tomber n'importe
-    où — le contrôle était donc juste par chance, pas par construction. Vérifié
-    sur les 26 chunks : aucun marqueur n'était masqué, mais rien ne le
-    garantissait.
+    A multi-word marker cut by a line break escaped `re.escape`:
+    « vérité\nprofonde » does not match « vérité profonde ». Bible files are
+    wrapped by hand, so the cut can fall anywhere: the check was right by luck,
+    not by construction. Checked over the 26 chunks: no marker was masked,
+    nothing guaranteed it.
     """
     return re.sub(r"\s+", " ", text)
 
@@ -141,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
            "Session 4, §4 du protocole. Cinq contrôles ; tout échec est "
            "bloquant pour l'étage B.", ""]
 
-    # --- 1. Inventaire -------------------------------------------------------
+    # --- 1. Inventory --------------------------------------------------------
     got = dump()
     ids, docs, metas = got["ids"], got["documents"], got["metadatas"] or []
     out += [f"## 1. Inventaire — {len(ids)} chunks", "",
@@ -153,11 +153,11 @@ def main(argv: list[str] | None = None) -> int:
             failures.append(f"inventaire : `{i}` vient de `{src}`, hors manifeste")
         out.append(f"| `{i}` | `{src}` | {'✓' if ok else '⛔ HORS MANIFESTE'} |")
 
-    # Clés de métadonnées : une clé imprévue est une porte ouverte.
+    # Metadata keys: an unexpected key is an open door.
     keys = sorted({k for mt in metas for k in (mt or {})})
     out += ["", f"Clés de métadonnées présentes : {', '.join(f'`{c}`' for c in keys)}", ""]
 
-    # --- 2. Lint de contenu --------------------------------------------------
+    # --- 2. Content lint -----------------------------------------------------
     out += ["## 2. Lint de contenu — lexique de fuite et marqueurs profonds", ""]
     dirty = 0
     for i, d in zip(ids, docs):
@@ -177,7 +177,7 @@ def main(argv: list[str] | None = None) -> int:
              "prénom (item 8) et anciennes instances (item 9)")
             if not dirty else "", ""]
 
-    # --- 3. Test du splitter -------------------------------------------------
+    # --- 3. Splitter test ----------------------------------------------------
     out += ["## 3. Test du splitter — la fiche Judith seule", ""]
     raw = SHEET_JUDITH.read_text(encoding="utf-8")
     deep_lines = set()
@@ -186,10 +186,10 @@ def main(argv: list[str] | None = None) -> int:
         for line in block.splitlines()[1:]:
             if len(line.strip()) > 40:
                 deep_lines.add(line.strip())
-    # Filtrage par SOURCE et non par préfixe d'id : le préfixe dépend du
-    # doc_id, et une divergence de doc_id (constatée : `fiche_judith` au lieu
-    # de `fiche-judith`) rendait ce contrôle VIDE — donc vert sans rien
-    # vérifier. Un test qui passe sur un ensemble vide est pire qu'absent.
+    # Filter by SOURCE, not by id prefix: the prefix follows the doc_id, and a
+    # doc_id divergence (seen: `fiche_judith` for `fiche-judith`) made this
+    # check EMPTY, hence green without checking anything. A test passing over an
+    # empty set is worse than none (doctrine 4).
     judith = [d for d, mt in zip(docs, metas)
               if (mt or {}).get("source_file") == "fiche-judith.md"]
     body = flatten(" ".join(judith))
@@ -207,7 +207,7 @@ def main(argv: list[str] | None = None) -> int:
         out.append("- ✓ aucune ligne [PROFOND] dans les chunks produits")
     out.append("")
 
-    # --- 4. Témoin positif ---------------------------------------------------
+    # --- 4. Positive witness -------------------------------------------------
     out += ["## 4. Témoin positif — le test doit pouvoir échouer", "",
             "Un chunk profond est injecté VOLONTAIREMENT dans `auteur`, puis "
             "les dix requêtes témoins sont rejouées. S'il ne remonte pas, les "
@@ -235,7 +235,7 @@ def main(argv: list[str] | None = None) -> int:
         out.append(f"- ✓ témoin remonté sur {touched}/{len(QUERIES)} requêtes — "
                    "les requêtes ont des dents.")
 
-    # Retrait, purge, ré-inventaire.
+    # Removal, purge, re-inventory.
     col.delete(ids=[WITNESS_ID])
     after = dump()["ids"]
     rest = WITNESS_ID in after
@@ -247,7 +247,7 @@ def main(argv: list[str] | None = None) -> int:
             f"- Inventaire re-vérifié : {'⛔ écart' if len(after) != len(ids) else '✓ identique à l’état initial'}",
             ""]
 
-    # --- 6. Chapitres --------------------------------------------------------
+    # --- 6. Chapters ---------------------------------------------------------
     out += ["## 6. Matériau des chapitres — hors de toute collection", "",
             "`chapters/` (briefs, spécifications) vit hors de `bible/` : l'indexeur "
             "ne le lit jamais. Contrôle : aucune ligne de ces fichiers dans "
@@ -272,7 +272,7 @@ def main(argv: list[str] | None = None) -> int:
         out.append(f"- ✓ {len(material)} lignes de `chapters/` contrôlées, aucune dans l'index")
     out.append("")
 
-    # --- 5. Routage ----------------------------------------------------------
+    # --- 5. Routing ----------------------------------------------------------
     out += ["## 5. Assertion de routage", "",
             "Journalisée pendant les runs B par `retrieval.routage()` : une "
             "seule collection tolérée. Le point de passage est unique "

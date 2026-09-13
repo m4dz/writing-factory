@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Archive les runs ratés — « rien ne se jette ».
+"""Archive the failed runs: nothing is thrown away (ADR-0003, doctrine 13).
 
-Chaque run portant au moins un échec AUTO est copié tel quel dans
-`experiments/journal/`, horodaté, avec sa ligne de grille en en-tête. C'est le
-matériau des sections 5-6 de la keynote : les échecs authentiques sont plus
-démonstratifs que la réussite, et les retoucher leur ôterait leur valeur de
-pièce à conviction. La sortie du modèle n'est JAMAIS modifiée.
+Every run carrying at least one AUTO failure is copied as is into
+`experiments/journal/`, timestamped, with its grid line as a header. It is the
+material of the talk: authentic failures demonstrate more than success, and
+retouching them would void their value as evidence. The model's output is
+NEVER modified.
 
-Usage :
-  python3 outillage/journal_des_murs.py experiments/runs/20260818-s4-stage-a 2
+Usage:
+  factory eval journal experiments/runs/20260818-s4-stage-a 2
 """
 
 import sys
@@ -23,7 +23,7 @@ WALL = RACINE / "experiments" / "journal"
 
 
 def auto_failures(text: str, constraints: dict | None) -> list[str]:
-    """Les manquements que le code sait établir seul."""
+    """The failures the code can establish alone."""
     r = analyze(text)
     out: list[str] = []
     if r["l1_noms_propres"]:

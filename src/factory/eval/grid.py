@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
-"""Assemble la grille de session à quatre colonnes depuis les runs.
+"""Assemble the four-column session grid from the run files.
 
-Croise la grille FINE de `_scene-test-style.md` (mécanique / structure / oral,
-règle des 2 runs sur 3) avec la présentation à quatre colonnes de
-`outillage/grille-lint.md`. Les lignes décidables mécaniquement sont remplies
-par `lint_style`, les autres restent vides : c'est le relecteur qui les remplit,
-à voix haute.
+Crosses the FINE grid of `_scene-test-style.md` (mechanics / structure / oral,
+2-runs-out-of-3 rule) with the four-column layout of the lint grid. Lines the
+code can decide are filled by `factory.eval.lint`; the others stay empty for
+the reader, who fills them aloud (doctrine 3: counting is not reading).
 
-Régénéré à chaque itération de la fiche — d'où un script plutôt qu'un fichier
-recopié à la main : une grille transcrite à la main dérive de ce que les runs
-disent réellement, et c'est cette dérive qu'on paierait au moment de décider
-quel chunk durcir.
+Regenerated at every iteration of the sheet, hence a program rather than a
+hand-copied file: a transcribed grid drifts from what the runs actually say,
+and that drift is paid when deciding which chunk to harden.
 
-Usage :
-  python3 outillage/grille_session.py > grille-lint-session-1.md
+Usage:
+  factory eval grid <runs-dir> [min-max] [chapter] > grid.md
 """
 
 import re
@@ -26,34 +24,33 @@ from factory.eval.lint import (ACC_ABSTRACT_MAX, ENTRY_HEADER,
                         strip_frontmatter)
 
 def discover(folder: str = "runs") -> list[tuple[str, Path]]:
-    """Tous les runs présents, runs standard d'abord puis contrôles.
+    """Every run present, scored runs first, then controls.
 
-    Découverte par glob et non liste figée : le protocole prévoit de relancer un
-    tirage pour lever une zone grise, et une grille qui ignorerait le run
-    supplémentaire ferait décider sur des données incomplètes.
+    Discovery by glob, not a fixed list: the protocol allows relaunching a draw
+    to settle a grey zone, and a grid ignoring the extra run would decide from
+    incomplete data.
     """
     def key(f: Path) -> tuple[int, int, str]:
-        """Ordre de lecture : runs de score, puis contrôle, puis exploration.
+        """Reading order: scored runs, then control, then exploration.
 
-        C'est l'ordre du protocole, et il porte du sens : on lit d'abord ce qui
-        est scoré, ensuite ce qui l'éclaire. Un tri alphabétique mettrait le
-        contrôle entre les runs 1 et 2, et placerait `run-controle-2` AVANT
-        `run-controle` (le tiret précède le point) — de quoi comparer les
-        mauvaises colonnes.
+        The protocol's order, and it carries meaning: read what is scored first,
+        then what illuminates it. An alphabetical sort would put the control
+        between runs 1 and 2 and `run-controle-2` BEFORE `run-controle` (the
+        hyphen sorts before the period): the wrong columns compared.
         """
         name = f.stem.removeprefix("run-")
         num = re.search(r"(\d+)", name)
         rank = int(num.group(1)) if num else 1
         if name.lower().startswith("x"):
-            family = 2                      # exploration, hors score
+            family = 2                      # exploration, outside the score
         elif name.upper().endswith("C") or name.lower().startswith(
                 ("c", "controle", "contrôle")):
-            # `AC`/`BC` sont les chapitres complets hors score : ils se lisent
-            # APRÈS les runs scorés, comme le contrôle. Sans ce cas, `AC` se
-            # rangeait entre A1 et A2 (rang 1, faute de chiffre).
+            # `AC`/`BC` are the full chapters outside the score: read AFTER the
+            # scored runs, like the control. Without this case `AC` sorted
+            # between A1 and A2 (rank 1, having no digit).
             family = 1
         else:
-            family = 0                      # runs de score
+            family = 0                      # scored runs
         return (family, rank, name)
 
     def name_for(f: Path) -> str:
@@ -63,18 +60,16 @@ def discover(folder: str = "runs") -> list[tuple[str, Path]]:
         if name.upper() == "C":
             return "Contrôle"
         if name.lower().startswith("x"):
-            return name.upper()               # X1, X2 — exploration
+            return name.upper()               # X1, X2: exploration
         return f"Run {name}"
 
     files = sorted(Path(folder).glob("run-*.md"), key=key)
     return [(name_for(f), f) for f in files]
 
-# Lignes que le code ne peut PAS trancher sans comprendre le texte. Elles sont
-# listées explicitement plutôt qu'omises : une grille silencieuse sur une ligne
-# se lit comme une ligne tenue.
-# LE JUGE. Une ligne, en tête, manuelle : la grille automatique ne dit plus si
-# c'est bon, elle dit si c'est disqualifié. Cette question-là est le seul
-# jugement qui distingue une structure conforme d'un texte qui tient.
+# Lines the code CANNOT settle without understanding the text. Listed explicitly
+# rather than omitted: a grid silent about a line reads as a line held.
+# THE JUDGE. One manual line, first: the automatic grid no longer says whether
+# the text is good, it says whether it is disqualified (ADR-0019, doctrine 3).
 MANUAL_JUDGE = "**Le mouvement déclaré est-il accompli ?**"
 
 MANUAL_MECHANICS = [
@@ -89,9 +84,9 @@ MANUAL_STRUCTURE = [
     "Le décalage dans le dialogue (la sœur répond à côté)",
     "Les cinq beats présents, dans l'ordre",
 ]
-# M1-M4 du protocole de calibration ch. 2. Explicitement NON automatisés : ils
-# demandent de lire, pas de compter. Les laisser en lignes vides plutôt que de
-# les omettre — une grille muette sur une ligne se lit comme une ligne tenue.
+# M1-M4 of the chapter 2 calibration protocol. Explicitly NOT automated: they
+# require reading, not counting. Kept as empty lines rather than omitted: a grid
+# silent about a line reads as a line held.
 MANUAL_PROTOCOL = [
     "M1 · Le glissement — la phrase s'interrompt au bord du où/pourquoi, "
     "puis retour immédiat à un fait matériel",
@@ -112,7 +107,7 @@ MANUAL_ORAL = [
 
 
 def frontmatter(path: Path) -> dict:
-    """Lit le frontmatter du run (température, done_reason, durée…)."""
+    """Read the run's frontmatter (temperature, done_reason, duration…)."""
     meta, inside = {}, False
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.strip() == "---":
@@ -132,20 +127,18 @@ def line(label: str, cells: list[str]) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
-    # Une session par dossier : les runs de la fiche v1 restent lisibles quand
-    # la v2 tourne. Comparer deux versions de la fiche suppose de garder les
-    # deux jeux de tirages.
+    # One session per folder: the runs of sheet v1 stay readable while v2 runs.
+    # Comparing two sheet versions requires keeping both sets of draws.
     folder = argv[0] if len(argv) > 0 else "runs"
-    # La cible de longueur change avec le brief : 400-550 pour la scène test de
-    # la session 1, 450-600 pour le chapitre 2. Codée en dur, elle aurait
-    # affiché « hors cible » sur des runs conformes — un faux défaut, et le
-    # genre qui envoie durcir une section qui va bien.
+    # The length target moves with the brief: 400-550 for the session 1 test
+    # scene, 450-600 for chapter 2. Hardcoded, it flagged conformant runs as
+    # off-target: a false defect, the kind that sends one hardening a healthy
+    # section.
     target = argv[1] if len(argv) > 1 else "400-600"
     target_min, target_max = (int(x) for x in target.split("-"))
-    # Numéro de chapitre : active les interdits SCOPÉS (notes §3 et §4). Sans
-    # lui, la grille ne peut pas savoir que « la tierce » est légitime au
-    # chapitre 9 et interdite au 2 — et un interdit qui ne connaît pas sa
-    # portée est soit inutile, soit faux.
+    # Chapter number: enables the SCOPED interdicts (notes §3 and §4). Without
+    # it the grid cannot know that « la tierce » is legitimate at chapter 9 and
+    # forbidden at 2; an interdict unaware of its scope is useless or wrong.
     chapter = int(argv[2]) if len(argv) > 2 else None
     constraints = chapter_constraints(chapter) if chapter else None
     available = discover(folder)
@@ -192,9 +185,9 @@ def main(argv: list[str] | None = None) -> int:
         "| | " + " | ".join(names) + " |",
         sep,
     ]
-    # Plusieurs clés possibles par ligne : les runs de sessions différentes
-    # n'écrivent pas le même frontmatter, et une grille qui n'en connaît qu'un
-    # affiche « ? » sur des données présentes.
+    # Several candidate keys per line: runs from different sessions do not
+    # write the same frontmatter, and a grid knowing only one shows « ? » over
+    # data that exists.
     for keys, lib in [(("temperature",), "Température"),
                       (("mots",), "Mots"),
                       (("duree_s", "duree_totale_s"), "Durée (s)"),
@@ -246,14 +239,14 @@ def main(argv: list[str] | None = None) -> int:
     for lib in MANUAL_STRUCTURE:
         out.append(line(lib, [" "] * len(names)))
 
-    # --- Extensions L1-L4 du protocole de calibration ch. 2 ------------------
+    # --- L1-L4 extensions of the chapter 2 calibration protocol --------------
     out += ["", "## Protocole ch. 2 — contrôles L1-L4 (AUTO)", "", header, sep]
 
     out.append(line("Entrées de journal détectées",
                      [str(res[n]["entrees"]) for n in names]))
-    # §1 : l'en-tête normalisé est le repère partagé par le comptage L3, la
-    # grille, et la bascule audio de `lire_chapitre.py`. Un en-tête malformé
-    # ne casse pas que la grille — il casse la scène.
+    # §1: the normalised header is the landmark shared by the L3 count, the
+    # grid and the audio switch (`pipeline.assembly`). A malformed header breaks
+    # the stage, not just the grid.
     headers = {n: ENTRY_HEADER.findall(
         strip_frontmatter(Path(p).read_text(encoding="utf-8")))
         for n, p in available}
@@ -261,22 +254,22 @@ def main(argv: list[str] | None = None) -> int:
         "En-têtes au format normalisé (« Jour N. Météo. »)",
         [f"{'✓' if headers[n] else '✗'} ({len(headers[n])})" for n in names]))
 
-    # Dates CONSÉCUTIVES et sans doublon. L'objectif de chapitre l'exige, et un
-    # carnet dont les entrées se répètent ou reculent n'est plus un carnet.
-    # Constaté sur BC : huit en-têtes pour trois entrées, dont un répété cinq
-    # fois — le comptage d'en-têtes seul ne l'aurait pas vu.
+    # CONSECUTIVE dates, no duplicates. The chapter goal requires it, and a
+    # notebook whose entries repeat or go backwards is no notebook. Seen at BC:
+    # eight headers for three entries, one repeated five times; a header count
+    # alone would have missed it.
     def _dates(n: str) -> str:
         days = [int(j) for _, j in headers[n]]
         if not days:
             return "—"
-        # DEUX ENTRÉES LE MÊME JOUR sont légitimes : c'est la structure du
-        # chapitre 7 (l'après-midi et la nuit de l'anniversaire), et la bascule
-        # audio se pose justement sur le second en-tête. La règle avait déjà été
-        # apprise à `entetes_coherents` ; cette ligne-ci l'ignorait encore et
-        # marquait la structure imposée comme un défaut.
+        # TWO ENTRIES THE SAME DAY are legitimate: chapter 7's structure (the
+        # afternoon and the night of the anniversary), and the audio switch sits
+        # precisely at the second header (ADR-0018). `consistent_headers` already
+        # knew the rule; this line still flagged the imposed structure as a
+        # defect.
         #
-        # Ce qui reste fautif : une date qui RECULE, ou un saut de plus d'un
-        # jour entre deux entrées de dates différentes.
+        # What stays faulty: a date going BACKWARDS, or a jump of more than one
+        # day between two entries of different dates.
         gaps = [b - a for a, b in zip(days, days[1:])]
         step_back = [e for e in gaps if e < 0]
         skipped = [e for e in gaps if e > 1]
@@ -290,15 +283,15 @@ def main(argv: list[str] | None = None) -> int:
 
     out.append(line("Dates consécutives, sans répétition", [_dates(n) for n in names]))
 
-    # L1 — zéro toléré. La détection est une heuristique de majuscule : les
-    # occurrences sont citées en annexe pour que la lecture tranche.
+    # L1: zero tolerated. Detection is a capital-letter heuristic: occurrences
+    # are quoted in the appendix so the reading decides.
     out.append(line(
         "L1 · Noms propres (zéro toléré)",
         [f"{'✓' if not res[n]['l1_noms_propres'] else '✗'} "
          f"({len(res[n]['l1_noms_propres'])})" for n in names]))
 
-    # L2 — en frappe directe sans RAG, une fuite est un échec FICHE/INTERDITS :
-    # aucun contexte retrieval ne peut en porter la responsabilité.
+    # L2: without RAG a leak is a SHEET/INTERDICTS failure: no retrieval context
+    # can bear the responsibility.
     out.append(line(
         "L2 · Fuite lexicale — champ de la mort",
         [f"{'✓' if not res[n]['l2_fuite'] else '✗'} "
@@ -308,8 +301,8 @@ def main(argv: list[str] | None = None) -> int:
         [f"{'—' if not res[n]['l2_fuite_ambigue'] else '⚠'} "
          f"({len(res[n]['l2_fuite_ambigue'])})" for n in names]))
 
-    # L3 — exactement une accumulation PAR ENTRÉE (D1), aux seuils que la fiche
-    # v3 énonce (60 mots, 6 virgules), et non aux seuils de la session 1.
+    # L3: exactly one accumulation PER ENTRY (D1), at the thresholds sheet v3
+    # states (60 words, 6 commas), not those of session 1.
     def _l3(n: str) -> str:
         per_entry = res[n]["l3_par_entree"]
         count = [len(e) for e in per_entry]
@@ -319,10 +312,9 @@ def main(argv: list[str] | None = None) -> int:
         detail = "/".join(str(c) for c in count) or "0"
         return f"{mark} ({detail})" + (f" ⛔{recop} recopie(s)" if recop else "")
 
-    # L3 EXEMPTÉ quand la table met le chapitre hors échelle — le chapitre 7
-    # n'exige pas d'accumulation, elle y est autorisée. Afficher « ✗ (0) » sur
-    # un contrôle non exigé, c'est un vert impossible lu comme un défaut : le
-    # tirage 6 en portait un.
+    # L3 EXEMPT when the table puts the chapter off scale: chapter 7 does not
+    # require an accumulation, it allows one. Showing « ✗ (0) » for a check not
+    # required is an impossible green read as a defect; draw 6 carried one.
     l3_exempt = bool(constraints
                       and "hors échelle" in (constraints.get("verdict") or ""))
     out.append(line(
@@ -330,8 +322,8 @@ def main(argv: list[str] | None = None) -> int:
         + (" — *non exigée à ce chapitre*" if l3_exempt else ""),
         ["— non exigée" if l3_exempt else _l3(n) for n in names]))
 
-    # L4 — le glissement est le seul emploi autorisé des « … ». Deux façons
-    # d'échouer : trop d'occurrences, ou une occurrence loin du champ du départ.
+    # L4: the drift is the only permitted use of « … ». Two ways to fail: too
+    # many occurrences, or one far from the departure's field.
     def _l4(n: str) -> str:
         per_entry = res[n]["l4_par_entree"]
         total = sum(c for c, _ in per_entry)
@@ -344,9 +336,9 @@ def main(argv: list[str] | None = None) -> int:
             if outside:
                 reasons.append(f"{outside} hors champ")
             return f"✗ ({total}) " + ", ".join(reasons)
-        # Zéro occurrence passe L4 tel que le protocole le formule (il ne
-        # sanctionne que l'excès et le hors-champ) mais échoue M1, qui en exige
-        # au moins un. Le dire ici : une coche isolée se lirait comme « tenu ».
+        # Zero occurrences pass L4 as the protocol states it (only excess and
+        # off-field fail) yet fail M1, which requires at least one. Say it here:
+        # a lone tick would read as « tenu ».
         if total == 0:
             return "✓ (0) — mais aucun glissement, échec M1"
         return f"✓ ({total})"
@@ -354,12 +346,12 @@ def main(argv: list[str] | None = None) -> int:
     out.append(line("L4 · Points de suspension = glissement seul",
                      [_l4(n) for n in names]))
 
-    # --- Interdits SCOPÉS par chapitre (notes §3 et §4) ---------------------
+    # --- Interdicts SCOPED per chapter (notes §3 and §4) ---------------------
     if constraints:
-        # `strip_frontmatter` est OBLIGATOIRE ici : le frontmatter d'un run
-        # recopie le brief, lequel NOMME les termes réservés pour les
-        # interdire. Sans cette coupe, tout run conforme sortait à trois
-        # violations — la grille sanctionnait le brief, pas le texte.
+        # `strip_frontmatter` is MANDATORY here: a run's frontmatter copies the
+        # brief, which NAMES the reserved terms to forbid them. Without the cut
+        # every conformant run showed three violations: the grid penalised the
+        # brief, not the text.
         scope = {n: chapter_checks(
             strip_frontmatter(Path(p).read_text(encoding="utf-8")), constraints)
             for n, p in available}
@@ -382,12 +374,12 @@ def main(argv: list[str] | None = None) -> int:
             [("—" if not constraints["quatuor_interdit"]
               else f"{'✓' if not scope[n]['quatuor'] else '✗'} "
                    f"({len(scope[n]['quatuor'])})") for n in names]))
-        # INTERDITS MATÉRIELS — le décor générique de nemo, en DRAPEAU sur le
-        # texte d'écriture. Bloquant dans `accumulate` (le validateur relance),
-        # drapeau ici : automatiser un contrôle et le rendre bloquant sont deux
-        # décisions distinctes, et un run ne doit pas échouer sur un mot de
-        # mobilier pendant que la masse et les gestes passent. La famille est
-        # nommée pour que la lecture sache quoi chercher.
+        # MATERIAL INTERDICTS: nemo's generic decor, a FLAG over the written
+        # text. Blocking inside `accumulate` (the validator retries), a flag
+        # here: automating a check and making it blocking are two distinct
+        # decisions, and a run must not fail over a furniture word while mass
+        # and gestures pass. The family is named so the reading knows what to
+        # look for.
         out.append(line(
             "⚑ Interdits matériels *(drapeau — décor hors du monde)*",
             [(lambda fam: f"{'—' if not fam else '⚑'} "
@@ -395,13 +387,11 @@ def main(argv: list[str] | None = None) -> int:
                 {x.split(" : ")[0] for x in scope[n]["materiels"]})
              for n in names]))
 
-    # --- Session 5 : les cinq détecteurs, ENFIN branchés ---------------------
+    # --- Session 5: the five detectors, wired at last ------------------------
     #
-    # Ils existaient tous dans `lint_style` et aucun n'atteignait la grille :
-    # ils calculaient, et on jetait le résultat. C'est pour ça que « Demain est
-    # un autre jour » est passé sans croix en B′3 — l'instrument n'était pas
-    # troué, il était débranché. Le lint fantôme est la forme la plus coûteuse
-    # d'échec d'outillage, parce qu'elle se lit comme un succès.
+    # All existed in the lint and none reached the grid: computed, then thrown
+    # away. That is how « Demain est un autre jour » passed without a cross in
+    # B′3: the instrument was unplugged, not holed. Phantom lint is doctrine 5.
     out += ["", "## Sessions 5-6 — voix, formulaire et décor (AUTO)", "",
             header, sep]
     for key, lib in [
@@ -409,25 +399,24 @@ def main(argv: list[str] | None = None) -> int:
                         "bouée/océan)*"),
         ("meta_termes", "Méta-termes en sortie (couperet, squelette, beat…)"),
         ("formulaire", "Formulaire par paraphrase (« … est le suivant : »)"),
-        # Session 6 : les instances ne sont plus servies au modèle (la section
-        # *Interdits* ne garde que les catégories), donc elles se vérifient ici.
-        # Sans cette ligne, fermer « perplexe » au service l'aurait rendu
-        # invisible au lieu de le rendre absent.
+        # Session 6: instances are no longer served to the model (the *Interdits*
+        # section keeps only the categories), so they are checked here. Without
+        # this line, closing « perplexe » at the service would have made it
+        # invisible instead of absent (ADR-0011).
         ("etats_mentaux", "État mental nommé en apposition *(perplexe, "
                           "songeuse, incrédule…)*"),
-        # Une marque déposée date le texte et le sort du monde clos de la
-        # maison. L1 la voyait déjà comme nom propre, mais noyée : on la nomme
-        # pour pouvoir la retirer.
+        # A trademark dates the text and takes it out of the closed world of the
+        # house. L1 already saw it as a proper noun, drowned: named here so it
+        # can be removed.
         ("marques", "Marque déposée *(Bluetooth, Frigidaire…)*"),
     ]:
         out.append(line(lib, [f"{'✓' if not res[n].get(key) else '✗'} "
                               f"({len(res[n].get(key) or [])})" for n in names]))
 
-    # DRAPEAUX, non bloquants. L'arbitrage 1B a sorti le plafond de M3 comme
-    # lint séparé — « drapeau posé ». Le rendre bloquant ferait échouer un run
-    # entier sur un tic à deux occurrences alors que L3 et M1 passeraient ;
-    # automatiser un contrôle et le rendre bloquant sont deux décisions
-    # distinctes. M3 reste la ligne manuelle qui tranche le couple.
+    # FLAGS, not blocking. Arbitration 1B moved the M3 ceiling out as a separate
+    # lint, a posed flag. Blocking would fail a whole run over a two-occurrence
+    # tic while L3 and M1 pass; automating a check and making it blocking are
+    # two distinct decisions. M3 stays the manual line settling the pair.
     out.append(line(
         "⚑ « je décide de » ≤ 1/entrée *(drapeau, non bloquant)*",
         [(lambda c: f"{'—' if all(x <= 1 for x in c) else '⚑'} "
@@ -442,11 +431,11 @@ def main(argv: list[str] | None = None) -> int:
         [f"{'✓' if not res[n].get('entetes_incoherents') else '✗'} "
          f"({len(res[n].get('entetes_incoherents') or [])})" for n in names]))
 
-    # L'ACCUMULATION QUI SE RÉSUME. Bloquant DANS le nœud (le validateur
-    # relance), donc une croix ici signale que le nœud a rendu son dernier essai
-    # malgré tout — pas un défaut de plume, un défaut de dispositif.
-    # Le ratio est affiché, pas seulement le verdict : le seuil de 0,20 est un
-    # arbitrage, et il doit rester rediscutable avec les chiffres sous les yeux.
+    # THE ACCUMULATION THAT SUMMARISES. Blocking INSIDE the node (the validator
+    # retries), so a cross here means the node returned its last attempt
+    # anyway: a device defect, not a pen defect. The ratio is shown, not just
+    # the verdict: the 0.20 threshold is an arbitration and must stay debatable
+    # with the figures in view.
     def _summary(n: str) -> str:
         ratios = res[n].get("accumulations_abstraction") or []
         if not ratios:
@@ -458,17 +447,17 @@ def main(argv: list[str] | None = None) -> int:
         "Accumulation d'étapes, non de beats *(≤ 20 % d'items abstraits)*",
         [_summary(n) for n in names]))
 
-    # M1 EN CONTRÔLE DE COMPOSITION (session 6, §2). Le glissement ne se demande
-    # plus au modèle : il se prend en banque, le code le coupe et le colle. Ce
-    # qui se vérifie donc n'est plus « le modèle a-t-il produit le geste » mais
-    # « la composition a-t-elle tenu ses promesses » — présence, unicité,
-    # conformité L4. Vert par construction, et c'est le but : la ligne M1
-    # manuelle reste, pour le jugement à l'oral qu'aucun compteur ne remplace.
+    # M1 AS A COMPOSITION CHECK (session 6, §2; ADR-0018). The drift is no longer
+    # asked of the model: drawn from the bank, cut and pasted by the code. The
+    # question moves from "did the model produce the gesture" to "did the
+    # composition keep its promises": presence, uniqueness, L4 conformity. Green
+    # by construction, and that is the point; the manual M1 line stays for the
+    # oral judgement no counter replaces.
     #
-    # La position et la non-adjacence sont garanties dans `gestes.assembler` et
-    # ne sont PAS re-vérifiées ici : elles n'existent qu'en offsets, invisibles
-    # dans le texte rendu. Le dire plutôt que laisser croire que la ligne les
-    # couvre — une grille muette sur un critère se lit comme un critère tenu.
+    # Position and non-adjacency are guaranteed in `gestures.assemble` and NOT
+    # re-checked here: they exist only as offsets, invisible in the rendered
+    # text. Said here rather than letting the line seem to cover them: a grid
+    # silent about a criterion reads as a criterion held.
     def _compo(n: str) -> str:
         per_entry = res[n].get("l4_par_entree") or []
         if not per_entry:
@@ -483,25 +472,25 @@ def main(argv: list[str] | None = None) -> int:
                     f"{len(too_many)} entrée(s) à plus d'un)")
         return f"✓ ({total} posé(s), un par entrée, conformes)"
 
-    # LA REDITE — bloquante. Le code retire le doublon à l'assemblage (cf.
-    # `graph.poser_gestes_node`), donc une croix ici signale ce qu'il n'a pas su
-    # retirer : une redite trop reformulée pour le seuil, ou une phrase reprise
-    # dans un paragraphe par ailleurs différent. Ce que le CODE compose est
-    # exclu des deux comptes — en-têtes, ancre, glissements se répètent par
-    # fonction, et les compter aurait fait retirer la bascule et le geste.
+    # THE REPEAT, blocking. The code removes the duplicate at assembly (cf.
+    # `graph.place_gestures_node`), so a cross here means what it could not
+    # remove: a repeat reworded past the threshold, or a sentence reused in an
+    # otherwise different paragraph. What the CODE composes is excluded from
+    # both counts: headers, anchor and drifts repeat by function, and counting
+    # them would have removed the switch and the gesture.
     out.append(line(
         "Aucun paragraphe redit *(similarité ≥ 50 %, hors artefacts du code)*",
         [(lambda r: f"{'✓' if not r else '✗'} ({len(r)})")(
             res[n].get("paragraphes_redits") or []) for n in names]))
-    # LA PERSONNE de l'accumulation — bloquante dans le nœud, donc une croix
-    # ici signale que le dernier essai est passé malgré tout.
+    # The PERSON of the accumulation: blocking inside the node, so a cross here
+    # means the last attempt went through anyway.
     out.append(line(
         "Accumulation à la première personne",
         [(lambda r: f"{'✓' if not r else '✗'} ({len(r)})")(
             res[n].get("accumulations_3p") or []) for n in names]))
-    # LES CITATIONS FABRIQUÉES — drapeau. L'ancre et le verdict sont retirés du
-    # compte par `citations_hors_ancre` quand on les lui donne ; ici la grille
-    # ne connaît pas l'ancre du run, donc elle passe l'ancre du chapitre.
+    # FABRICATED QUOTATIONS, a flag. `quotations_outside_anchor` drops the
+    # anchor and the verdict from the count when given them; the grid does not
+    # know the run's anchor, so it passes the chapter's.
     out.append(line(
         "⚑ Citation hors ancre *(drapeau — le cahier est fourni, pas fabriqué)*",
         [(lambda r: f"{'—' if not r else '⚑'} ({len(r)})")(

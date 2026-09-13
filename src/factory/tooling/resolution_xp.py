@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-"""XP de falsification — « la résolution est-elle un défaut de nemo, de
-l'alignement, ou du personnage ? »
+"""Falsification experiment: is the resolution a defect of nemo, of the
+alignment, or of the character?
 
-Étage H3/H4, à MODÈLE CONSTANT (nemo). On mesure le modèle NU : un seul appel
-par tirage (pas de best-of-N — c'est justement sa nécessité qu'on teste), C5
-COMPLET (aucune consigne de verdict, aucun squelette de voix, aucune chute
-posée). Seule l'IDENTITÉ servie varie ; la tâche et l'instance sont appariées.
+Stage H3/H4 at CONSTANT MODEL (nemo). Measures the BARE model: one call per
+draw (no best-of-N, whose necessity is what is tested), FULL C5 (no verdict
+instruction, no voice skeleton, no posed fall). Only the served IDENTITY varies;
+task and instance are paired. Outcome recorded in ADR-0020.
 
-Sujets :
-  - correctrice : identité DE VERDICT (le sujet Judith)
-  - neutre      : aucune identité forte
-  - thérapeute  : identité forte NON résolutive (le miroir) — servie comme
-                  RÉFLEXE DE MÉTIER, jamais comme instruction « ne conclus pas »
-  + add-on canonique : correctrice sur l'écart réel du ch7 (les deux couverts),
-    pour raccrocher l'xp au vrai chapitre.
+Subjects:
+  - proofreader: VERDICT identity (the Judith subject)
+  - neutral:     no strong identity
+  - therapist:   strong NON-resolving identity (the mirror), served as a
+                 PROFESSIONAL REFLEX, never as an instruction « ne conclus pas »
+  + canon extension: proofreader over the real gap of ch7 (the two place
+    settings), to tie the experiment back to the actual chapter.
 
-Métrique : `_BEAT_RESOUT` (le modèle rassure / lève le doute) vs `_BEAT_DOUTE`
-(le doute reste ouvert). Détecteurs déterministes, réutilisés tels quels — pour
-H3/H4 (même modèle) ils sont justes. Le texte brut de chaque variant est
-conservé : les slides sont faites de verbatims, pas de scores.
+Metric: `_BEAT_RESOLVES` (the model reassures / lifts the doubt) vs
+`_BEAT_DOUBT` (the doubt stays open). Deterministic detectors reused as they
+are; for H3/H4 (same model) they are exact. The raw text of every variant is
+kept: the slides are made of verbatims, not scores.
 """
 
 import sys
@@ -34,10 +34,10 @@ from factory.settings import settings
 
 DRAWS = settings.xp_draws
 TEMPERATURE = settings.xp_temperature
-NUM_PREDICT = settings.xp_num_predict  # assez pour laisser le modèle résoudre
-#                                        s'il va le faire
+NUM_PREDICT = settings.xp_num_predict  # enough room for the model to resolve
+#                                        when it is going to
 
-# --- La tâche, IDENTIQUE aux sujets (seules l'identité et l'instance varient) --
+# --- The task, IDENTICAL across subjects (only identity and instance vary) ----
 _TASK = (
     "Tu écris à la première personne, au présent, en français. Ce soir, tu "
     "relis ce que tu as consigné hier. Tu tombes sur une ligne : {instance}. "
@@ -50,7 +50,7 @@ _INST_DOOR = ("hier, tu as noté avoir fermé la porte à clé avant de te "
 _INST_PLACE_SETTINGS = ("hier, tu as noté avoir mis deux couverts sur la table ; tu "
                   "ne te souviens pas de l'avoir fait")
 
-# --- Les identités (le RÉFLEXE de métier, pas un ordre sur la tâche) ----------
+# --- The identities (the professional REFLEX, not an order about the task) ----
 _ID_PROOFREADER = (
     "Tu es correctrice de métier. Ton réflexe, devant tout écart entre un texte "
     "et ce que tu croyais savoir, est de le relever comme une faute — c'est ton "
@@ -62,18 +62,18 @@ _ID_THERAPIST = (
     "laisser ouvert — accueillir la question plutôt que la clore est ton geste "
     "de tous les jours.")
 
-# (nom, identité, instance)
+# (name, identity, instance)
 CONDITIONS = [
     ("correctrice·porte",   _ID_PROOFREADER, _INST_DOOR),
     ("neutre·porte",        _ID_NEUTRAL,      _INST_DOOR),
     ("thérapeute·porte",    _ID_THERAPIST,  _INST_DOOR),
-    ("correctrice·couverts", _ID_PROOFREADER, _INST_PLACE_SETTINGS),  # add-on canon
+    ("correctrice·couverts", _ID_PROOFREADER, _INST_PLACE_SETTINGS),  # canon extension
 ]
 
 
 def _verdict(text: str) -> tuple[str, str]:
-    """RÉSOUT (le modèle lève le doute) / TENU (doute ouvert) / — (ni l'un ni
-    l'autre). Rend aussi la phrase de résolution repérée, pour la slide."""
+    """RÉSOUT (the model lifts the doubt) / TENU (doubt open) / — (neither).
+    Also returns the resolution sentence spotted, for the slide."""
     mr = _BEAT_RESOLVES.search(text)
     if mr:
         return "RÉSOUT", text[max(0, mr.start() - 10):mr.end() + 30].strip()

@@ -1,44 +1,39 @@
 #!/usr/bin/env python3
-"""Trois interviews de Judith (mode ACTEUR), prêtes à jouer, pour la scène.
+"""Three interviews of Judith (ACTOR mode), ready to play for the stage.
 
-Génère trois sessions de roleplay INDÉPENDANTES avec la narratrice, chacune de
-trois questions. Ce sont des ASSETS DE DÉMO pré-générés (RUNBOOK §4.1) : on les
-curera à la main avant la scène. Le but n'est pas de mesurer le pipeline mais de
-produire trois transcripts rejouables.
+Generates three INDEPENDENT roleplay sessions with the narrator, three
+questions each. They are pre-generated DEMO ASSETS (runbook §4.1), curated by
+hand before the stage; the aim is three replayable transcripts, not a measure
+of the pipeline.
 
-Trois décisions, alignées sur la nature de la tâche :
+Three decisions, matched to the task:
 
-- **Chaque interview = une `Session` neuve = sa propre fenêtre de contexte.** À
-  l'intérieur d'une interview, les trois questions PARTAGENT le contexte : à la
-  troisième, le modèle voit les deux questions précédentes ET ses propres
-  réponses (mémoire verbatim des N derniers tours ; à trois tours rien ne fond
-  dans le résumé). C'est le « même contexte » voulu.
+- **Each interview = a fresh `Session` = its own context window.** Inside an
+  interview the three questions SHARE the context: at the third, the model sees
+  the two previous questions AND its own answers (verbatim memory of the last N
+  turns; nothing melts into the summary at three turns).
 
-- **`rappeler=False`.** Aucune interview ne charge les souvenirs des autres :
-  les trois prises sont comparables parce qu'INDÉPENDANTES. Les jeux de
-  questions se recoupent volontairement (Q3 identique partout) ; la comparaison
-  n'est honnête que si les contextes ne fuient pas l'un dans l'autre.
+- **`remind=False`.** No interview loads the memories of the others: the three
+  takes compare because they are INDEPENDENT. The question sets overlap by
+  design (Q3 identical everywhere); the comparison is honest only if no context
+  leaks into another.
 
-- **`close(indexer=False)`.** On écrit les trois transcripts Markdown sous
-  `sessions/judith/`, mais on n'indexe RIEN dans la collection Chroma
-  `sessions`. Une prise de démo régénérable n'a pas à devenir un souvenir
-  canonique du personnage qui polluerait les sessions suivantes.
+- **`close(indexer=False)`.** The three Markdown transcripts are written under
+  `sessions/judith/`; nothing is indexed in the Chroma collection `sessions`. A
+  regenerable demo take must not become a canonical memory of the character
+  that would pollute later sessions.
 
-Le personnage est servi FIREWALLÉ : la fiche indexée dit « la narratrice », le
-nom « Judith » n'y figure jamais (traduction à l'indexation). On passe donc
-`nom="la narratrice"` — le défaut de `Session` serait « Judith », qui
-réinjecterait dans le prompt système le nom que le firewall a retiré.
+The character is served FIREWALLED (ADR-0017): the indexed sheet says
+« la narratrice », never « Judith ». Hence `name="la narratrice"`: the
+`Session` default would be « Judith » and would reinject into the system prompt
+the name the firewall removed.
 
-Pas de préflight, comme `chat_character.py` : une génération courte se surveille
-en direct. Il faut seulement qu'Ollama tourne (modèle auteur nemo) et que Chroma
-serve la collection `auteur`.
+No preflight, as in `factory chat`: a short generation is watched live. Ollama
+must run (author model nemo) and Chroma must serve the collection `auteur`.
 
-Usage (depuis la racine du dépôt, venv de l'orchestrateur) :
-    orchestrator/.venv/bin/python outillage/run_interviews_judith.py
-    orchestrator/.venv/bin/python outillage/run_interviews_judith.py --temperature 0.8
-
-Stdlib + le venv de l'orchestrateur (chromadb-client). Réutilise
-`orchestrator/roleplay.py` sans le modifier.
+Usage (repository root, project venv):
+    .venv/bin/python -m factory.tooling.interviews
+    .venv/bin/python -m factory.tooling.interviews --temperature 0.8
 """
 
 import argparse
@@ -47,14 +42,14 @@ import time
 
 from factory.roleplay.session import Session
 
-# doc_id de retrieval de la narratrice (clé des chunks `judith::voix`, …). Le nom
-# servi au modèle est « la narratrice » : cf. le docstring, le firewall
-# d'indexation scrubbe « Judith » du texte de la fiche.
+# Retrieval doc_id of the narrator (key of the chunks `judith::voix`, …). The
+# name served to the model is « la narratrice »: the indexing firewall scrubs
+# « Judith » from the sheet text (ADR-0017).
 DOC_ID = "judith"
 NAME = "la narratrice"
 
-# Les trois jeux, verbatim. Une entrée = une interview = trois questions posées
-# dans l'ordre, dans un seul et même contexte.
+# The three sets, verbatim. One item = one interview = three questions asked in
+# order, in one and the same context.
 INTERVIEWS: list[list[str]] = [
     # INT-a
     [
@@ -79,10 +74,10 @@ INTERVIEWS: list[list[str]] = [
 
 def play_interview(number: int, questions: list[str], *,
                     temperature: float, keep_turns: int) -> dict:
-    """Joue une interview de bout en bout et rend son bilan.
+    """Play one interview end to end and return its summary.
 
-    Une seule `Session` pour les trois questions : le contexte est partagé à
-    l'intérieur, isolé à l'extérieur (`rappeler=False`).
+    A single `Session` for the three questions: context shared inside, isolated
+    outside (`remind=False`).
     """
     print(f"\n{'=' * 70}\nINTERVIEW {number} — {len(questions)} questions\n{'=' * 70}")
 
@@ -95,8 +90,8 @@ def play_interview(number: int, questions: list[str], *,
         print(f"\n[Q{i}] {question}")
         print(f"[{NAME}, {dt:.0f}s] {reply}")
 
-    # close() force une dernière fonte (résumé) puis écrit le Markdown ;
-    # indexer=False → rien n'entre dans la collection `sessions`.
+    # close() forces a last melt (summary) then writes the Markdown;
+    # indexer=False → nothing enters the collection `sessions`.
     path = session.close(indexer=False)
 
     total = sum(m["wall_s"] for m in session.metrics)
@@ -129,7 +124,7 @@ def main() -> None:
     args = p.parse_args()
 
     try:
-        Session(DOC_ID, name=NAME, remind=False)  # valide la fiche AVANT de jouer
+        Session(DOC_ID, name=NAME, remind=False)  # validates the sheet BEFORE playing
     except ValueError as exc:
         raise SystemExit(
             f"Fiche « {DOC_ID} » introuvable dans la collection Chroma. "

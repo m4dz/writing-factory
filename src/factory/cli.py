@@ -210,10 +210,9 @@ def _print_report(final: dict, total: float) -> None:
     print(final.get("coherence") or "(aucun)")
 
     print(f"\n{bar}\nLINT DE STYLE (fuites de langue, tokens corrompus)\n{bar}")
-    # Distinguer ce qui SUBSISTE de ce qui a été rattrapé : les alertes émises
-    # par l'écriture et la relecture décrivent un état ANTÉRIEUR à la
-    # réparation par Qwen. Les afficher pêle-mêle fait passer un défaut corrigé
-    # pour un défaut vivant.
+    # Tell what REMAINS from what was caught: warnings raised by writing and
+    # review describe a state BEFORE the Qwen repair. Mixed together, a fixed
+    # defect passes for a live one.
     warns = final.get("warnings") or []
     residual = [w for w in warns if _residual(w)]
     upstream = [w for w in warns if not _residual(w)]
@@ -237,9 +236,8 @@ def _print_report(final: dict, total: float) -> None:
         print(f"  vitesse moyenne  : "
               f"{sum(m.get('gen_tok_s', 0) for m in metrics) / len(metrics):.1f} tok/s")
     print(f"  TEMPS TOTAL      : {total:.0f} s  ({total / 60:.1f} min)")
-    # `ctx_fill` est plafonné à 1 par construction : il ne peut PAS servir
-    # d'alarme. Les deux signaux utiles sont l'estimation avant envoi
-    # (`ctx_need`) et l'écart envoyé/lu (`ctx_truncated`).
+    # `ctx_fill` is capped at 1 by construction and cannot serve as an alarm;
+    # the two useful signals are `ctx_need` and `ctx_truncated` (ADR-0008).
     truncated = [i for i, m in enumerate(metrics) if m.get("ctx_truncated")]
     tight = [i for i, m in enumerate(metrics) if m.get("ctx_need", 0) > 0.9]
     if truncated:
@@ -265,9 +263,9 @@ def _print_report(final: dict, total: float) -> None:
 
 
 def _residual(w: str) -> bool:
-    # « réparation … » = relevé APRÈS la passe Qwen, donc encore présent.
-    # « à reprendre à la main » = la continuation et la coupe propre ont
-    # toutes deux échoué : c'est le seul cas où du texte sort amputé.
+    # « réparation … » = raised AFTER the Qwen pass, hence still present.
+    # « à reprendre à la main » = continuation and clean cut both failed: the
+    # only case where text leaves amputated.
     return w.startswith("réparation ") or "à reprendre à la main" in w
 
 
@@ -282,7 +280,7 @@ def _http_ok(url: str, timeout: float = 5.0) -> tuple[bool, str]:
 
 
 def doctor(argv: list[str]) -> int:
-    """Run the real probes on this machine and print what they say.
+    """Run the real probes against this machine and print what they say.
 
     Not a test: the probes and the synthesizer are faked in the suite. This
     is the runbook's first step, on the owner's machine.

@@ -1,26 +1,20 @@
 #!/usr/bin/env python3
-"""Session 4 — exécution des étages A et B par la pipeline LangGraph.
+"""Calibration stages, one run file per draw (`factory calibrate --stage`).
 
-Contrairement aux sessions 1 à 3, qui frappaient Ollama en direct avec la fiche
-entière en Modelfile, la session 4 passe par le graphe complet
-(`plan → write → review → repair → coherence`). C'est la machine qu'on mesure,
-plus le plafond du modèle.
+Runs the full graph (`plan → write → review → repair → coherence`) for the
+archived stages A, B, Bp, C, S6, S7 and the chapter 7 rehearsal CH7. A and B
+differ by `rag` alone (A: no Chroma, no embedding call; B: indexed collections).
+Briefs come from the chapter 2 spec (`chapters/02-*/spec.yaml`), except the
+historical v2/v3/C constants kept below so the archived stages stay replayable.
+Run files land under `experiments/runs/<date>-<stage>/` (ADR-0003).
 
-Les deux étages ne diffèrent QUE par `rag` :
-  - étage A : `rag=False`, aucun appel à Chroma ni au modèle d'embedding — le
-    contexte narratif se limite au brief ;
-  - étage B : `rag=True`, collections indexées.
+Superseded by `factory generate`, which writes runs with a manifest; this driver
+stays for the calibration series and their grids.
 
-Les briefs sont lus dans `experiments/reports/protocole-calibration-ch2.md` (§3 du protocole
-de session pour la version 2) : ils ne sont pas recopiés ici, pour qu'un brief
-modifié n'ait pas deux vérités.
-
-Usage :
+Usage:
   factory calibrate --stage A                 # A1-A3 + AC
   factory calibrate --stage A --only A1
   factory calibrate --stage B
-
-Stdlib + le venv de l'orchestrateur (langgraph, chromadb).
 """
 
 import argparse
@@ -41,8 +35,9 @@ from factory.infra.preflight import PreflightError
 # loader — the single source shared with the API's live path and the CLI.
 from factory.chapter_spec import load_chapter
 
-# Le brief v2 du chapitre 2 — §3 du protocole de session, verbatim. Il vaut
-# pour les runs SCORÉS des deux étages.
+# Chapter 2 brief v2, verbatim from the session protocol §3
+# (experiments/reports/protocole-calibration-ch2.md). Served to the SCORED runs
+# of stages A and B.
 BRIEF_V2 = (
     "Chapitre 2, entrée unique du carnet, 450-600 mots. En-tête imposé, "
     "première ligne exacte : « Mardi 12. Ciel couvert. »\n"
@@ -66,9 +61,9 @@ BRIEF_V2 = (
     "(la tierce, l'errata, le bon à tirer)."
 )
 
-# Objectif de chapitre pour AC/BC — hors score. Fourni par le propriétaire pour
-# lever la contradiction entre le brief v2 (« entrée unique ») et le §4 du
-# protocole (« le chapitre 2 complet, trois entrées »).
+# Chapter goal for AC/BC, outside the score. Supplied by the owner to settle the
+# contradiction between brief v2 (a single entry) and protocol §4 (the whole
+# chapter 2, three entries).
 CHAPTER_GOAL = (
     "Chapitre 2 complet, trois entrées du carnet à dates consécutives, "
     "450-600 mots chacune. Matière du chapitre : la première divergence — "
@@ -83,16 +78,14 @@ CHAPTER_GOAL = (
 
 # --- Brief v3 (session 5, item 6) -------------------------------------------
 #
-# Delta sur la v2 : le RÉSULTAT de la vérification devient un fait imposé,
-# chiffré, au matériau. M4 (« l'entrée relue a raison contre la mémoire ») a
-# cassé deux fois sur trois à l'étage B malgré un beat 3 explicite — le modèle
-# résolvait le conflit par tous les canaux sauf celui du roman : l'objet
-# disparaissait, ou le corps contredisait le texte. On ne discute pas l'état du
-# monde, on le donne.
-# L'ancre de CITATION seule : l'en-tête est désormais composé par le code
-# (`graph.entete`), plus recopié depuis une constante. Servi aussi aux chapitres
-# complets — c'est le vide d'ancre qui avait engendré le manuscrit intérieur de
-# B′C.
+# Delta from v2: the RESULT of the verification becomes an imposed, counted fact
+# in the material. M4 (the reread entry is right against memory) broke two runs
+# out of three at stage B despite an explicit beat 3: the model settled the
+# conflict through every channel but the novel's (the object vanished, or the
+# body contradicted the text). The state of the world is given, not debated.
+# Quotation anchor only: the header is composed by the code (`graph.header`,
+# ADR-0018), no longer copied from a constant. Served to full chapters too: the
+# missing anchor is what produced the inner manuscript of B′C.
 # (The anchor quotation is now `prefix` in chapters/02-*/spec.yaml.)
 
 BRIEF_V3 = BRIEF_V2.replace(
@@ -103,17 +96,16 @@ BRIEF_V3 = BRIEF_V2.replace(
     "En-tête : jamais de mois, jamais d'année."
 )
 
-# L'objectif de chapitre hérite du même fait imposé.
+# The chapter goal inherits the same imposed fact.
 CHAPTER_GOAL_V3 = CHAPTER_GOAL + (
     " Fait imposé, au matériau : « L'égouttoir, ce soir : deux assiettes. » "
     "En-tête : jamais de mois, jamais d'année."
 )
 
-# BRIEF DE L'ÉTAGE C. Il ne demande plus l'en-tête ni la recopie de l'ancre :
-# le code les POSE (bloc B et item 5). Les laisser dans le brief a produit, au
-# premier run C, un texte à deux en-têtes et deux ancres — le modèle obéissait à
-# la consigne, et le code ajoutait la sienne par-dessus. Une consigne et une
-# concaténation qui font la même chose se cumulent.
+# STAGE C BRIEF. It no longer asks for the header or the anchor copy: the code
+# POSES them (block B, item 5; ADR-0018). Leaving them in the brief gave the
+# first C run two headers and two anchors, the model's and the code's. An
+# instruction and a concatenation doing the same thing add up.
 
 BRIEF_C = (BRIEF_V3
            .replace("En-tête imposé, "
@@ -137,35 +129,35 @@ PLAN_RUNS = {
     "B": [("B1", BRIEF_V2, "score"), ("B2", BRIEF_V2, "score"),
           ("B3", BRIEF_V2, "score"),
           ("BC", CHAPTER_GOAL, "chapitre complet, hors score")],
-    # B′ : le service réparé. Brief v3, retrieval actif — la seule variable
-    # face à B est le lot correctif.
+    # B′: the repaired service. Brief v3, retrieval active; the corrective batch
+    # is the only variable against B.
     "Bp": [("Bp1", BRIEF_V3, "score"), ("Bp2", BRIEF_V3, "score"),
            ("Bp3", BRIEF_V3, "score"),
            ("BpC", CHAPTER_GOAL_V3, "chapitre complet, hors score")],
-    # C : B′ plus les micro-nœuds d'assemblage. L3 et M1 deviennent bloquants.
+    # C: B′ with the assembly micro-nodes added. L3 and M1 become blocking.
     "C": [("C1", BRIEF_C, "score"), ("C2", BRIEF_C, "score"),
           ("C3", BRIEF_C, "score"),
           ("CC", CHAPTER_GOAL_V3, "chapitre complet, hors score")],
-    # S6 : `write` décomposé en trois segments, brief v4, glissement pris à la
-    # banque. La variable mesurée est le DÉCOUPAGE — le reste du lot corrige des
-    # défauts nés à l'étage C, il n'ajoute pas de dispositif.
+    # S6: `write` split into three segments, brief v4, drift drawn from the bank.
+    # The measured variable is the SPLIT; the rest of the batch fixes defects
+    # born at stage C and adds no device.
     "S6": [("S6-1", "entry", "score"), ("S6-2", "entry", "score"),
            ("S6-3", "entry", "score"),
            ("S6-C", "chapter", "chapitre complet, hors score")],
-    # S7 : le lot correctif. Brief v4 inchangé — ce qui bouge est DANS le
-    # pipeline (stations, consignes en faits, garde-fou conscient de la cible,
-    # dédoublonnage, tampon d'ancre) et dans la bible. Le brief reste le même
-    # pour que la comparaison avec S6 porte sur le lot, et sur rien d'autre.
+    # S7: the corrective batch. Brief v4 unchanged; what moves is INSIDE the
+    # pipeline (stations, instructions as facts, target-aware guard, dedup,
+    # anchor buffer) and the bible, so the comparison with S6 isolates the
+    # batch.
     "S7": [("S7-1", "entry", "score"), ("S7-2", "entry", "score"),
            ("S7-3", "entry", "score"),
            ("S7-C", "chapter", "chapitre complet, hors score")],
-    # CH7 : la répétition. Un seul run, le chapitre entier, deux entrées.
+    # CH7: the rehearsal. One run, the whole chapter, two entries.
     "CH7": [("CH7", None, "répétition — chapitre 7 en conditions réelles")],
 }
 
 
 def time_per_node(metrics: list[dict]) -> dict[str, float]:
-    """Agrège les durées par nœud — le livrable « marge des 28 minutes »."""
+    """Durations aggregated per node: the deliverable for the 28-minute margin."""
     out: dict[str, float] = {}
     for m in metrics:
         key = (m.get("noeud") or "?").split("/")[0]
@@ -179,10 +171,9 @@ def main(argv: list[str] | None = None) -> int:
                                             "chapter 7 rehearsal, one run file per draw.")
     p.add_argument("--stage", choices=["A", "B", "Bp", "C", "S6", "S7", "CH7"],
                    required=True)
-    # La graine du tirage de glissement, consignée au frontmatter : le tirage
-    # varie d'un run à l'autre (sinon la même phrase à la même place devient une
-    # liturgie de notre propre gabarit), mais un run reste rejouable à
-    # l'identique quand un geste sort mal.
+    # Seed of the drift draw, recorded in the frontmatter: the draw varies from
+    # run to run (else the same sentence at the same place becomes a liturgy of
+    # our own template), yet a run replays identically when a gesture misfires.
     p.add_argument("--seed", type=int, default=None)
     p.add_argument("--skip-preflight", action="store_true",
                    help="passe outre le préflight — les durées relevées ne "
@@ -191,22 +182,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out-dir", default=None)
     args = p.parse_args(argv)
 
-    # PRÉFLIGHT, BLOQUANT POUR S6 SEULEMENT.
+    # PREFLIGHT, BLOCKING FOR THE TIMED STAGES ONLY (ADR-0016).
     #
-    # L'arbitrage établi laissait l'outillage de calibration en simple
-    # avertissement : il juge de la prose, pas des durées. La session 6 inverse
-    # ce rapport — la variable mesurée est le COÛT du découpage en trois
-    # segments, et le budget des 28 minutes se recalcule avec ces chiffres. Un
-    # run joué pendant `mediaanalysisd` rendrait des temps ininterprétables
-    # (32 et 49 minutes mesurées aux runs 3 et 4, trous de 5 à 18 minutes entre
-    # deux appels), et on aurait dépensé deux heures pour rien.
+    # Calibration tooling judges prose, not durations, so its preflight was a
+    # warning. Session 6 measures the COST of the three-segment split and
+    # recomputes the 28-minute budget from those figures; a run played during
+    # `mediaanalysisd` gave uninterpretable times (32 and 49 minutes at runs 3
+    # and 4, holes of 5 to 18 minutes between two calls). The other stages keep
+    # the old rule: a stage's rule is not changed in passing.
     #
-    # Les autres étages gardent le comportement d'avant : on ne change pas la
-    # règle d'un étage en passant.
-    #
-    # Depuis l'étape 4, le préflight est le premier nœud du graphe : il tourne
-    # AVANT CHAQUE RUN (le runbook l'exigeait déjà à la main), bloquant pour les
-    # étages chronométrés seulement, avertissement partout ailleurs.
+    # Since revamp step 4 the preflight is the first graph node, run BEFORE
+    # EVERY RUN: blocking for the timed stages, a warning elsewhere.
     timer = args.stage in ("S6", "S7", "CH7")
     preflight_request = {"strict": timer and not args.skip_preflight, "timer": timer}
     if timer and args.skip_preflight:
@@ -220,9 +206,9 @@ def main(argv: list[str] | None = None) -> int:
         / f"{datetime.now():%Y%m%d}-{args.stage.lower()}"))
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Import TARDIF : construire le graphe importe chromadb et, à l'étage A, on
-    # veut pouvoir tourner conteneur éteint. L'import lui-même ne se connecte
-    # pas, mais on garde l'ordre propre.
+    # LATE import: building the graph imports chromadb, and stage A must run
+    # with the container down. The import itself does not connect; the order
+    # stays clean.
     from factory.pipeline.graph import build_graph
     graph = build_graph()
 
@@ -231,23 +217,23 @@ def main(argv: list[str] | None = None) -> int:
             continue
         print(f"\n{'=' * 66}\n[{ident}] {role} — rag={rag}\n{'=' * 66}",
               flush=True)
-        # §5 : le journal de routage se vide avant chaque run pour que
-        # les collections vues soient imputables à CE run seul.
+        # Protocol §5: the routing journal is cleared before each run so the
+        # collections seen are attributable to THIS run alone.
         retrieval.clear_routing()
-        # Une graine PAR RUN : trois runs d'un même étage doivent tirer des
-        # glissements différents, sinon la variation qu'on cherche à obtenir est
-        # annulée à l'intérieur même de la série. Consignée au frontmatter.
+        # One seed PER RUN: three runs of one stage must draw different drifts,
+        # else the variation sought is cancelled inside the series itself.
+        # Recorded in the frontmatter.
         seed = (args.seed if args.seed is not None
                   else random.randrange(1, 10**6))
         start, wall_start = time.monotonic(), time.time()
-        # `entrees_attendues` commande le court-circuit du plan (item 10) et
-        # `prefixe` le texte posé d'avance (item 5) — pour les runs mono-entrée
-        # seulement : un chapitre complet garde son plan et ses propres en-têtes.
+        # `entry_count` short-circuits the plan (item 10) and `prefix` is the
+        # text posed in advance (item 5), for single-entry runs only: a full
+        # chapter keeps its plan and its own headers.
         mono = role == "score"
-        # LE CHAPITRE 7 diffère de tout le reste par sa STRUCTURE, pas par son
-        # câblage : deux entrées du même jour, la première en deux phrases sans
-        # citation. `entry_specs` porte cette structure ; partout ailleurs elle
-        # est vide et le comportement est inchangé.
+        # CHAPTER 7 differs from the rest by STRUCTURE, not wiring: two entries
+        # the same day, the first two sentences without quotation. `entry_specs`
+        # carries that structure; elsewhere it is empty and behaviour unchanged
+        # (ADR-0018, doctrine 9).
         ch7 = args.stage == "CH7"
         # The chapter spec builds the state (step 5); the stage only sets the
         # run options: brief version, RAG, micro-nodes, segments, single entry.
@@ -261,8 +247,8 @@ def main(argv: list[str] | None = None) -> int:
                     entry_count=None if ch7 else (1 if mono else 3),
                     rag=rag,
                     micro_nodes=args.stage in ("C", "S6", "S7", "CH7"),
-                    # LA VARIABLE MESURÉE de la session 6 : hors S6, `write`
-                    # reste l'appel unique par lequel tout a été chronométré.
+                    # Session 6's MEASURED VARIABLE: outside S6, `write` stays
+                    # the single call everything was timed by.
                     segments=args.stage in ("S6", "S7", "CH7"),
                     prefix=None if ch7 else (
                         spec.prefix if args.stage in ("Bp", "C", "S6", "S7") else ""),
@@ -276,44 +262,34 @@ def main(argv: list[str] | None = None) -> int:
         for w in status.get("preflight_warnings") or []:
             print(f"  ⚠ {w}", file=sys.stderr)
         duration = time.monotonic() - start
-        # DEUX HORLOGES, et elles ne mesurent pas la même chose.
-        #
-        # `time.monotonic()` s'ARRÊTE pendant la veille système sur macOS ;
-        # `time.time()` continue. Le budget de scène est du temps de MUR — le
-        # compteur du deck tourne pendant que le public attend, veille comprise.
-        # Notre chiffre de référence était donc le mauvais.
-        #
-        # Découvert sur S7-3 : `duree_s` annonçait 374 s pendant que la somme
-        # des appels au modèle donnait 2682 s. La machine avait fait deux
-        # « Maintenance Sleep » sur batterie au milieu du run (confirmé par
-        # `pmset -g log`). Sur scène, ce run aurait explosé les 28 minutes et la
-        # métrique aurait dit que tout allait bien.
+        # TWO CLOCKS, measuring different things (ADR-0016): `time.monotonic()`
+        # STOPS during system sleep, `time.time()` does not, and the stage budget
+        # is WALL time. Found at S7-3: `duree_s` said 374 s while the model calls
+        # summed to 2682 s, after two Maintenance Sleeps (`pmset -g log`).
         wall_duration = time.time() - wall_start
 
         entries = status.get("repaired") or status.get("reviewed") or status["scenes"]
         text = "\n\n".join(entries)
         lint = analyze(text)
         per_node = time_per_node(status.get("metrics") or [])
-        # TEMPS PAR SEGMENT — le chiffre qui décide si le découpage tient dans
-        # les 28' du compteur. Les trois appels d'écriture portent un label
-        # « entrée N/segment », donc ils se somment par segment sans que le
-        # graphe ait à tenir un compteur de plus.
+        # TIME PER SEGMENT: the figure deciding whether the split fits the 28'
+        # budget. The three writing calls carry a label « entrée N/segment », so
+        # they sum per segment without another counter in the graph.
         segment_times: dict[str, float] = {}
         for m in status.get("metrics") or []:
             seg = m.get("segment")
             if seg:
-                # `wall_s`, pas `ms` : c'est la clé que produit `chat()`, et
-                # c'est celle que `temps_par_noeud` utilise depuis toujours. La
-                # première version sommait une clé inexistante et rendait
-                # 0,0 s par segment — un chiffre faux se lit comme une mesure,
-                # là où une absence se serait vue.
+                # `wall_s`, not `ms`: the key `chat()` produces and the one
+                # `time_per_node` has always used. The first version summed a
+                # missing key and returned 0.0 s per segment: a wrong figure
+                # reads as a measure where an absence would have shown.
                 segment_times[seg] = round(
                     segment_times.get(seg, 0.0) + m.get("wall_s", 0.0), 1)
         guards = [w for w in status.get("warnings", []) if "garde-fou 60 %" in w]
         collections = sorted(set(retrieval.routing()))
-        # `ctx_need` est le seul signal fiable de saturation de fenêtre : Ollama
-        # tronque en silence et ne rapporte que ce qu'il a lu. Relevé obligatoire
-        # au lot correctif — la texture servie en plus va le faire monter.
+        # `ctx_need` is the only reliable window-saturation signal: Ollama
+        # truncates silently and reports only what it read (ADR-0008). Mandatory
+        # reading for the corrective batch, whose extra texture raises it.
         ctx_max = max((m.get("ctx_need", 0) for m in status.get("metrics") or []),
                       default=0)
 
@@ -350,10 +326,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(f"[{ident}] {len(text.split())} mots, {len(entries)} entrée(s), "
               f"{duration:.0f}s → {path}")
-        # Un écart de plus de 30 s entre les deux horloges = la machine a dormi
-        # ou a été suspendue. Le dire FORT : un run dont les durées sont
-        # contaminées ne se compare à rien, et c'est le chiffre central de la
-        # session.
+        # A gap above 30 s between the clocks means the machine slept or was
+        # suspended. Say it LOUD: contaminated durations compare to nothing, and
+        # duration is the session's central figure (ADR-0016).
         if wall_duration - duration > 30:
             print(f"  ⚠ VEILLE DÉTECTÉE : {wall_duration - duration:.0f}s d'écart "
                   f"entre l'horloge de mur ({wall_duration:.0f}s) et le temps de "

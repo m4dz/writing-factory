@@ -2,7 +2,7 @@
 
 A run is (chapter spec, seed, configuration overrides, commit) — ADR-0003,
 ADR-0005. Its directory is the registry: `manifest.yaml` (identity, resolved
-configuration, model tags, status, timings on both clocks), `chapitre.md`,
+configuration, model tags, status, timings from both clocks), `chapitre.md`,
 `chapitre.wav`, `prompts.md` (every prompt served to the model), `lint.md`
 (the lint grid line). The API reads runs from disk and holds no chapter in
 memory; `factory generate` writes the same directories.
