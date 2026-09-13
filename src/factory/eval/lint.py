@@ -1,30 +1,29 @@
 #!/usr/bin/env python3
-"""Lint déterministe de la grille de style — SANS modèle.
+"""Deterministic lint of the style grid, without any model.
 
-Remplit mécaniquement une PARTIE de la grille de `_scene-test-style.md` et cite
-ses preuves. Le reste est laissé vide : c'est le jugement du relecteur, et une
-pré-évaluation approximative coûterait plus qu'elle ne rapporte (on irait durcir
-un chunk de la fiche qui n'a rien fait).
+Fills mechanically PART of the `_scene-test-style.md` grid and cites its
+evidence. The rest is left blank: that is the reviewer's judgement, and an
+approximate pre-evaluation would cost more than it earns (a chunk of the
+sheet that did nothing would get hardened).
 
-Doctrine, prolongement de la leçon déjà acquise sur Qwen — « donner au petit
-modèle une tâche de LECTURE, jamais d'INFÉRENCE ». Ici on descend d'un cran :
-aucun modèle du tout, donc aucun faux positif d'inférence. Ce qui est
-mécaniquement décidable est décidé ; ce qui demande de comprendre le texte est
-rendu tel quel au relecteur.
+Doctrine, extending the lesson learned with Qwen: give the small model a
+READING task, never an INFERENCE task. Here one step lower: no model at all,
+hence no inference false positive. What is mechanically decidable is decided;
+what requires understanding the text goes back to the reviewer as is.
 
-Trois niveaux de certitude, et ils sont affichés :
-  EXACT     — listes littérales tirées de la fiche, décision fiable.
-  CANDIDAT  — heuristique, à confirmer à l'œil (passé simple).
-  MANUEL    — non automatisable, laissé vide.
+Three certainty levels, and they are displayed:
+  EXACT     literal lists taken from the sheet, reliable decision.
+  CANDIDAT  heuristic, to confirm by eye (passé simple).
+  MANUEL    not automatable, left blank.
 
-Le module ne MODIFIE jamais le texte : on mesure ce que le modèle produit, pas
-ce qu'un post-filtre rattrape.
+The module never MODIFIES the text: we measure what the model produces, not
+what a post-filter rescues.
 
-Usage :
-  python3 outillage/lint_style.py runs/run-1.md
-  factory eval lint --references                   # auto-test sur la fiche
+Usage:
+  factory eval lint experiments/runs/<date>-<slug>/run-1.md
+  factory eval lint --references                   # self-test against the sheet
 
-Stdlib uniquement.
+Stdlib only.
 """
 
 import argparse
@@ -33,35 +32,34 @@ import re
 import sys
 from pathlib import Path
 
-# `orchestrator/` n'est pas installable : on l'ajoute au chemin pour réutiliser
-# delint() plutôt que de recopier ses détecteurs. style.py n'importe que `re`.
+# delint() is reused rather than copying its detectors; factory.text imports only `re`.
 from factory.paths import BIBLE_DIR, DATA_DIR
 from factory.text import delint
 
-# --- Seuils ------------------------------------------------------------------
+# --- Thresholds --------------------------------------------------------------
 
-# « Phrase d'accumulation » : proxy mesurable de la rupture signature de la
-# fiche (« une seule phrase longue, construite en accumulation de propositions
-# juxtaposées par des virgules »). Les deux seuils sont calibrés pour séparer
-# l'étalon 2 (la cible) des trois autres étalons — c'est ce que vérifie
-# `--references`. Baisser l'un des deux ferait passer des phrases ordinaires.
+# "Accumulation sentence": measurable proxy of the sheet's signature rupture
+# (the sheet: one long sentence built by accumulating clauses juxtaposed with
+# commas). Both thresholds are calibrated to separate reference 2 (the target)
+# from the three other references; `--references` checks exactly that.
+# Lowering either would let ordinary sentences through.
 ACC_COMMAS = 4
 ACC_WORDS = 45
 
-# « Phrase-couperet » : la fiche dit « trois à six mots ».
+# "Cleaver sentence": the sheet says « trois à six mots ».
 CLEAVER_MIN, CLEAVER_MAX = 3, 6
 
-# --- Session 3 : contrôles L1-L4 du protocole de calibration ch. 2 ------------
+# --- Session 3: L1-L4 controls of the chapter 2 calibration protocol ---------
 
-# L3 reprend les seuils que la fiche v3 énonce elle-même (60 mots, 6 virgules),
-# plus stricts que ceux calibrés en session 1 (45/4). Les deux coexistent : la
-# ligne historique garde les sessions 1 et 2 comparables, L3 applique la règle
-# écrite dans la fiche. Aligner les deux effacerait la comparaison.
+# L3 takes the thresholds the sheet v3 states itself (60 words, 6 commas),
+# stricter than those calibrated in session 1 (45/4). Both coexist: the
+# historical line keeps sessions 1 and 2 comparable, L3 applies the written
+# rule. Aligning them would erase the comparison.
 L3_WORDS, L3_COMMAS = 60, 6
 
-# L4 : le glissement est le SEUL emploi autorisé des points de suspension. Le
-# marqueur n'est comptable que parce qu'il est univoque — d'où la mesure de
-# proximité avec le champ du départ plutôt qu'un simple comptage.
+# L4: the drift is the ONLY allowed use of suspension points. The marker is
+# countable only because it is unambiguous, hence the proximity measure with
+# the departure field rather than a bare count.
 L4_WORD_WINDOW = 15
 DEPARTURE_FIELD = re.compile(
     r"\b(partie|parties|départ|departs|départs|absence|absente|quittée|quitté|"
@@ -70,26 +68,25 @@ DEPARTURE_FIELD = re.compile(
 )
 SUSPENSION = re.compile(r"…|\.\.\.")
 
-# L1 : une majuscule est un candidat NOM PROPRE si elle n'ouvre ni le texte, ni
-# une phrase, ni une ligne. Heuristique assumée — le protocole demande zéro
-# toléré, donc on signale large et on cite le contexte pour que la lecture
-# tranche. `Je` est écarté : c'est un pronom, jamais un nom propre, et il
-# apparaît capitalisé après une coupe de phrase que le découpage rate parfois.
+# L1: a capital is a PROPER NOUN candidate if it opens neither the text, nor a
+# sentence, nor a line. Deliberate heuristic: the protocol demands zero
+# tolerance, so flag wide and cite the context so the reading decides. `Je` is
+# excluded: a pronoun, never a proper noun, and it shows up capitalised after a
+# sentence cut the splitter sometimes misses.
 L1_EXCEPTIONS = {"Je", "J", "L", "D", "C", "N", "S", "M", "T", "Y"}
 UPPERCASE = re.compile(r"\b([A-ZÀÂÄÉÈÊËÎÏÔÖÙÛÜÇ][\wàâäéèêëîïôöùûüç'’-]+)")
 
-# Un en-tête d'entrée de journal : ligne courte portant une date. Sert au
-# re-scope « par entrée » (D1) — sans lui, L3 et L4 compteraient sur le
-# chapitre entier et un chapitre à deux entrées serait jugé comme un seul bloc.
-# EN-TÊTE NORMALISÉ (notes d'outillage §1). Format canonique :
-# « Jeudi 7. Beau temps. » — jour de semaine, numéro, point, météo, point.
-# Jamais l'année.
+# A journal entry header: a short line carrying a date. Used for the per-entry
+# re-scope (D1); without it L3 and L4 would count over the whole chapter and a
+# two-entry chapter would be judged as one block.
+# NORMALISED HEADER, composed by code (ADR-0018). Canonical format:
+# « Jeudi 7. Beau temps. »: weekday, number, period, weather, period. Never
+# the year.
 #
-# Il remplace l'heuristique de date de la session 3, et ce n'est pas une
-# coquetterie : le MÊME repère sert à trois choses — le comptage d'entrées de
-# L3, la validation de structure en grille, et le point de bascule de
-# `lire_chapitre.py` (le second en-tête du chapitre 7). Un repère déterministe
-# partagé vaut mieux que trois heuristiques qui divergent le jour J.
+# It replaced the session 3 date heuristic because the SAME marker serves three
+# things: L3 entry counting, structure validation in the grid, and the audio
+# switch point (the second header of chapter 7, ADR-0013). One shared
+# deterministic marker beats three heuristics that diverge at showtime.
 DAYS = r"Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche"
 ENTRY_HEADER = re.compile(
     rf"^\s*(?:\*{{0,2}})?({DAYS})\s+(\d{{1,2}})\.\s+.{{2,40}}\.\s*(?:\*{{0,2}})?$",
@@ -97,8 +94,8 @@ ENTRY_HEADER = re.compile(
 )
 
 
-# --- Listes littérales (source : chunk *Interdits* de style-auteur.md, --------
-# --- complété par la grille du paquet test-style) ----------------------------
+# --- Literal lists (source: the *Interdits* chunk of style-auteur.md, --------
+# --- completed by the test-style package grid) -------------------------------
 
 PASTICHE = re.compile(
     r"\b(indicible[s]?|innommable[s]?|abomination[s]?|t[ée]n[èe]bres|"
@@ -107,14 +104,12 @@ PASTICHE = re.compile(
     re.IGNORECASE,
 )
 
-# Les variantes de TEMPS comptent autant que la formule : « je ne peux
-# m'empêcher » a échappé au détecteur au run 3 de la session 3, qui n'attendait
-# que l'imparfait (notes d'outillage §5). Un tic ne change pas de nature en
-# changeant de conjugaison.
-# La NÉGATION s'intercale, et le motif la ratait : B′C écrit « je ne peux PAS
-# m'empêcher de penser ». Un adverbe de négation entre l'auxiliaire et le verbe
-# suffisait à faire passer le tic — et c'est le deuxième run consécutif qu'il
-# traverse (le run 3 de la session 3 l'avait déjà fait au présent).
+# TENSE variants count as much as the formula: « je ne peux m'empêcher »
+# escaped the detector at session 3 run 3, which expected only the imperfect.
+# A tic does not change nature by changing conjugation.
+# The NEGATION slips in between and the pattern missed it: B′C wrote
+# « je ne peux PAS m'empêcher de penser ». A negation adverb between auxiliary
+# and verb was enough to let the tic through, the second consecutive run to do so.
 AI_TICS = re.compile(
     r"(un m[ée]lange de\b|quelque chose en (?:moi|elle)\b|"
     r"(?:je|elle) ne (?:pouvais|pouvait|peux|peut|pourrais|pourrait)"
@@ -126,39 +121,38 @@ AI_TICS = re.compile(
     re.IGNORECASE,
 )
 
-# LE FORMULAIRE PAR PARAPHRASE. Bannir les méta-termes n'a pas tué le mode
-# formulaire, il l'a fait muter : B′C écrit « Le coup de couteau est le
-# suivant : » — « couperet » traduit en arme blanche pour contourner le lint.
-# C'est la STRUCTURE qu'il faut attraper, pas le mot : annoncer ce qui suit au
-# lieu de l'écrire est le geste du formulaire, quel que soit le nom du champ.
+# FORM-FILLING BY PARAPHRASE. Banning meta-terms did not kill form-filling
+# mode, it mutated it: B′C wrote « Le coup de couteau est le suivant : »,
+# « couperet » translated into a blade to dodge the lint. Catch the STRUCTURE,
+# not the word: announcing what follows instead of writing it is the
+# form-filling gesture, whatever the field is called.
 FORM = re.compile(
     r"\b\w[^.!?\n]{0,60}\best (?:le|la|les) suivant(?:e|s|es)?\s*:",
     re.IGNORECASE,
 )
 
-# Incise adverbiale : « s'exclama-t-il nerveusement ». La fiche impose
-# « dit-il », « a-t-elle répondu » et rien de plus.
+# Adverbial dialogue tag: « s'exclama-t-il nerveusement ». The sheet imposes
+# « dit-il », « a-t-elle répondu » and nothing more.
 #
-# `je` est dans la liste des pronoms parce que la narration est à la PREMIÈRE
-# personne : « ai-je répondu distraitement » est la forme que nemo produit
-# réellement, et l'omettre laissait passer l'incise sur un run entier. Le mot
-# intercalé optionnel couvre « ai-je répondu distraitement » (participe entre
-# l'inversion et l'adverbe).
+# `je` is in the pronoun list because the narration is FIRST person: « ai-je
+# répondu distraitement » is the form nemo actually produces, and omitting it
+# let the tag through for a whole run. The optional intervening word covers
+# « ai-je répondu distraitement » (participle between inversion and adverb).
 ADVERBIAL_INCISE = re.compile(
     r"-(?:t-)?(?:il|elle|on|je|ils|elles)\s+(?:\w+\s+)?\w+ment\b",
     re.IGNORECASE,
 )
 
-# Même interdit, contourné : nemo reformule l'adverbe en groupe prépositionnel
+# Same prohibition, dodged: nemo rewrites the adverb as a prepositional group
 # (« a-t-elle répété d'un ton surpris », « a-t-elle dit d'une voix enjouée »).
-# Trouvé à la relecture des runs, sur deux tirages que la grille avait marqués
-# tenus. Un interdit formulé sur la CATÉGORIE grammaticale se contourne par un
-# changement de catégorie ; c'est l'intention qu'il faut détecter.
-# L'ancrage sur un VERBE DE PAROLE est obligatoire : sans lui, le motif attrape
-# « J'ai refermé le cahier d'un geste sec », qui est de la narration ordinaire et
-# que la fiche n'interdit nulle part. Trouvé sur le run 2 — et l'enjeu n'était pas
-# cosmétique : cette croix de trop faisait passer l'incise de 1 run sur 3 (bruit)
-# à 2 sur 3 (durcir la fiche), donc inversait le verdict.
+# Found rereading the runs, in two draws the grid had marked as held. A ban
+# worded by grammatical CATEGORY is dodged by a change of category; detect the
+# intent.
+# Anchoring to a SPEECH VERB is mandatory: without it the pattern catches
+# « J'ai refermé le cahier d'un geste sec », ordinary narration the sheet
+# forbids nowhere. Found in run 2, and the stake was not cosmetic: that extra
+# cross moved the tag from 1 run in 3 (noise) to 2 in 3 (harden the sheet),
+# inverting the verdict.
 PREPOSITIONAL_INCISE = re.compile(
     r"\b(?:dit|dis|dire|disant|r[ée]pond(?:it|u|re)|r[ée]p[ée]t(?:a|[ée])|"
     r"demand(?:a|[ée])|conclu[ts]?|lan[çc](?:a|[ée])|murmur(?:a|[ée])|"
@@ -169,17 +163,15 @@ PREPOSITIONAL_INCISE = re.compile(
     re.IGNORECASE,
 )
 
-# Élision manquante : « je te appelle » au lieu de « je t'appelle ». Défaut de
-# français que `delint()` ne voit pas (il ne cherche que de l'anglais et des
-# tokens collés). Les exclusions sont les mots devant lesquels le français NE
-# fait PAS l'élision — `un/une` (le un, la une), les h aspirés, `onze`, `huit`,
-# `oui`, `yacht`.
+# Missing elision: « je te appelle » instead of « je t'appelle ». A French
+# defect `delint()` does not see (it only looks for English and glued tokens).
+# The exclusions are the words before which French does NOT elide: `un/une`
+# (`le un`, `la une`), aspirated h, `onze`, `huit`, `oui`, `yacht`.
 #
-# LIMITE ASSUMÉE : l'autre forme du défaut, l'apostrophe avalée qui colle les
-# mots (« jeté lemballage »), n'est PAS détectée. La reconnaître demanderait un
-# lexique français pour savoir qu'« emballage » est un mot — sans dictionnaire,
-# tout détecteur ici serait du bruit. Mieux vaut une ligne absente qu'une ligne
-# fausse.
+# KNOWN LIMIT: the other form of the defect, the swallowed apostrophe that
+# glues words (« jeté lemballage »), is NOT detected. Recognising it needs a
+# French lexicon to know that « emballage » is a word; without a dictionary any
+# detector here would be noise. Better a missing line than a wrong one.
 MISSING_ELISION = re.compile(
     r"\b(je|me|te|se|le|la|ne|de|que|ce)\s+"
     r"(?!un\b|une\b|onze|huit|oui|yacht|yaourt|hasard|haut|haine|héros|"
@@ -188,7 +180,7 @@ MISSING_ELISION = re.compile(
     re.IGNORECASE,
 )
 
-# Heure ou quantité exacte — la « précision maniaque » que la fiche réclame.
+# Exact hour or quantity: the « précision maniaque » the sheet demands.
 PRECISION = re.compile(
     r"\b\d{1,2}\s*h(?:\s*\d{2})?\b|"
     r"\b\d+[,.]?\d*\s*(?:heures?|minutes?|secondes?|jours?|"
@@ -196,27 +188,26 @@ PRECISION = re.compile(
     r"grammes?|litres?)\b|"
     r"\b(?:une?|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|onze|douze)\s+"
     r"heures?(?:\s+\w+)?\b|"
-    # QUANTITÉS EN TOUTES LETTRES devant un nom commun (session 6). Le motif
-    # n'acceptait un nombre écrit que suivi de « heures » : « L'égouttoir, ce
-    # soir : deux assiettes. » ne comptait pas. Or c'est la ligne d'inventaire
-    # du chapitre — le motif le plus caractéristique de cette voix, et le fait
-    # imposé du brief. Le lint de la « précision maniaque » ignorait l'exemple
-    # même que le protocole donne.
+    # QUANTITIES SPELLED OUT before a common noun (session 6). The pattern only
+    # accepted a written number followed by « heures »: « L'égouttoir, ce soir :
+    # deux assiettes. » did not count. Yet that is the chapter's inventory line,
+    # the most characteristic motif of this voice and the brief's imposed fact.
+    # The « précision maniaque » lint ignored the very example the protocol
+    # gives.
     #
-    # Le nom est exigé (deux mots au moins) pour ne pas ramasser « deux » seul,
-    # qui est partout dans un chapitre sur deux assiettes ; les déterminants
-    # sont exclus après le nombre (« deux de plus » n'est pas une quantité
-    # d'objets comptés).
+    # The noun is required (two words at least) so as not to pick up « deux »
+    # alone, which is everywhere in a chapter about two plates; determiners are
+    # excluded after the number (« deux de plus » is not a counted quantity).
     r"\b(?:deux|trois|quatre|cinq|six|sept|huit|neuf|dix|onze|douze)\s+"
     r"(?!de\b|des\b|d'|à\b|au[x]?\b|fois\b|heures?\b)[a-zàâçéèêëîïôûùüœ]{3,}\b",
     re.IGNORECASE,
 )
 
-# --- Passé simple : formes NON AMBIGUËS seulement ----------------------------
-# L'interdit n°1 de la fiche, et le plus coûteux à signaler à tort : un faux
-# positif enverrait durcir un chunk qui va bien. On écarte donc délibérément
-# `dit`, `vit`, `rit`, `suit`, `fuit` — qui sont AUSSI du présent — et les
-# formes en `-ra` (futur simple).
+# --- Passé simple: UNAMBIGUOUS forms only -------------------------------------
+# Prohibition no. 1 of the sheet, and the costliest to flag wrongly: a false
+# positive would send someone hardening a chunk that is fine. So `dit`, `vit`,
+# `rit`, `suit`, `fuit`, which are ALSO present tense, and the `-ra` forms
+# (future) are deliberately left out.
 PS_IRREGULARS = re.compile(
     r"\b(fut|furent|eut|eurent|fis|fit|f[îi]mes|firent|"
     r"pris|prit|pr[îi]mes|prirent|reprit|reprirent|comprit|comprirent|"
@@ -230,16 +221,16 @@ PS_IRREGULARS = re.compile(
     r"all[âa]mes|allai|all[èe]rent)\b",
     re.IGNORECASE,
 )
-# `-èrent` n'existe qu'au passé simple : aucune autre forme française ne s'y
-# termine. Détecteur sûr.
+# `-èrent` exists only in the passé simple: no other French form ends that way.
+# Safe detector.
 PS_ERENT = re.compile(r"\b\w+[èe]rent\b", re.IGNORECASE)
 
-# `-irent` / `-urent` sont majoritairement du passé simple (partirent, sortirent,
-# coururent), mais heurtent le PRÉSENT 3pl des verbes en -irer/-urer. La liste
-# ci-dessous est cette collision, énumérée : sans elle, « ils murmurent » et
-# « ils admirent » passeraient pour du passé simple. C'est le seul endroit du
-# module où l'exhaustivité d'une liste conditionne la justesse — d'où le rendu
-# en CANDIDATS et non en verdict.
+# `-irent` / `-urent` are mostly passé simple (partirent, sortirent,
+# coururent) but collide with the PRESENT 3pl of -irer/-urer verbs. The set
+# below is that collision, enumerated: without it « ils murmurent » and « ils
+# admirent » would pass for passé simple. The one place in the module where a
+# list's completeness conditions correctness, hence CANDIDATES rather than a
+# verdict.
 PS_PRESENT_HOMONYMS = {
     "tirent", "attirent", "retirent", "étirent", "soutirent",
     "soupirent", "expirent", "respirent", "inspirent", "aspirent",
@@ -249,18 +240,18 @@ PS_PRESENT_HOMONYMS = {
 }
 PS_IRENT_URENT = re.compile(r"\b\w+[iu]rent\b", re.IGNORECASE)
 
-# Passé simple des verbes en -er, ancré sur un sujet pour éviter le bruit
-# (« la », « déjà », « voilà »). `{3,}` écarte « il a » / « elle va » ;
-# l'exclusion de `-ra` écarte le futur simple (« elle regardera »).
+# Passé simple of -er verbs, anchored to a subject to avoid noise (« la »,
+# « déjà », « voilà »). `{3,}` drops « il a » / « elle va »; excluding `-ra`
+# drops the future (« elle regardera »).
 PS_ANCHOR = re.compile(
     r"\b(?:il|elle|on|ils|elles)\s+((?!\w*ra\b)\w{3,}a)\b", re.IGNORECASE
 )
 
-# Collision participe passé / passé simple 1re-2e personne : « pris », « mis »,
-# « compris » sont À LA FOIS le participe (« j'ai pris ») et le passé simple
-# (« je pris »). Trouvé sur les runs réels — le mot sortait sur 3 tirages sur 4,
-# toujours en passé COMPOSÉ, c'est-à-dire toujours à tort. Un auxiliaire juste
-# devant tranche : c'est un participe, pas du passé simple.
+# Past participle / 1st-2nd person passé simple collision: « pris », « mis »,
+# « compris » are BOTH the participle (« j'ai pris ») and the passé simple
+# (« je pris »). Found in real runs: the word came out in 3 draws of 4, always
+# in the passé COMPOSÉ, i.e. always wrongly flagged. An auxiliary just before
+# decides: participle, not passé simple.
 PS_AMBIGUOUS_PARTICIPLES = {"pris", "mis", "fis", "vins", "pus", "sus", "dus",
                          "appris", "compris", "remis", "repris", "promis"}
 AUXILIARY = re.compile(
@@ -269,35 +260,34 @@ AUXILIARY = re.compile(
     r"étaient|étions|serai|serait|soit|été)\s+(?:\w+\s+)?$",
     re.IGNORECASE,
 )
-# Première personne — la plus utile ici, la fiche imposant le « je ». La forme
-# du passé simple (`je regardai`) ne diffère du futur (`je regarderai`) que par
-# le `r` qui précède, et de l'imparfait (`je regardais`) que par le `s` final :
-# d'où l'exclusion de `-rai` et l'ancrage strict sur `je ` (qui écarte `j'ai`).
+# First person, the most useful here since the sheet imposes « je ». The passé
+# simple form (`je regardai`) differs from the future (`je regarderai`) only by
+# the preceding `r`, and from the imperfect (`je regardais`) only by the final
+# `s`: hence excluding `-rai` and anchoring strictly to `je ` (drops `j'ai`).
 PS_FIRST_PERSON = re.compile(
     r"\bje\s+((?!\w*rai\b)\w{3,}ai)\b", re.IGNORECASE
 )
-# Sujet nom propre + pronom objet élidé : « Élara l'écouta ». L'ancrage sur le
-# PRONOM est ce qui rend le motif sûr — sans lui, « Le cinéma », « La véranda »
-# ou « Un agenda » seraient signalés comme du passé simple, et un faux positif
-# sur l'interdit n°1 enverrait durcir un chunk qui n'a rien fait.
+# Proper-noun subject + elided object pronoun: « Élara l'écouta ». Anchoring
+# to the PRONOUN is what makes the pattern safe: without it « Le cinéma »,
+# « La véranda » or « Un agenda » would be flagged as passé simple, and a false
+# positive against prohibition no. 1 sends someone hardening an innocent chunk.
 PS_PROPER_NOUN = re.compile(
     r"\b[A-ZÉÈÀÂÎÔÛ]\w{2,}\s+(?:l'|lui\s|me\s|m'|se\s|s'|nous\s|vous\s|leur\s)"
     r"((?!\w*ra\b)\w{3,}a)\b"
 )
 
-# --- Découpage ---------------------------------------------------------------
+# --- Splitting ---------------------------------------------------------------
 
 _SENTENCE_END = re.compile(r"[.!?…]+(?:\s*[»\"'])?")
 _APOSTROPHES = str.maketrans({"’": "'""'", "ʼ": "'""'"})
 
 
 def normalize(text: str) -> str:
-    """Apostrophes typographiques → ASCII, à longueur CONSTANTE.
+    """Typographic apostrophes to ASCII, at CONSTANT length.
 
-    Les modèles alternent « l'entrée » et « l'entrée » selon les tirages ; sans
-    cette normalisation, la moitié des motifs rateraient au hasard du run. La
-    substitution est 1:1 en caractères, donc les positions restent valables pour
-    citer le texte d'ORIGINE.
+    Models alternate « l’entrée » and « l'entrée » between draws; without this
+    normalisation half the patterns would miss at random. The substitution is
+    1:1 in characters, so positions stay valid to cite the ORIGINAL text.
     """
     return text.translate(_APOSTROPHES)
 
@@ -316,7 +306,7 @@ def paragraphs(text: str) -> list[str]:
 
 
 def sentences(text: str) -> list[str]:
-    """Découpe naïve en phrases. Suffit au COMPTAGE (longueur, virgules)."""
+    """Naive sentence split. Enough for COUNTING (length, commas)."""
     out, start = [], 0
     for m in _SENTENCE_END.finditer(text):
         piece = text[start:m.end()].strip()
@@ -334,18 +324,17 @@ def words(sentence: str) -> int:
 
 
 def without_dialogue(text: str) -> str:
-    """Retire les répliques pour isoler la voix narrative.
+    """Remove dialogue lines to isolate the narrative voice.
 
-    Trois formes à retirer. Les deux premières sont celles de la fiche : spans
-    « … » et lignes de réplique ouvertes par un tiret cadratin. La troisième,
-    les guillemets droits, n'est pas dans la fiche mais est ce que nemo produit
-    en pratique (constaté au run 1) : sans elle, un « ! » de réplique serait
-    compté comme un « point d'exclamation hors dialogue », c'est-à-dire un
-    défaut inventé de toutes pièces. Le détecteur doit lire le texte tel qu'il
-    sort, pas tel qu'on l'aurait voulu.
+    Three forms to remove. The first two are the sheet's: « … » spans and lines
+    opened by an em dash. The third, straight double quotes, is not in the
+    sheet but is what nemo produces in practice (seen in run 1): without it a
+    « ! » inside a line of dialogue would count as an exclamation mark outside
+    dialogue, a defect invented from nothing. The detector must read the text
+    as it comes out, not as we wished it.
     """
     text = re.sub(r"«.*?»", " ", text, flags=re.DOTALL)
-    text = re.sub(r'"[^"\n]*"', " ", text)      # guillemets droits, une ligne
+    text = re.sub(r'"[^"\n]*"', " ", text)      # straight quotes, single line
     kept = [l for l in text.splitlines()
                if not re.match(r"^\s*[—–-]\s", l)]
     return "\n".join(kept)
@@ -355,11 +344,11 @@ _ACC_REFERENCE: str | None = None
 
 
 def accumulation_reference(sheet: str = str(BIBLE_DIR / "style-auteur.md")) -> str:
-    """L'accumulation de référence, lue dans la fiche (chargée une fois).
+    """The reference accumulation, read from the sheet (loaded once).
 
-    Sert à détecter la RECOPIE. Chargée depuis la fiche plutôt que recopiée ici :
-    l'étalon bougera avec la fiche, et un détecteur qui compare à une version
-    périmée ne détecte plus rien.
+    Used to detect COPYING. Loaded from the sheet rather than pasted here: the
+    reference moves with the sheet, and a detector comparing to a stale version
+    detects nothing.
     """
     global _ACC_REFERENCE
     if _ACC_REFERENCE is None:
@@ -367,9 +356,9 @@ def accumulation_reference(sheet: str = str(BIBLE_DIR / "style-auteur.md")) -> s
         path = Path(sheet)
         if path.is_file():
             text = normalize(path.read_text(encoding="utf-8"))
-            # Retirer le balisage avant de découper : les étalons vivent dans
-            # des blocs `> ` sous un titre en gras, et les garder collerait
-            # « **Étalon 2 — …** » en tête de la phrase de référence.
+            # Strip markup before splitting: the references live in `> ` blocks
+            # under a bold title, and keeping it would glue « **Étalon 2 — …** »
+            # to the head of the reference sentence.
             text = re.sub(r"^\s*>\s?", "", text, flags=re.MULTILINE)
             text = re.sub(r"^\s*\*\*.*?\*\*\s*$", "", text, flags=re.MULTILINE)
             candidates = [p for p in sentences(text)
@@ -380,13 +369,13 @@ def accumulation_reference(sheet: str = str(BIBLE_DIR / "style-auteur.md")) -> s
 
 
 def reference_copy(sentence: str, threshold: float = 0.6) -> float:
-    """Proximité d'une phrase avec l'accumulation étalon, entre 0 et 1.
+    """Similarity of a sentence to the reference accumulation, 0 to 1.
 
-    Née d'un échec de ce module : la boucle de renvoi a produit deux
-    « réussites » qui étaient l'étalon copié CARACTÈRE POUR CARACTÈRE, dans une
-    scène qui parlait d'autre chose (l'étalon raconte des clés, la scène une
-    cafetière). Compter des virgules ne dit rien du sens — un détecteur de forme
-    doit savoir dire quand la forme a été obtenue par plagiat.
+    Born of a failure of this module: the reproach loop produced two
+    « réussites » that were the reference copied CHARACTER FOR CHARACTER, in a
+    scene about something else (the reference tells of keys, the scene of a
+    coffee maker). Counting commas says nothing of meaning; a form detector
+    must be able to say when the form was obtained by plagiarism.
     """
     ref = accumulation_reference()
     if not ref or not sentence:
@@ -396,113 +385,110 @@ def reference_copy(sentence: str, threshold: float = 0.6) -> float:
 
 
 
-# --- Session 5, item 7 : lints nouveaux --------------------------------------
+# --- Session 5, item 7: new lints --------------------------------------------
 
-# MÉTA-TERMES. Le vocabulaire de FABRICATION n'a rien à faire dans la prose :
-# « Couperet : erreur de relevé. » est un formulaire rempli, pas une entrée
-# écrite. Liste figée par le protocole. « constat » et « verdict » en sont
-# volontairement ABSENTS : ce sont les mots de son métier de correctrice, donc
-# sa langue — les bannir appauvrirait la voix qu'on cherche à obtenir.
+# META-TERMS. FABRICATION vocabulary has no place in the prose: « Couperet :
+# erreur de relevé. » is a filled form, not a written entry. List frozen by the
+# protocol. « constat » and « verdict » are deliberately ABSENT: they are the
+# words of her proofreading trade, hence her language; banning them would
+# impoverish the voice we are after.
 META_TERMS = re.compile(
     r"\b(couperets?|squelettes?|beats?|ancres?|notation physiologique|"
     r"mat[ée]riaux?|briefs?)\b", re.IGNORECASE)
 
-# LA MACHINERIE — ce qui ne doit jamais figurer dans un contexte SERVI.
+# THE MACHINERY: what must never appear in a SERVED context.
 #
-# Distinct des méta-termes : ceux-là sont des mots d'atelier littéraire (le
-# couperet, le squelette), ceux-ci sont les noms de nos propres contrôles. Le
-# §5 du brief v2 les sert tous : « L1, L2, lexiques, attracteurs, interdits
-# matériels bloquants », « L3 exempté par la table », « possédés par le code,
-# tamponnés en dernier ». Cette section est écrite pour l'implémenteur, pas
-# pour le modèle — la servir telle quelle lui apprend nos lints.
+# Distinct from meta-terms: those are literary workshop words (the cleaver,
+# the skeleton), these are the names of our own controls. §5 of brief v2
+# served them all: « L1, L2, lexiques, attracteurs, interdits matériels bloquants »,
+# « L3 exempté par la table », « possédés par le code, tamponnés en dernier ».
+# That section was written for the implementer, not the model; serving it as
+# is teaches it our lints.
 #
-# La garde d'entrée existante n'en voyait qu'un seul mot sur dix.
+# The previous entry guard saw one word in ten of these.
 MACHINERY = re.compile(
-    # « la table » seule est un MEUBLE dans ce roman — c'est même l'un des
-    # objets du chapitre 7. Seule « la table de pilotage » est de la machinerie.
+    # « la table » alone is FURNITURE in this novel, one of the chapter 7
+    # objects even. Only « la table de pilotage » is machinery.
     r"\bL[1-4]\b|\bla table de pilotage\b|\ble code\b|\bbloquants?\b"
     r"|\blint\w*\b|\bexempt[ée]\w*\b|\btamponn[ée]\w*\b|\blexiques?\b"
     r"|\bgrille\b|\bpipeline\b|\bhors [ée]chelle\b|\bcomposeur\b"
     r"|\bentrees_spec\b|\bentry_specs\b|\bv[ée]tos?\b", re.IGNORECASE)
 
-# ATTRACTEURS : formules vers lesquelles le modèle glisse tout seul, relevées à
-# la lecture des runs. Ce ne sont pas des fautes de langue, ce sont des tics
-# d'entraînement — et « Demain est un autre jour » a été entendu à l'oral.
-# ATTRACTEURS — par FAMILLES, plus par littéraux (session 6).
-#
-# La version précédente ne portait que trois chaînes exactes, si bien que
-# « Demain tout sera clair » (accumulation de C2) et « je devenais folle »
-# (run C, avant correctifs) passaient tous les deux. Le second est interdit
-# NOMMÉMENT par la fiche — l'interdit était servi, il n'a pas tenu, et aucun
-# lint ne le voyait. Un attracteur est une tournure vers laquelle le modèle
-# glisse : c'est la famille qu'il faut nommer, pas l'occurrence qu'on a lue.
+# ATTRACTORS: formulas the model slides into by itself, noted while reading
+# the runs. Not language faults but training tics; « Demain est un autre jour »
+# was heard aloud. By FAMILIES, no longer by literals (session 6): the previous
+# version held three exact strings, so « Demain tout sera clair » (C2's
+# accumulation) and « je devenais folle » (run C, before fixes) both passed.
+# The second is forbidden BY NAME in the sheet: the ban was served, did not
+# hold, and no lint saw it. Name the family, not the occurrence that was read.
 ATTRACTORS = re.compile(
-    # la folie nommée : « devenir folle », « perdre la tête / la raison »
+    # madness named: « devenir folle », « perdre la tête / la raison »
     r"(devenir folle|devenais? folle|devenue folle|suis folle|"
     r"perdre la t[êe]te|perds? la t[êe]te|perdre la raison|"
-    # LE LENDEMAIN QUI RÉSOUT — la fiche interdit que l'entrée soit apaisée.
+    # THE MORNING THAT RESOLVES: the sheet forbids a soothed entry.
     #
-    # Élargi en session 7, et la famille était plus large qu'on ne croyait : la
-    # version précédente ne connaissait que « demain EST un autre jour », si bien
-    # que TROIS runs sur quatre de la session 6 ont fermé sur cet attracteur sans
-    # une croix — « demain sera une journée meilleure » (S6-1), « demain sera un
-    # autre jour » (S6-2), « demain sera une nouvelle journée » et « à la lumière
-    # du jour » (S6-3). Un seul mot d'écart entre l'attrapé et le passé.
-    # L'adjectif se place AVANT ou APRÈS le nom (« une nouvelle journée », « une
-    # journée meilleure » — S6-1 écrivait la seconde forme). Les deux ordres,
-    # sinon le motif attrape la moitié de la famille et le vert ment.
+    # Widened in session 7; the family was larger than believed: the previous
+    # version knew only « demain EST un autre jour », so THREE session 6 runs
+    # of four closed with this attractor without a cross:
+    # « demain sera une journée meilleure » (S6-1), « demain sera un autre jour »
+    # (S6-2), « demain sera une nouvelle journée » and « à la lumière du jour »
+    # (S6-3). One word between caught and passed. The adjective comes BEFORE or
+    # AFTER the noun (« une nouvelle journée », « une journée meilleure », S6-1
+    # wrote the second). Both orders, else the pattern catches half the family
+    # and the green lies.
     r"demain (?:est|sera|serait)(?: un| une)? (?:"
     r"(?:autre|nouvelle?|meilleure?)(?: jour(?:née)?)?"
     r"|jour(?:née)? (?:meilleure?|nouvelle?|autre))|"
     r"demain,? tout (?:sera|ira|s'[ée]clairera)|"
     r"demain,? je (?:saurai|comprendrai|verrai)|"
     r"à la lumière du jour|"
-    # L'ADRESSE CONSOLANTE. La dernière ligne referme, elle ne console pas —
-    # et « Bonne nuit. » est la forme la plus pure du contraire : le carnet
-    # cesse d'être un relevé pour devenir une adresse. Relevé sur S7-1, dans la
-    # même phrase et demie que la fuite lexicale et l'attracteur du lendemain.
-    # Ancré en DÉBUT DE PHRASE : « Bonne nuit. » est une adresse, « une bonne
-    # nuit de sommeil » est un fait. Sans l'ancrage, le motif attrapait les deux.
+    # THE CONSOLING ADDRESS. The last line closes, it does not console, and
+    # « Bonne nuit. » is the purest form of the opposite: the notebook stops
+    # being a record and becomes an address. Seen in S7-1, in the same sentence
+    # and a half as the lexical leak and the morning attractor. Anchored at
+    # SENTENCE START: « Bonne nuit. » is an address,
+    # « une bonne nuit de sommeil » a fact. Without the anchor the pattern
+    # caught both.
     r"(?:^|[.!?…»\n]\s*)(?:bonne nuit|bonne soirée|dors bien|à demain)\b)|"
-    # L'IMAGE D'ARME — le couperet contourné par la métaphore. Le lint des
-    # méta-termes ne voit pas « le coup de couteau : je n'ai pas rêvé » (tirage
-    # 6 du ch. 7) parce que ce n'est pas un mot d'atelier, c'est son image. Le
-    # même contournement avait été mesuré en session 5 (« Le coup de couteau est
-    # le suivant : »). Interdire un mot le fait revenir en figure.
-    # « une lame » seule est un objet (« une lame de parquet ») ; c'est la
-    # COMPARAISON qui fait l'image. On exige donc le comme, ou le coup.
+    # THE WEAPON IMAGE: the cleaver dodged through metaphor. The meta-term lint
+    # does not see « le coup de couteau : je n'ai pas rêvé » (chapter 7 draw 6)
+    # because it is not a workshop word, it is its image. The same dodge was
+    # measured in session 5 (« Le coup de couteau est le suivant : »). Banning
+    # a word brings it back as a figure. « une lame » alone is an object
+    # (« une lame de parquet »); the COMPARISON makes the image, so require
+    # `comme`, or `coup`.
     r"(?:coup de couteau|comme un couteau|comme une lame|comme un couperet|"
     r"coup de hache|couperet qui tombe|tranch\w+ comme)|"
-    # LE DÉNI DE RÊVE. « Je n'ai pas rêvé » est une clôture qui rassure : elle
-    # tranche le doute que l'entrée doit laisser ouvert.
+    # THE DREAM DENIAL. « Je n'ai pas rêvé » is a reassuring closure: it
+    # settles the doubt the entry must leave open.
     r"je n'ai pas r[êe]v[ée]|ce n'[ée]tait pas un r[êe]ve|je ne r[êe]ve pas|"
-    # la métaphore maritime, tic mesuré aux premières sessions
+    # the maritime metaphor, a tic measured in the first sessions
     r"(bou[ée]e|oc[ée]an)", re.IGNORECASE)
 
-# « je décide de » : plafonné à UNE occurrence par entrée (arbitrage du
-# 2026-08-18). B1 en portait quatre, chacune suivie de son exécution.
+# « je décide de »: capped at ONE occurrence per entry (owner arbitration,
+# 2026-08-18). B1 carried four, each followed by its execution.
 I_DECIDE = re.compile(r"\bje d[ée]cide de\b", re.IGNORECASE)
 
-# COUPLE DÉCISION-EXÉCUTION, en CANDIDAT non bloquant. La règle M3 dit que
-# l'effet de « décision sans geste » vit dans le VIDE entre la décision notée et
-# l'état constaté ensuite ; le couple le referme. Mais l'établir demande de
-# comprendre le texte : on repère l'infinitif de la décision, on le cherche
-# conjugué dans les phrases suivantes, et on SIGNALE. M3 reste la ligne manuelle
-# qui tranche — un faux positif sur une ligne bloquante à l'étage C coûterait un
-# run à tort.
-# La décision notée, au PRÉSENT comme au PASSÉ COMPOSÉ (session 6). C1 écrivait
-# « J'ai décidé de vérifier par moi-même » et le détecteur ne bornait que le
-# présent : la grille a dû relever le couple à la main.
+# DECISION-EXECUTION PAIR, as a non-blocking CANDIDATE. Rule M3 says the
+# effect of « décision sans geste » lives in the GAP between the noted decision
+# and the state observed afterwards; the pair closes it. Establishing it needs
+# understanding the text: spot the decision's infinitive, look for it
+# conjugated in the following sentences, and FLAG. M3 stays the manual line
+# that decides; a false positive against a blocking line at stage C would cost
+# a run.
+# The noted decision, in the PRESENT as in the PASSÉ COMPOSÉ (session 6). C1
+# wrote « J'ai décidé de vérifier par moi-même » and the detector only bounded
+# the present: the grid had to record the pair by hand.
 #
-# « je vais » n'y figure PAS, délibérément : C3 écrit « Je vais vérifier dans la
-# cuisine » et la grille le juge conforme. Le futur proche est un mouvement, pas
-# une résolution notée au carnet — l'inclure aurait fait échouer un run que la
-# lecture humaine avait validé.
-# TROISIÈME FORME : le PARTICIPE APPOSÉ (session 7 bis). « Je me lève, décidée à
-# vérifier » — la décision se glisse en apposition, et le candidat ne voyait ni
-# celle-là ni sa cousine « résolue à ». S7-1 en portait DEUX, la grille les a
-# relevés à la main. Le motif a maintenant les trois formes : présent, passé
-# composé, participe.
+# « je vais » is deliberately NOT included: C3 writes
+# « Je vais vérifier dans la cuisine » and the grid judges it conforming. The
+# near future is a movement, not a resolution noted in the notebook; including
+# it would have failed a run the human reading had validated.
+# THIRD FORM: the APPOSED PARTICIPLE (session 7 bis). « Je me lève, décidée à
+# vérifier »: the decision slips into apposition, and the candidate saw
+# neither it nor its cousin « résolue à ». S7-1 carried TWO, recorded by hand
+# in the grid. The pattern now has the three forms: present, passé composé,
+# participle.
 _DECISION = re.compile(
     r"\b(?:je d[ée]cide de|j'ai d[ée]cid[ée] de|je d[ée]cidai de|"
     r"j'ai r[ée]solu de|je me suis promis[e]? de|je me r[ée]solus? à|"
@@ -510,25 +496,24 @@ _DECISION = re.compile(
     r"(?:l[ae]\s+|l'|les\s+|me\s+|m'|y\s+|en\s+)?(\w{4,})",
     re.IGNORECASE)
 
-# LE GESTE NARRÉ — seconde règle, et c'est elle qui attrape C1.
+# THE NARRATED GESTURE, second rule, the one that catches C1.
 #
-# La règle M3 dit que l'effet de « décision sans geste » vit dans le VIDE entre
-# la décision notée et l'état constaté ensuite. Donc : décision → état constaté
-# (impersonnel : « L'égouttoir, ce soir : deux assiettes. ») = conforme ;
-# décision → geste raconté à la première personne = le vide est comblé, c'est le
-# défaut.
+# Rule M3: the effect of « décision sans geste » lives in the GAP between the
+# noted decision and the state observed next. So decision → observed state
+# (impersonal: « L'égouttoir, ce soir : deux assiettes. ») conforms; decision →
+# gesture told in the first person fills the gap: the defect.
 #
-# La règle lexicale seule ne pouvait pas voir C1 : la décision porte sur
-# « vérifier » et l'exécution s'écrit « je les ai comptées ». Aucun radical
-# commun. Mesuré avant d'élargir, plutôt que supposé.
-# LE GESTE NARRÉ, AU PASSÉ COMPOSÉ **ET AU PRÉSENT**.
+# The lexical rule alone could not see C1: the decision bears « vérifier » and
+# the execution reads « je les ai comptées ». No common stem. Measured before
+# widening, not assumed.
+# THE NARRATED GESTURE, IN THE PASSÉ COMPOSÉ **AND THE PRESENT**.
 #
-# La première version ne connaissait que les formes composées. Or les entrées
-# de la session 7 sont écrites au PRÉSENT (« Je me lève », « Je note », « Je
-# compte ») : dans une entrée au présent, aucun geste n'était jamais détecté, et
-# le couple ne pouvait pas se refermer — quelle que soit la forme de la
-# décision. Étendre la décision au participe sans étendre l'exécution au présent
-# aurait fait un détecteur qui ne mord jamais : un lint fantôme de plus.
+# The first version knew only compound forms. Session 7 entries are written in
+# the PRESENT (« Je me lève », « Je note », « Je compte »): in a present-tense
+# entry no gesture was ever detected and the pair could never close, whatever
+# the decision's form. Extending the decision to the participle without
+# extending the execution to the present would have made a detector that
+# never bites: one more ghost lint.
 _GESTURE_1P = re.compile(
     r"\b(?:j'ai|je les ai|je l'ai|je la ai|je me suis|je m'[ée]tais)\s+"
     r"(?:\w+\s+){0,2}?([a-zàâçéèêëîïôûùüœ]+(?:[ée]{1,2}s?|is|it|us|ut))\b"
@@ -536,18 +521,19 @@ _GESTURE_1P = re.compile(
     r"([a-zàâçéèêëîïôûùüœ]{3,}(?:e|es|s|te|ds))\b",
     re.IGNORECASE)
 
-# Participes d'ÉTAT et de PERCEPTION : constater n'est pas agir. « L'égouttoir
-# était là », « je les ai vues » relèvent du constat que le style demande — les
-# compter comme gestes ferait du contrôle un détecteur de première personne,
-# c'est-à-dire de rien, dans un carnet écrit à la première personne.
-# DÉCISIONS DE CARNET — exclues, et pas par commodité.
+# STATE and PERCEPTION participles: observing is not acting. « L'égouttoir
+# était là », « je les ai vues » belong to the observation the style asks for;
+# counting them as gestures would turn the control into a first-person
+# detector, i.e. a detector of nothing in a first-person notebook.
+# NOTEBOOK DECISIONS, excluded, and not for convenience.
 #
-# M3 porte sur la décision d'un GESTE dans le monde, dont le style veut que
-# l'exécution reste dans le vide. « Je décide de reprendre les faits dans
-# l'ordre », « j'ai décidé de noter plus précisément » sont des opérations du
-# carnet sur lui-même — et la seconde est la résolution que le brief IMPOSE au
-# chapitre 2. Sans cette exclusion, le détecteur signalait C2, que la lecture
-# humaine a jugé conforme : il aurait reproché au run d'obéir au brief.
+# M3 concerns the decision of a GESTURE in the world, whose execution the style
+# wants left in the gap. « Je décide de reprendre les faits dans l'ordre »,
+# « j'ai décidé de noter plus précisément » are operations of the notebook
+# upon itself, and the second is the resolution the brief IMPOSES for
+# chapter 2. Without this exclusion the detector flagged C2, which the human
+# reading judged conforming: it would have blamed the run for obeying the
+# brief.
 _NOTEBOOK_DECISIONS = re.compile(
     r"^(?:reprend|repass|not|point|reli|[ée]cri|consign|marqu|r[ée][ée]cri|"
     r"tenir|d[ée]tail)", re.IGNORECASE)
@@ -559,7 +545,7 @@ _STATE_PARTICIPLES = {
     "semblé", "paru", "revu", "revue", "relu", "relue", "lu", "lue",
     "regardé", "regardée", "observé", "observée", "remarqué", "remarquée",
     "trouvé", "trouvée", "réalisé", "réalisée", "demandé", "demandée",
-    # les mêmes au PRÉSENT — constater n'est pas agir, quel que soit le temps
+    # the same in the PRESENT: observing is not acting, whatever the tense
     "suis", "sais", "vois", "sens", "crois", "pense", "comprends", "regarde",
     "observe", "remarque", "trouve", "demande", "souviens", "rappelle",
     "relis", "lis", "reste", "semble", "veux", "peux", "dois", "espère",
@@ -567,11 +553,11 @@ _STATE_PARTICIPLES = {
 
 
 def decision_execution_pairs(text: str) -> list[str]:
-    """Décisions suivies de leur exécution apparente — CANDIDATS pour M3.
+    """Decisions followed by their apparent execution: CANDIDATES for M3.
 
-    Deux règles, et la sortie dit LAQUELLE a mordu : sur une ligne non
-    bloquante, la lecture humaine tranche, et elle a besoin de savoir si le
-    signalement est lexical (sûr) ou par geste narré (élargi).
+    Two rules, and the output says WHICH one bit: the line is non-blocking,
+    the human reading decides, and it needs to know whether the flag is
+    lexical (safe) or by narrated gesture (widened).
     """
     out, phr = [], sentences(text)
     for i, p in enumerate(phr):
@@ -581,26 +567,25 @@ def decision_execution_pairs(text: str) -> list[str]:
         if _NOTEBOOK_DECISIONS.match(m.group(1)):
             continue
         radical = m.group(1)[:-2] if len(m.group(1)) > 6 else m.group(1)
-        # LA FENÊTRE COMPTE DES PHRASES NARRATIVES, pas des fragments.
+        # THE WINDOW COUNTS NARRATIVE SENTENCES, not fragments.
         #
-        # Les stations de reconstruction insèrent des lignes très courtes
-        # (« 18h30. », « La table du séjour. »), et elles consommaient les deux
-        # phrases de la fenêtre : le couple de S7-1 (« Je me lève, décidée à
-        # vérifier » suivi, plus loin, de la vérification racontée) passait à
-        # travers. Un dispositif de MASSE a donc aveuglé un détecteur de VOIX —
-        # sans la lecture manuelle, on ne l'aurait pas su.
+        # Reconstruction stations insert very short lines (« 18h30. »,
+        # « La table du séjour. ») which ate the two sentences of the window:
+        # the S7-1 pair (« Je me lève, décidée à vérifier » then, further down,
+        # the narrated check) slipped through. A MASS device blinded a VOICE
+        # detector; without the manual reading nobody would have known.
         continuation_txt = [q for q in phr[i + 1:i + 8] if words(q) >= 6]
         continuation = " ".join(continuation_txt)
         if re.search(rf"\b(?:j'ai |je )\w*{re.escape(radical)}", continuation, re.I):
             out.append(f"[lexical] « {p.strip()[:70]}… » puis exécution : "
                        f"« {continuation.strip()[:70]}… »")
             continue
-        # Règle du geste narré : on ne regarde que DEUX phrases, pas trois. Le
-        # vide que le style demande est immédiat ; au-delà, l'entrée a repris
-        # son cours et un « j'ai rangé » n'exécute plus la décision.
+        # Narrated-gesture rule: look at TWO sentences only, not three. The gap
+        # the style asks for is immediate; beyond, the entry has resumed its
+        # course and a « j'ai rangé » no longer executes the decision.
         for q in continuation_txt[:2]:
-            # Deux groupes alternatifs (composé / présent) : on prend celui
-            # qui a capturé.
+            # Two alternative groups (compound / present): take the one that
+            # captured.
             gestures = [(g.group(1) or g.group(2)).lower()
                       for g in _GESTURE_1P.finditer(q)
                       if (g.group(1) or g.group(2))
@@ -614,31 +599,29 @@ def decision_execution_pairs(text: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Session 6 — les instances descendent dans l'outillage
+# Session 6: instances move down into the tooling
 #
-# Doctrine du lexique de fuite, étendue (protocole §3.3) : la section
-# *Interdits* servie au modèle ne garde que les CATÉGORIES (« un état mental
-# nommé en apposition : interdit ») ; les instances vivent ici. Motif mesuré :
-# B′2 a écrit « perplexe », qui était servi comme contre-exemple verbatim, puis
-# comme nom de l'interdit. Nommer ce qui est interdit est le seul moyen de
-# l'interdire — et c'est aussi le montrer. On l'interdit donc en sortie.
+# Categories served, instances checked here (ADR-0011). Measured motive: B′2
+# wrote « perplexe », served as a verbatim counter-example, then as the name
+# of the prohibition. Naming what is forbidden is the only way to forbid it,
+# and also shows it. So it is forbidden at the output.
 # ---------------------------------------------------------------------------
 
-# ÉTATS MENTAUX NOMMÉS EN APPOSITION. Le défaut n'est pas le mot mais la
-# position : « Perplexe, je repose le cahier » nomme l'état au lieu de le faire
-# sentir. L'apposition est repérée par la ponctuation qui l'isole, ou par la
-# copule qui l'attribue.
+# MENTAL STATES NAMED IN APPOSITION. The defect is not the word but the
+# position: « Perplexe, je repose le cahier » names the state instead of
+# making it felt. The apposition is spotted by the punctuation isolating it,
+# or by the copula attributing it.
 MENTAL_STATE_WORDS = (
     "perplexe", "songeuse", "songeur", "troublée", "troublé", "intriguée",
     "intrigué", "pensive", "pensif", "désemparée", "désemparé", "hébétée",
     "hébété", "incrédule", "abasourdie", "abasourdi", "déconcertée",
     "déconcerté", "dubitative", "dubitatif", "circonspecte", "circonspect",
 )
-# L'apposition N'EST PAS toujours fermée par une ponctuation. Première version :
-# elle exigeait une virgule ou un point juste après l'adjectif, et laissait donc
-# passer « Je fronce les sourcils, intriguée PAR cette différence » — relevé sur
-# S6-1, où c'est exactement le défaut que la ligne existe pour attraper. Un
-# état nommé reste un état nommé quand il traîne un complément.
+# The apposition is NOT always closed by punctuation. The first version
+# required a comma or period right after the adjective, and so let through
+# « Je fronce les sourcils, intriguée PAR cette différence », seen in S6-1,
+# exactly the defect the line exists to catch. A named state stays a named
+# state when it trails a complement.
 MENTAL_STATES = re.compile(
     r"(?:^|[.!?…»\n]\s*|,\s*)(" + "|".join(MENTAL_STATE_WORDS) + r")\b"
     r"|\bje (?:suis|étais|me sens|me sentais|restai?s?)\s+(?:\w+\s+){0,2}?"
@@ -646,33 +629,33 @@ MENTAL_STATES = re.compile(
     re.IGNORECASE)
 
 
-# INTERDITS MATÉRIELS — le monde générique de nemo, documenté par six runs.
+# MATERIAL PROHIBITIONS: nemo's generic world, documented by six runs.
 #
-# Ce n'est pas une liste de style : c'est une liste de DÉCOR. Le modèle, quand
-# la matière servie est mince, remplit la soirée avec le mobilier statistique
-# d'un intérieur contemporain — télévision, sac à main, barquette de lasagnes,
-# retour du travail. La maison de ce roman n'en a aucun, et rien dans les
-# fiches ne le dit puisqu'une fiche décrit ce qui est, pas ce qui n'est pas.
+# Not a style list: a list of DECOR. When the served matter is thin, the model
+# fills the evening with the statistical furniture of a contemporary interior:
+# television, handbag, tray of lasagne, coming home from work. This novel's
+# house has none of it, and no sheet says so, since a sheet describes what is,
+# not what is not.
 #
-# SCOPE PAR CHAPITRE : `chapitre_min` est le premier chapitre où le terme
-# devient légitime. Les mémos téléphoniques apparaissent au chapitre 5 (le
-# nouveau cahier) — interdits avant, attendus après. Un lint qui ne sait pas
-# de quel chapitre on parle interdirait à jamais ce que le roman prévoit.
+# SCOPE PER CHAPTER: `chapter_min` is the first chapter where the term becomes
+# legitimate. Phone memos appear at chapter 5 (the new notebook): forbidden
+# before, expected after. A lint unaware of the chapter would forbid forever
+# what the novel plans.
 #
-# Le travail SUR LE MANUSCRIT n'est pas visé : c'est son métier, elle l'exerce
-# chez elle. Ce qui est visé est le travail comme LIEU — en sortir, y aller,
-# en revenir. D'où des motifs de mouvement, pas le mot « travail » seul.
+# Work UPON THE MANUSCRIPT is not targeted: her trade, practised at home. The
+# target is work as a PLACE: leaving it, going there, coming back. Hence
+# movement patterns, not the word « travail » alone.
 MATERIAL_FORBIDDEN: tuple[tuple[str, str, int], ...] = (
     ("travail hors du domicile",
      r"\b(?:revenue?s?|rentr[ée]e?s?|retour|repartie?s?|partie)\s+"
      r"(?:tard\s+)?(?:du|de mon|au)\s+(?:travail|bureau)\b"
      r"|\bau bureau\b|\bmes coll[èe]gues\b|\bune r[ée]union\b"
      r"|\bjourn[ée]e de travail\b|\bj'ai travaill[ée] tard\b"
-     # LE TRAVAIL COMME PÉRIODE, pas seulement comme lieu qu'on quitte. Le
-     # motif ne visait que les verbes de mouvement (revenue du, rentrée du) et
-     # laissait passer « épuisée par la semaine de travail » — relevé sur le
-     # tirage sous méthode du mouvement. Elle travaille chez elle : ses
-     # journées n'ont ni semaine ni horaires de bureau.
+     # WORK AS A PERIOD, not only as a place one leaves. The pattern targeted
+     # only movement verbs (« revenue du », « rentrée du ») and let
+     # « épuisée par la semaine de travail » through, seen in the draw under
+     # the movement method. She works at home: her days have neither work week
+     # nor office hours.
      r"|\b(?:la |une |ma )?(?:semaine|journ[ée]e|matin[ée]e|apr[èe]s-midi) "
      r"de (?:travail|bureau)\b|\bapr[èe]s le (?:travail|bureau)\b", 99),
     ("télévision", r"\bt[ée]l[ée]vision\b|\bt[ée]l[ée]\b|\bla t[ée]l[ée]s?\b", 99),
@@ -688,10 +671,10 @@ MATERIAL_FORBIDDEN: tuple[tuple[str, str, int], ...] = (
 
 
 def material_forbidden(text: str, chapter: int = 2) -> list[str]:
-    """Termes de décor génériques présents, pour le chapitre donné.
+    """Generic decor terms present, for the given chapter.
 
-    Rend « famille : extrait » — la famille sert la grille, l'extrait sert la
-    lecture. Un signalement sans son extrait oblige à rouvrir la sortie brute.
+    Returns « famille : extrait »: the family serves the grid, the excerpt the
+    reading. A flag without its excerpt forces reopening the raw output.
     """
     out = []
     for family, pattern, chapter_min in MATERIAL_FORBIDDEN:
@@ -703,40 +686,39 @@ def material_forbidden(text: str, chapter: int = 2) -> list[str]:
     return out
 
 
-# L'ACCUMULATION QUI SE RÉSUME — le validateur né du sommaire de C2.
+# THE ACCUMULATION THAT SUMMARISES: the validator born of C2's table of
+# contents.
 #
-# C2 a rendu 131 mots de table des matières : « perplexité, concentration sur
-# les détails, rappel des faits, fatigue, panique, respiration calme,
-# explication rationnelle, corps qui parle, verdict d'erreur de relevé… ». La
-# validation comptait des mots et des virgules, donc elle a accepté un sommaire.
-# *Compter n'est pas lire*, épisode deux — le premier était une accumulation en
-# anglais acceptée par les mêmes compteurs.
+# C2 returned 131 words of table of contents:
+# « perplexité, concentration sur les détails, rappel des faits, fatigue, panique… ».
+# The validation counted words and commas, so it accepted a summary. *Counting
+# is not reading*, episode two; the first was an English accumulation accepted
+# by the same counters.
 #
-# ⚠ LE PROTOCOLE §3.1 PRESCRIVAIT « propositions verbales exigées — ratio de
-# verbes conjugués par item ». Implémenté au mot, ce critère REJETTE L'ÉTALON :
-# l'accumulation qui définit le geste est nominale à 88 % de ses items (« le
-# café de sept heures, le départ de sept heures quarante, la réunion, le
-# déjeuner, le garage, la porte de la buanderie »), et son ratio verbal tombe à
-# 12 % — plus bas que les six accumulations que l'étage C a produites. Mesuré,
-# pas supposé, et c'est l'auto-test sur les étalons qui l'a dit.
+# ⚠ Protocol §3.1 PRESCRIBED a ratio of conjugated verbs per item
+# (« propositions verbales exigées »). Implemented literally, that criterion
+# REJECTS THE REFERENCE: the accumulation that defines the gesture is nominal
+# in 88 % of its items (« le café de sept heures, le départ de sept heures quarante… »)
+# and its verbal ratio falls to 12 %, lower than the six accumulations stage C
+# produced. Measured, not assumed; the self-test against the references said so.
 #
-# Le vrai discriminant est l'ABSTRACTION, ce que la grille disait déjà en
-# nommant des « méta-beats ». L'étalon énumère des CHOSES et des MOMENTS de la
-# soirée ; C2 énumère les BEATS DE L'ENTRÉE, dont les états d'âme et le verdict.
+# The real discriminant is ABSTRACTION, which the grid already said by naming
+# « méta-beats ». The reference lists THINGS and MOMENTS of the evening; C2
+# lists the BEATS OF THE ENTRY, moods and verdict included.
 #
-#   étalon 2 : 0 %    les six accumulations de l'étage C : 0 %    C2 : 47 %
+#   reference 2: 0 %    the six stage C accumulations: 0 %    C2: 47 %
 #
-# Séparation totale, marge énorme : le seuil est à 20 % et n'a pas besoin d'être
-# fin.
+# Total separation, huge margin: the threshold sits at 20 % and need not be
+# fine.
 _ABSTRACT_ITEM = re.compile(
-    # suffixes de nominalisation — l'abstraction a une morphologie
+    # nominalisation suffixes: abstraction has a morphology
     r"\b\w*(?:it[ée]|tion|sion|ance|ence|itude|esse|isme)\b"
-    # et les états d'âme et opérations mentales qui n'en portent pas
+    # and the moods and mental operations that carry none
     r"|\b(?:fatigue|panique|doute|angoisse|peur|effroi|malaise|trouble|"
     r"verdict|souvenir|rappel|d[ée]tails?|faits?|m[ée]moire|esprit|corps)\b",
     re.IGNORECASE)
 
-# Un item VERBAL raconte un pas de la soirée ; il ne peut pas être du sommaire.
+# A VERBAL item tells a step of the evening; it cannot be summary.
 _VERBAL_ITEM = re.compile(
     r"\b(?:je|j'|elle|il|on|nous|ils|elles)\b"
     r"|\b(?:ai|as|avons|avez|ont|avais|avait|avions|avaient"
@@ -746,13 +728,12 @@ _VERBAL_ITEM = re.compile(
 ACC_ABSTRACT_MAX = 0.20
 
 
-# LA TROISIÈME PERSONNE DANS UN CARNET ÉCRIT À LA PREMIÈRE.
+# THIRD PERSON IN A NOTEBOOK WRITTEN IN THE FIRST.
 #
 # « Elle est revenue à vingt heures, a refermé le cahier, posé la lampe… »
-# (S7-3) : le nœud d'accumulation a basculé de personne au milieu d'une entrée
-# entièrement à la première. Aucun lint ne le voyait — c'est la lecture debout
-# qui l'a relevé. Défaut mécanique, détection triviale : le carnet n'a qu'un
-# sujet, et ce sujet est « je ».
+# (S7-3): the accumulation node switched person in the middle of an entry
+# wholly in the first. No lint saw it; the standing read-through did.
+# Mechanical defect, trivial detection: the notebook has one subject, « je ».
 _SUBJECT_3P = re.compile(
     r"\b(?:elle|il|on)\s+(?:[a-zàâçéèêëîïôûùüœ']+\s+){0,2}?"
     r"(?:est|a|était|avait|s'est|se|fut)\b"
@@ -761,12 +742,11 @@ _SUBJECT_3P = re.compile(
 
 
 def accumulation_at_first_person(sentence: str) -> tuple[bool, str]:
-    """L'accumulation est-elle écrite à la première personne ?
+    """Is the accumulation written in the first person?
 
-    Rendue vraie si aucun sujet de troisième personne n'apparaît ET qu'un « je »
-    est présent : les deux conditions, parce qu'une accumulation sans aucun
-    pronom (l'étalon est ainsi, en grande partie nominale) ne doit pas être
-    rejetée pour autant.
+    True when no third-person subject appears. A « je » is not required: an
+    accumulation without any pronoun (the reference is largely nominal) must
+    not be rejected for that.
     """
     if _SUBJECT_3P.search(sentence):
         m = _SUBJECT_3P.search(sentence)
@@ -775,15 +755,15 @@ def accumulation_at_first_person(sentence: str) -> tuple[bool, str]:
 
 
 def summarizing_accumulation(sentence: str) -> tuple[float, list[str]]:
-    """Part d'items abstraits d'une accumulation, et lesquels.
+    """Share of abstract items in an accumulation, and which ones.
 
-    L'unité est l'item entre virgules — la même unité que celle par laquelle la
-    consigne est chiffrée (« au moins douze étapes, séparées par des virgules »).
-    Mesurer dans l'unité de la consigne évite de reprocher au modèle autre chose
-    que ce qu'on lui a demandé.
+    The unit is the item between commas, the same unit the instruction is
+    quantified in (« au moins douze étapes, séparées par des virgules »).
+    Measuring in the instruction's unit avoids blaming the model for something
+    other than what it was asked.
 
-    Les adverbes nus (« calmement », « méthodiquement » de l'étalon) sont
-    neutres : ils modifient la phrase-cadre, ils ne sont pas une étape.
+    Bare adverbs (« calmement », « méthodiquement » in the reference) are
+    neutral: they modify the frame sentence, they are not a step.
     """
     items = [i.strip() for i in sentence.split(",") if i.strip()]
     if not items:
@@ -796,81 +776,80 @@ def summarizing_accumulation(sentence: str) -> tuple[float, list[str]]:
 
 
 # ---------------------------------------------------------------------------
-# LA REDITE — deux détecteurs, session 7
+# REPETITION: two detectors, session 7
 #
-# `_recoller` retire le chevauchement AU CARACTÈRE PRÈS entre deux segments :
-# il attrape la recopie, pas la re-narration. S6-3 range les deux assiettes au
-# ¶10 puis les range à nouveau au ¶13, avec d'autres mots ; et ses ¶2 et ¶3
-# partagent deux phrases entières, identiques celles-là.
+# `_reattach` (factory.pipeline.graph) removes CHARACTER-EXACT overlap between
+# two segments: it catches copying, not re-narration. S6-3 puts the two plates
+# away at ¶10 then again at ¶13 in other words; and its ¶2 and ¶3 share two
+# whole sentences, identical this time.
 #
-# ⚠ LA MESURE EST DES CARACTÈRES, PAS DES MOTS, et ce n'est pas un détail de
-# confort. Mesuré sur S6-3 avant de choisir :
+# ⚠ THE MEASURE IS CHARACTERS, NOT WORDS, and that is not a comfort detail.
+# Measured against S6-3 before choosing:
 #
-#                                            caractères   recouvrement de mots
-#   ¶10/¶13  la même action rangée deux fois     0,64            0,78
-#   ¶5/¶8    l'ACCUMULATION contre la recon-     0,02            0,52
-#            struction qu'elle résume
-#   ¶4/¶9    deux constats distincts             0,02            0,06
+#                                            characters   word overlap
+#   ¶10/¶13  the same action put away twice      0.64          0.78
+#   ¶5/¶8    the ACCUMULATION vs the recon-      0.02          0.52
+#            struction it summarises
+#   ¶4/¶9    two distinct observations           0.02          0.06
 #
-# Un recouvrement de mots ferait sauter l'accumulation elle-même — qui re-narre
-# la soirée par définition, c'est sa raison d'être — sur un contrôle bloquant.
-# On tuerait le geste acquis à la session précédente. La similarité de
-# caractères sépare les trois cas sans ambiguïté.
+# Word overlap would trip the accumulation itself, which re-narrates the
+# evening by definition, its reason to exist, against a blocking control. It
+# would kill the gesture acquired the previous session. Character similarity
+# separates the three cases without ambiguity.
 #
-# Et AUCUN plancher de longueur : ¶10 fait dix-sept mots. Un filtre « au moins
-# vingt mots » le laissait passer, et c'est ce qui m'a fait conclure « aucun
-# doublon dans S6-3 » au premier balayage — le filtre était le bug, pas la
-# mesure.
+# And NO length floor: ¶10 is seventeen words. An « at least twenty words »
+# filter let it through, which is what made me conclude « no duplicate in
+# S6-3 » at the first sweep: the filter was the bug, not the measure.
 REPEAT_THRESHOLD = 0.50
 
-# ⚠ LE RATIO SEUL NE SUFFIT PAS — trouvé en falsifiant l'assemblage complet.
+# ⚠ THE RATIO ALONE IS NOT ENOUGH, found while falsifying the full assembly.
 #
-# Le français est plein de mots-outils, et deux paragraphes COURTS et
-# entièrement différents montent haut sans rien partager de réel :
+# French is full of function words, and two SHORT, wholly different paragraphs
+# score high while sharing nothing real:
 #
 #   « Je relis l'entrée d'hier. Ma mémoire dit une assiette. »
-#   « Je suis rentrée, j'ai posé le cahier, j'ai préparé le dîner. »   ratio 0,51
+#   « Je suis rentrée, j'ai posé le cahier, j'ai préparé le dîner. »   ratio 0.51
 #
-# Le premier essai de dédoublonnage a supprimé la seconde sur ce score. Un
-# retrait bloquant qui se trompe coûte un paragraphe de récit à chaque run.
+# The first deduplication attempt removed the second for that score. A
+# blocking removal that errs costs a paragraph of narrative every run.
 #
-# Le discriminant est la plus longue SUITE COMMUNE — une redite reprend un
-# fragment continu, deux textes différents ne partagent que des articles :
+# The discriminant is the longest COMMON RUN: a repetition reuses a continuous
+# fragment, two different texts share only articles:
 #
-#   la même action rangée deux fois   ratio 0,64   bloc 42 car.
-#   deux constats distincts           ratio 0,51   bloc  6 car.
-#   deux phrases courtes distinctes   ratio 0,67   bloc  6 car.
+#   the same action put away twice    ratio 0.64   block 42 chars
+#   two distinct observations         ratio 0.51   block  6 chars
+#   two short distinct sentences      ratio 0.67   block  6 chars
 #
-# Les deux conditions ensemble, donc. Ni l'une ni l'autre ne tient seule.
+# Both conditions together, then. Neither holds alone.
 REPEAT_BLOCK_MIN = 30
 
 
-# CE QUE LE CODE COMPOSE N'EST JAMAIS UNE REDITE.
+# WHAT THE CODE COMPOSES IS NEVER A REPETITION (ADR-0018).
 #
-# Trouvé en falsifiant le détecteur sur S6-C, et c'est la deuxième fois qu'un
-# contrôle de session 7 vise ce qu'il devait protéger. Les trois « doublons » de
-# plus fort ratio du chapitre étaient TOUS des artefacts du code :
+# Found while falsifying the detector against S6-C, the second time a
+# session 7 control aimed at what it had to protect. The three highest-ratio
+# « doublons » of the chapter were ALL code artefacts:
 #
-#   ¶0/¶17  (0,55)  les EN-TÊTES — les retirer supprime la bascule audio ;
-#   ¶1/¶18  (0,96)  l'ANCRE de citation, reposée en tête de chaque entrée —
-#                   celle-là même qu'on re-tamponne au §2 de cette session ;
-#   ¶11/¶28 (0,71)  les GLISSEMENTS — trois approches DIFFÉRENTES de la banque,
-#   ¶11/¶51 (0,62)  mais collées au même fait matériel, donc similaires par la
-#                   queue. Le retrait aurait tué le geste acquis à 4/4.
+#   ¶0/¶17  (0.55)  the HEADERS: removing them removes the audio switch;
+#   ¶1/¶18  (0.96)  the quotation ANCHOR, re-posed at the head of each entry,
+#                   the very one re-stamped at §2 of that session;
+#   ¶11/¶28 (0.71)  the DRIFTS: three DIFFERENT approaches from the bank,
+#   ¶11/¶51 (0.62)  but glued to the same material fact, hence similar by
+#                   their tail. Removal would have killed the gesture held 4/4.
 #
-# Un paragraphe composé par le code se répète parce que c'est sa fonction. La
-# règle n'est donc pas un seuil plus fin : c'est que le détecteur ne juge que ce
-# que le MODÈLE a écrit. Le code sait ce qu'il a posé — il n'a pas à le deviner.
+# A paragraph composed by code repeats because that is its function. The rule
+# is not a finer threshold: the detector judges only what the MODEL wrote. The
+# code knows what it posed; it need not guess.
 def _is_protected(para: str, protected: tuple[str, ...] = ()) -> bool:
-    """Ce paragraphe a-t-il été composé par le code ?
+    """Was this paragraph composed by the code?
 
-    Reconnu SANS rien savoir du run, pour que la grille — qui ne lit que des
-    fichiers — protège les mêmes choses que l'assemblage :
-      · l'en-tête daté, dont le format est notre propriété ;
-      · le glissement, qui porte le marqueur de suspension — le code retire
-        ceux que le modèle produit, donc tout « … » restant vient de nous ;
-      · l'ancre, un paragraphe entièrement entre guillemets.
-    `proteges` complète avec ce que l'appelant sait en plus.
+    Recognised WITHOUT knowing anything of the run, so that the grid, which
+    reads only files, protects the same things as the assembly:
+      · the dated header, whose format is ours;
+      · the drift, which carries the suspension marker: the code removes those
+        the model produces, so any remaining « … » comes from us;
+      · the anchor, a paragraph wholly between quotation marks.
+    `protected` adds what the caller knows besides.
     """
     para = para.strip()
     if ENTRY_HEADER.match(para) or SUSPENSION.search(para):
@@ -884,13 +863,13 @@ def _is_protected(para: str, protected: tuple[str, ...] = ()) -> bool:
 def repeated_paragraphs(text: str, threshold: float = REPEAT_THRESHOLD,
                        protected: tuple[str, ...] = ()
                        ) -> list[tuple[int, int, float, str]]:
-    """Paires de paragraphes qui racontent la même chose. (i, j, ratio, extrait).
+    """Pairs of paragraphs telling the same thing. (i, j, ratio, excerpt).
 
-    Le second membre de chaque paire est celui qu'on retirerait : il arrive
-    après, donc c'est lui la redite.
+    The second member of each pair is the one to remove: it comes later, so
+    it is the repetition.
 
-    `proteges` : les fragments composés par le code (ancre, gestes). Les
-    en-têtes sont reconnus tout seuls.
+    `protected`: the fragments composed by code (anchor, gestures). Headers
+    are recognised by themselves.
     """
     paras = [p.strip() for p in text.split("\n\n") if p.strip()]
     out = []
@@ -913,15 +892,15 @@ def repeated_paragraphs(text: str, threshold: float = REPEAT_THRESHOLD,
 
 def repeated_sentences(text: str,
                     protected: tuple[str, ...] = ()) -> list[tuple[int, int, str]]:
-    """Phrases entières reprises d'un paragraphe à l'autre. (¶i, ¶j, phrase).
+    """Whole sentences repeated from one paragraph to another. (¶i, ¶j, sentence).
 
-    Défaut plus net que la redite de paragraphe, et distinct : les ¶2 et ¶3 de
-    S6-3 sont globalement différents (0,15 de similarité) mais partagent DEUX
-    phrases au caractère près. Une moyenne sur le paragraphe entier les dilue ;
-    il faut regarder les phrases.
+    A sharper defect than paragraph repetition, and distinct: S6-3's ¶2 and ¶3
+    are globally different (0.15 similarity) yet share TWO sentences character
+    for character. An average over the whole paragraph dilutes them; look at
+    the sentences.
 
-    Les phrases courtes sont écartées : « Rien. » ou « Deux. » peuvent revenir
-    sans être une redite — c'est même une figure du style.
+    Short sentences are dropped: « Rien. » or « Deux. » may recur without
+    being a repetition; it is even a figure of the style.
     """
     paras = [p.strip() for p in text.split("\n\n") if p.strip()]
     seen_counts: dict[str, int] = {}
@@ -940,29 +919,28 @@ def repeated_sentences(text: str,
     return out
 
 
-# LA CITATION INVENTÉE. Le cahier est une matière fournie, jamais fabriquée :
-# quand le modèle écrit un passage entre guillemets qui n'est ni l'ancre servie
-# ni son verdict, il FABRIQUE du cahier — S7-3 a produit « "Les deux assiettes
-# étaient bien là, sur l'égouttoir. Je ne me souviens pas de la deuxième." ».
-#
-# Drapeau, pas échec : l'ancre et le verdict final sont légitimement cités, et
-# la falsification par le haut l'exige — un détecteur qui refuserait l'ancre
-# serait le quatrième de la série à viser ce qu'il doit protéger.
+# THE INVENTED QUOTATION. The notebook is supplied matter, never fabricated:
+# when the model writes a quoted passage that is neither the served anchor nor
+# its verdict, it FABRICATES notebook. S7-3 produced
+# « "Les deux assiettes étaient bien là, sur l'égouttoir. Je ne me souviens pas…" ».
+# Flag, not failure: the anchor and the final verdict are legitimately quoted,
+# and top-down falsification demands it; a detector refusing the anchor would
+# be the fourth of the series aiming at what it must protect.
 QUOTATION = re.compile(r"[«\"“]([^«»\"”]{15,400})[»\"”]", re.DOTALL)
 
 
 def quotations_outside_anchor(text: str, anchor: str = "",
                          verdict: str = "") -> list[str]:
-    """Passages cités qui ne sont ni l'ancre servie ni le verdict rendu."""
+    """Quoted passages that are neither the served anchor nor the rendered verdict."""
     anchor_core = re.sub(r"[«»\"“”]", "", anchor).strip().lower()
     verdict_core = re.split(r"\s*\(", verdict or "")[0].strip().lower()
-    # L'ANCRE EST LA PREMIÈRE CITATION ISOLÉE DE CHAQUE ENTRÉE — une seule, en
-    # tête, posée par le code et remise là par le tampon après réparation.
+    # THE ANCHOR IS THE FIRST ISOLATED QUOTATION OF EACH ENTRY: one, at the
+    # head, posed by code and put back by the stamp after repair (ADR-0018).
     #
-    # ⚠ « paragraphe entièrement cité » NE SUFFIT PAS : les deux citations
-    # fabriquées de S7-3 sont elles aussi des paragraphes isolés, et exempter
-    # par la forme seule les laissait passer toutes les deux. C'est le RANG qui
-    # discrimine, parce que le code ne pose l'ancre qu'une fois et en premier.
+    # ⚠ « paragraphe entièrement cité » IS NOT ENOUGH: S7-3's two fabricated
+    # quotations are isolated paragraphs too, and exempting by form alone let
+    # both through. RANK discriminates, because the code poses the anchor
+    # once, and first.
     only_ones, entry_seen = set(), set()
     e = 0
     for b in text.split("\n\n"):
@@ -988,36 +966,36 @@ def quotations_outside_anchor(text: str, anchor: str = "",
     return out
 
 
-# MARQUES DÉPOSÉES. « L'enceinte Bluetooth » (tirage 6 du ch. 7) : une marque
-# est un nom propre, donc L1 la voyait déjà — mais noyée parmi les noms propres,
-# sans qu'on sache que c'en était une. Une marque dans ce roman est pire qu'un
-# nom propre ordinaire : elle date le texte et le sort du monde clos de la
-# maison. On la nomme pour pouvoir la retirer.
+# TRADEMARKS. « L'enceinte Bluetooth » (chapter 7 draw 6): a brand is a proper
+# noun, so L1 saw it already, but drowned among proper nouns, with no sign it
+# was a brand. A brand in this novel is worse than an ordinary proper noun: it
+# dates the text and takes it out of the closed world of the house. Named so
+# it can be removed.
 MARKS = re.compile(
     r"\b(Bluetooth|Wi-?Fi|iPhone|iPad|Android|Spotify|Netflix|YouTube|"
     r"Google|Apple|Samsung|Facebook|Instagram|WhatsApp|Tupperware|Post-it|"
     r"Kleenex|Frigidaire|Thermos)\b", re.IGNORECASE)
 
 
-# LA RECOPIE DU PROMPT — le contrôle qui manquait.
+# PROMPT COPY: the missing control.
 #
-# Le tirage 6 du chapitre 7 s'ouvre sur la consigne d'ouverture, transcrite à
-# 0,94 de similarité. Personne ne l'a vu avant la lecture : aucun lint ne
-# comparait le texte produit à ce qu'on avait servi. On mesurait tout du texte
-# sauf sa provenance.
+# Chapter 7 draw 6 opens with the opening instruction, transcribed at 0.94
+# similarity. Nobody saw it before reading: no lint compared the produced text
+# with what had been served. Everything was measured except provenance
+# (ADR-0019).
 #
-# Le seuil est à 0,50 — les runs du chapitre 2, où la consigne décrivait
-# légitimement le sujet, plafonnaient à 0,37.
+# Threshold 0.50: the chapter 2 runs, where the instruction legitimately
+# described the subject, peaked at 0.37.
 PROMPT_COPY_THRESHOLD = 0.50
 
 
 def prompt_copy(text: str, prompt: str,
                       threshold: float = PROMPT_COPY_THRESHOLD
                       ) -> list[tuple[float, str]]:
-    """Phrases du texte trop proches d'une ligne du prompt servi.
+    """Sentences of the text too close to a line of the served prompt.
 
-    Compare PHRASE À LIGNE : une consigne se recopie par bloc, et une moyenne
-    sur les textes entiers la diluerait au point de la rendre invisible.
+    Compares SENTENCE TO LINE: an instruction is copied by block, and an
+    average over whole texts would dilute it into invisibility.
     """
     lines = [" ".join(l.split()) for l in prompt.splitlines()
               if len(l.split()) >= 8]
@@ -1034,11 +1012,11 @@ def prompt_copy(text: str, prompt: str,
 
 
 def consistent_headers(headers: list[tuple[str, str]]) -> list[str]:
-    """Séquence jour-de-semaine cohérente avec les numéros de jour.
+    """Weekday sequence consistent with the day numbers.
 
-    Deux en-têtes à un jour d'écart doivent avancer d'un jour de semaine. BC
-    produisait « Vendredi 8 » puis « Jeudi 7 » : des dates qui reculent, dans un
-    carnet tenu chaque soir.
+    Two headers one day apart must advance one weekday. BC produced « Vendredi
+    8 » then « Jeudi 7 »: dates going backwards in a notebook kept every
+    evening.
     """
     order = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi",
              "Dimanche"]
@@ -1046,14 +1024,14 @@ def consistent_headers(headers: list[tuple[str, str]]) -> list[str]:
     for (j1, n1), (j2, n2) in zip(headers, headers[1:]):
         day_gap = (order.index(j2.capitalize()) - order.index(j1.capitalize())) % 7
         number_gap = int(n2) - int(n1)
-        # DEUX ENTRÉES LE MÊME JOUR sont légitimes (session 7). Le chapitre 7
-        # en fait sa structure : l'après-midi et la nuit de l'anniversaire,
-        # « Samedi 14. » deux fois, et c'est le SECOND en-tête qui porte la
-        # bascule audio. Le lint refusait cette forme — il aurait marqué en
-        # défaut la structure exacte que le brief impose.
+        # TWO ENTRIES THE SAME DAY are legitimate (session 7). Chapter 7 makes
+        # them its structure: the afternoon and the night of the anniversary,
+        # « Samedi 14. » twice, and the SECOND header carries the audio switch
+        # (ADR-0013). The lint refused this form: it would have marked as a
+        # defect the exact structure the brief imposes.
         #
-        # Ce qui reste fautif : une date qui RECULE (B′C produisait
-        # [8,7,7,7,7,9,10,7]), et un jour de semaine qui ne suit pas l'écart.
+        # What stays faulty: a date going BACKWARDS (B′C produced
+        # [8,7,7,7,7,9,10,7]), and a weekday not following the gap.
         if number_gap == 0 and j1.lower() == j2.lower():
             continue
         if number_gap < 0:
@@ -1067,65 +1045,64 @@ def consistent_headers(headers: list[tuple[str, str]]) -> list[str]:
 
 
 def entries(text: str) -> list[str]:
-    """Découpe le texte en entrées de journal, sur les en-têtes datés.
+    """Split the text into journal entries at the dated headers.
 
-    Rend `[texte]` si aucun en-tête n'est trouvé : un chapitre à une seule
-    entrée non datée reste une entrée, et rendre une liste vide ferait passer
-    tous les contrôles par entrée pour « rien à vérifier ».
+    Returns `[text]` if no header is found: a chapter with a single undated
+    entry is still an entry, and an empty list would make every per-entry
+    control read as « nothing to check ».
     """
     marks = [m.start() for m in ENTRY_HEADER.finditer(text)]
     if not marks:
         return [text]
     if marks[0] > 0:
-        marks.insert(0, 0)          # matière avant la première date
+        marks.insert(0, 0)          # matter before the first date
     bounds = marks + [len(text)]
     out = [text[a:b].strip() for a, b in zip(bounds, bounds[1:])]
     return [e for e in out if e] or [text]
 
 
 def outside_quotes(text: str) -> str:
-    """Retire le contenu cité, en gardant la longueur (donc les positions).
+    """Remove quoted content, keeping the length (hence the positions).
 
-    Les lints de VOIX (tics d'IA, physiologie, état mental nommé, glissement)
-    jugent la voix de la narratrice. Or ce qui est entre guillemets dans ce
-    roman est le cahier — fabriqué à la main, et portant délibérément une AUTRE
-    voix. Les y appliquer reviendrait à sanctionner la citation d'exister
-    (notes d'outillage §7).
+    VOICE lints (AI tics, physiology, named mental state, drift) judge the
+    narrator's voice. What sits between quotation marks in this novel is the
+    notebook, hand-made and deliberately in ANOTHER voice. Applying them there
+    would punish the quotation for existing (tooling notes, step 3 extraction).
 
-    Le contrat de prose, lui, s'applique partout, citations comprises : c'est
-    la raison du remplacement par des espaces plutôt que d'une suppression —
-    les deux couches lisent le même découpage, aux mêmes positions.
+    The prose contract applies everywhere, quotations included: that is why
+    spaces replace rather than delete; both layers read the same split at the
+    same positions.
     """
     return re.sub(r"«[^»]*»|“[^”]*”",
                   lambda m: " " * len(m.group(0)), text)
 
 
 def in_quotes(text: str) -> list[str]:
-    """Les passages cités, pour ce qui doit s'y appliquer quand même."""
+    """The quoted passages, for what must apply to them anyway."""
     return [m.group(0) for m in
             re.finditer(r"«[^»]*»|“[^”]*”", text)]
 
 
-# --- §3 et §4 : contraintes scopées par chapitre ------------------------------
+# --- §3 and §4: chapter-scoped constraints ------------------------------------
 #
-# Les valeurs viennent de la table de pilotage de `chronologie-partie-double.md`.
-# Ce fichier est FIREWALLÉ côté modèle — il n'est jamais indexé, jamais servi —
-# mais l'outillage a le droit de le lire : un lint n'est pas un modèle, il ne
-# raconte rien, il compare. C'est exactement la dissymétrie qu'on veut : la
-# machine qui juge en sait plus que la machine qui écrit.
+# Values come from the pilot table of `chronologie-partie-double.md`. That file
+# is FIREWALLED from the model, never indexed, never served (ADR-0017), but
+# the tooling may read it: a lint is not a model, it tells nothing, it
+# compares. Exactly the asymmetry we want: the judging machine knows more than
+# the writing one.
 
 PILOT_TABLE = str(BIBLE_DIR / "profond" / "chronologie-partie-double.md")
 
-# Réservés jusqu'au chapitre 9, 10, 11 respectivement : lintés en ABSENCE sur
-# les chapitres 1 à 8 (notes d'outillage §3).
+# Reserved until chapters 9, 10, 11 respectively: linted for ABSENCE in
+# chapters 1 to 8 (tooling notes, step 3 extraction).
 RESERVED_TERMS = ("la tierce", "l'errata", "le bon à tirer")
 
-# Le quatuor du chapitre 7 : interdit partout ailleurs (notes d'outillage §4).
+# The chapter 7 quartet: forbidden everywhere else (tooling notes, step 3 extraction).
 QUARTET = ("photos", "playlist", "plat des anniversaires", "couverts")
 
 
 def chapter_constraints(n: int, table: str = PILOT_TABLE) -> dict:
-    """Verdict imposé et interdits scopés d'un chapitre, lus dans la table."""
+    """Imposed verdict and scoped prohibitions of a chapter, read from the table."""
     verdict, objects = "", ""
     p = Path(table)
     if p.is_file():
@@ -1138,7 +1115,7 @@ def chapter_constraints(n: int, table: str = PILOT_TABLE) -> dict:
         "chapter": n,
         "verdict": verdict,
         "active_objects": objects,
-        # Le verdict « aucun » du chapitre 1 n'est pas un verdict à trouver.
+        # Chapter 1's verdict « aucun » is not a verdict to find.
         "verdict_attendu": verdict and not verdict.startswith("aucun")
                            and "hors échelle" not in verdict,
         "reserves": RESERVED_TERMS if 1 <= n <= 8 else (),
@@ -1147,12 +1124,11 @@ def chapter_constraints(n: int, table: str = PILOT_TABLE) -> dict:
 
 
 def chapter_checks(text: str, c: dict) -> dict:
-    """Applique les contraintes d'un chapitre. Rend les manquements."""
+    """Apply a chapter's constraints. Returns the breaches."""
     t = normalize(text)
     out: dict[str, list[str]] = {"reserves": [], "quatuor": [], "verdict": [],
-                                 # Session 6 : le décor générique, scopé lui
-                                 # aussi (les mémos téléphoniques deviennent
-                                 # légitimes au chapitre 5).
+                                 # Session 6: generic decor, scoped too (phone
+                                 # memos become legitimate at chapter 5).
                                  "materiels": material_forbidden(
                                      t, c["chapter"])}
 
@@ -1167,9 +1143,9 @@ def chapter_checks(text: str, c: dict) -> dict:
                 a, b = max(0, m.start() - 40), min(len(t), m.end() + 40)
                 out["quatuor"].append(f"{term} — …{t[a:b]}…".replace("\n", " "))
 
-    # §3 : le verdict se linte EN PRÉSENCE — il doit apparaître. Les autres
-    # termes du lexique ne se lintent jamais en absence : la dérive synonymique
-    # est tolérée, et même souhaitable à faible dose.
+    # §3: the verdict is linted for PRESENCE, it must appear. Other lexicon
+    # terms are never linted for absence: synonymic drift is tolerated, even
+    # desirable in small doses.
     if c["verdict_attendu"]:
         core = re.split(r"\s*\(", c["verdict"])[0].strip()
         if core and not re.search(re.escape(normalize(core)), t, re.I):
@@ -1178,12 +1154,11 @@ def chapter_checks(text: str, c: dict) -> dict:
 
 
 def _leak_lexicon(path: str = str(DATA_DIR / "lexique-fuite.txt")) -> list[str]:
-    """Champ lexical interdit, lu sur disque.
+    """Forbidden lexical field, read from disk.
 
-    Volontairement HORS du code et hors de `bible/` : ces mots ne doivent jamais
-    se retrouver dans un fichier destiné à l'indexation RAG, où ils
-    contamineraient le contexte du modèle par le retrieval même censé le
-    cadrer.
+    Deliberately OUTSIDE the code and outside `bible/`: these words must never
+    end up in a file meant for RAG indexing, where they would contaminate the
+    model's context through the very retrieval meant to frame it (ADR-0017).
     """
     p = Path(path)
     if not p.is_file():
@@ -1192,33 +1167,31 @@ def _leak_lexicon(path: str = str(DATA_DIR / "lexique-fuite.txt")) -> list[str]:
             if l.strip()]
 
 
-# Signalés sans bloquer. `disparue` est ambigu (une chose disparaît sans que
-# personne ne meure). `tombe` l'est davantage : c'est aussi le verbe, et le
-# run 3 de la session 3 a été mis en échec sur « qu'elle ne glisse et ne tombe
-# par terre » — un faux positif sur un homographe, exactement ce qu'un lint
-# binaire ne doit pas coûter (notes d'outillage §5).
+# Flagged without blocking. `disparue` is ambiguous (a thing disappears
+# without anyone dying). `tombe` more so: it is also the verb, and session 3
+# run 3 was failed over « qu'elle ne glisse et ne tombe par terre », a false
+# positive against a homograph, exactly what a binary lint must not cost.
 AMBIGUOUS_LEAK = {"disparue", "disparu", "tombe", "tombes"}
 
 
 def lexical_leak(text: str) -> tuple[list[str], list[str]]:
-    """(matches bloquants, matches ambigus) du champ lexical interdit."""
+    """(blocking matches, ambiguous matches) of the forbidden lexical field."""
     forbidden_words = _leak_lexicon()
     if not forbidden_words:
         return [], []
-    # Le PLURIEL compte autant que le singulier — et il échappait à tout :
-    # « feuilles mortes » dans BpC n'a pas été vu, alors que le brief appelle ce
-    # lint « le firewall rendu vérifiable par grep ». Un firewall qui ne voit
-    # pas les pluriels affiche vert sur des textes qu'il devrait bloquer, et
-    # c'était le cas de toutes les sessions précédentes.
+    # The PLURAL counts as much as the singular, and escaped everything:
+    # « feuilles mortes » in BpC was not seen, while the brief calls this lint
+    # « le firewall rendu vérifiable par grep ». A firewall blind to plurals
+    # shows green over texts it should block, and that was the case for every
+    # previous session.
     pattern = re.compile(r"\b(" + "|".join(re.escape(m) for m in forbidden_words)
                        + r")s?\b", re.IGNORECASE)
     hard_ones, ambiguous = [], []
     for m in pattern.finditer(text):
-        # Le CONTEXTE est rendu avec le mot, pas seulement le mot. Plusieurs
-        # entrées de la liste sont des homographes (« tombe » est aussi le
-        # verbe tomber, « cendres » vaut au figuré) : sans l'extrait, un match
-        # se lit comme une fuite avérée alors qu'il faut lire la phrase pour
-        # trancher.
+        # The CONTEXT is returned with the word, not the word alone. Several
+        # list entries are homographs (« tombe » is also the verb tomber,
+        # « cendres » works figuratively): without the excerpt a match reads as
+        # a proven leak when the sentence must be read to decide.
         a, b = max(0, m.start() - 45), min(len(text), m.end() + 45)
         occ = f"{m.group(0).lower()} — …{text[a:b]}…".replace("\n", " ")
         (ambiguous if m.group(0).lower() in AMBIGUOUS_LEAK else hard_ones).append(occ)
@@ -1226,28 +1199,27 @@ def lexical_leak(text: str) -> tuple[list[str], list[str]]:
 
 
 def proper_nouns(text: str) -> list[str]:
-    """Candidats noms propres : majuscule qui n'ouvre ni phrase ni ligne."""
+    """Proper-noun candidates: a capital opening neither sentence nor line."""
     out, seen_map = [], set()
     for m in UPPERCASE.finditer(text):
         word = m.group(1)
         if word in L1_EXCEPTIONS or word.rstrip("'’") in L1_EXCEPTIONS:
             continue
         before = text[:m.start()].rstrip()
-        if not before:                              # tout début du texte
+        if not before:                              # very start of the text
             continue
-        # Ouverture de phrase, de citation — ou de CROCHET. Le crochet est là
-        # parce que nemo produit des didascalies (« [Dans la cuisine] ») dont
-        # le premier mot capitalisé n'est pas un nom propre. Sans cette
-        # exception, un run entier sortait à 5 noms propres, tous faux, et
-        # masquait le vrai défaut : le modèle écrit des didascalies au lieu
-        # d'écrire un journal.
-        # Le guillemet OUVRANT compte autant que le fermant : « La maison est
-        # vide » faisait sortir « La » en nom propre. Ce n'est pas cosmétique —
-        # l'interdit L1 est à zéro toléré, donc chaque faux positif noie la
-        # seule occurrence qui compte (ici, un prénom réellement écrit).
+        # Sentence, quotation, or BRACKET opening. The bracket is there because
+        # nemo produces stage directions (« [Dans la cuisine] ») whose first
+        # capitalised word is not a proper noun. Without this exception a whole
+        # run came out at 5 proper nouns, all false, masking the real defect:
+        # the model writes stage directions instead of a journal.
+        # The OPENING quotation mark counts as much as the closing one:
+        # « La maison est vide » made « La » come out as a proper noun. Not
+        # cosmetic: L1 is zero-tolerance, so each false positive drowns the
+        # one occurrence that matters (here, a first name actually written).
         if before[-1] in ".!?…:«»\"'—-–[(“":
             continue
-        if text[:m.start()].rstrip(" \t").endswith("\n"):   # début de ligne
+        if text[:m.start()].rstrip(" \t").endswith("\n"):   # start of line
             continue
         if word.lower() in seen_map:
             continue
@@ -1257,32 +1229,30 @@ def proper_nouns(text: str) -> list[str]:
     return out
 
 
-# LE PIVOT RESTÉ OUVERT. Un glissement est une phrase qui s'approche du où ou du
-# pourquoi et se coupe AVANT d'y arriver : le mot du départ n'y est pas, c'est
-# tout l'objet du geste.
+# THE PIVOT LEFT OPEN. A drift is a sentence approaching the where or the why
+# and cutting off BEFORE getting there: the departure word is absent, that is
+# the whole point of the gesture.
 #
-# ⚠ Ce motif s'AJOUTE à `CHAMP_DEPART` dans le contrôle L4, et il n'est pas
-# cosmétique. Mesuré : les trois glissements écrits main et livrés par le
-# protocole (« Je pourrais me demander ce qui, ce soir-là… », « Si je savais
-# seulement pourquoi… », « Il faudrait que je relise le jour où elle… ») étaient
-# TOUS LES TROIS classés « hors champ du départ » par la version précédente.
-# L4 aurait donc affiché trois croix sur le geste enfin correct, et on en aurait
-# conclu que le glissement ne marchait toujours pas — après trois sessions à
-# chercher pourquoi.
+# ⚠ This pattern is ADDED to `DEPARTURE_FIELD` in the L4 control, and it is
+# not cosmetic. Measured: the three hand-written drifts delivered by the
+# protocol (« Je pourrais me demander ce qui, ce soir-là… », « Si je savais
+# seulement pourquoi… », « Il faudrait que je relise le jour où elle… ») were
+# ALL THREE classed « hors champ du départ » by the previous version. L4 would
+# have shown three crosses against the gesture finally correct, and we would
+# have concluded the drift still did not work, after three sessions asking why.
 OPEN_PIVOT = re.compile(
     r"\b(ce qui|ce que|ce qu'|pourquoi|comment|où|quand|si je|si elle|"
     r"le jour|qui a|quelle|lequel)\b", re.IGNORECASE)
 
 
 def drifts(entry: str) -> tuple[int, list[str]]:
-    """(nombre d'occurrences, occurrences NON CONFORMES) pour une entrée.
+    """(occurrence count, NON-CONFORMING occurrences) for one entry.
 
-    Une occurrence est conforme si, à moins de L4_FENETRE_MOTS mots, on trouve
-    SOIT un terme du départ nommé, SOIT un pivot resté ouvert — c'est ce qui
-    distingue le glissement (la pensée qui bute sur le où/pourquoi) d'une simple
-    suspension de style. Les deux voies, parce que le geste peut nommer le
-    départ ou s'arrêter juste avant, et que la seconde forme est la plus
-    caractéristique.
+    An occurrence conforms if, within L4_WORD_WINDOW words, EITHER a named
+    departure term OR an open pivot is found: that is what separates the drift
+    (thought stumbling against the where/why) from a mere stylistic
+    suspension. Both paths, because the gesture may name the departure or
+    stop just short, and the second form is the most characteristic.
     """
     occurrences = list(SUSPENSION.finditer(entry))
     out_of_field = []
@@ -1290,8 +1260,9 @@ def drifts(entry: str) -> tuple[int, list[str]]:
         tokens_before = entry[:m.start()].split()[-L4_WORD_WINDOW:]
         tokens_after = entry[m.end():].split()[:L4_WORD_WINDOW]
         window = " ".join(tokens_before + tokens_after)
-        # Le pivot se cherche AVANT la coupe seulement : après, la phrase est
-        # revenue au matériel, et un « où » qui suit ne dit rien du geste.
+        # The pivot is searched BEFORE the cut only: after it the sentence has
+        # returned to the material, and a following « où » says nothing of the
+        # gesture.
         before = " ".join(tokens_before)
         if not (DEPARTURE_FIELD.search(window) or OPEN_PIVOT.search(before)):
             a, b = max(0, m.start() - 60), min(len(entry), m.end() + 60)
@@ -1300,16 +1271,16 @@ def drifts(entry: str) -> tuple[int, list[str]]:
 
 
 def accumulations_l3(entry: str) -> list[str]:
-    """Accumulations au sens de la fiche v3 : ≥60 mots, ≥6 virgules, sans point
-    ni point-virgule interne. Le découpage en phrases garantit déjà l'absence de
-    point ; le point-virgule, lui, doit être vérifié à la main."""
+    """Accumulations in the sense of sheet v3: ≥60 words, ≥6 commas, no inner
+    period or semicolon. The sentence split already guarantees no period; the
+    semicolon must be checked by hand."""
     return [p for p in sentences(entry)
             if words(p) >= L3_WORDS and p.count(",") >= L3_COMMAS
             and ";" not in p]
 
 
 def _excerpts(pattern: re.Pattern, text: str, *, margin: int = 40) -> list[str]:
-    """Occurrences avec leur contexte, dédupliquées, pour justifier une croix."""
+    """Occurrences with their context, deduplicated, to justify a cross."""
     seen_map, out = set(), []
     for m in pattern.finditer(text):
         key = m.group(0).lower()
@@ -1322,27 +1293,27 @@ def _excerpts(pattern: re.Pattern, text: str, *, margin: int = 40) -> list[str]:
     return out
 
 
-# --- Analyse -----------------------------------------------------------------
+# --- Analysis ----------------------------------------------------------------
 
 def analyze(raw_text: str) -> dict:
-    """Rend les lignes de grille décidables mécaniquement, avec leurs preuves."""
+    """Returns the mechanically decidable grid lines, with their evidence."""
     text = normalize(strip_frontmatter(raw_text))
     paras = paragraphs(text)
     all_sentences = sentences(text)
 
-    # --- Structure : accumulation ---
+    # --- Structure: accumulation ---
     raw_items = [
         p for p in all_sentences
         if p.count(",") >= ACC_COMMAS and words(p) >= ACC_WORDS
     ]
-    # Une accumulation recopiée de l'étalon N'EN EST PAS UNE : elle porte les
-    # objets de l'exemple (des clés, une coupelle) dans une scène qui parle
-    # d'autre chose. Elle est retirée du compte et signalée à part.
+    # An accumulation copied from the reference IS NOT ONE: it carries the
+    # example's objects (keys, a small dish) in a scene about something else.
+    # Removed from the count and flagged apart.
     plagiarisms = [(p, reference_copy(p)) for p in raw_items]
     accumulations = [p for p, r in plagiarisms if r == 0.0]
     copies = [(p, r) for p, r in plagiarisms if r > 0.0]
 
-    # --- Structure : couperets (3-6 mots), et ceux en FIN de paragraphe ---
+    # --- Structure: cleavers (3-6 words), and those CLOSING a paragraph ---
     cleavers, closing_cleavers = [], []
     for para in paras:
         ph = sentences(para)
@@ -1352,9 +1323,9 @@ def analyze(raw_text: str) -> dict:
                 if i == len(ph) - 1:
                     closing_cleavers.append(p)
 
-    # --- Passé simple : trois détecteurs, tous rendus en CANDIDATS ---
+    # --- Passé simple: three detectors, all returned as CANDIDATES ---
     def _participe(m: re.Match) -> bool:
-        """Vrai si l'occurrence est un participe passé, pas un passé simple."""
+        """True if the occurrence is a past participle, not a passé simple."""
         if m.group(0).lower() not in PS_AMBIGUOUS_PARTICIPLES:
             return False
         return bool(AUXILIARY.search(text[max(0, m.start() - 30):m.start()]))
@@ -1371,32 +1342,32 @@ def analyze(raw_text: str) -> dict:
     ps_uniques = sorted({p.lower() for p in ps})
 
     outside_dialogue = without_dialogue(text)
-    # Couche VOIX : hors citations (§7). Le cité porte la voix du cahier.
+    # VOICE layer: outside quotations. Quoted text carries the notebook's voice.
     voice = outside_quotes(text)
 
-    # --- Contrôles L1-L4 (protocole ch. 2), comptés PAR ENTRÉE quand la règle
-    # le demande (D1 : l'unité de compte est l'entrée de journal, pas la scène).
+    # --- L1-L4 controls (chapter 2 protocol), counted PER ENTRY when the rule
+    # asks (D1: the unit of count is the journal entry, not the scene).
     list_entries = entries(text)
     l1 = proper_nouns(text)
     l2_hard, l2_ambiguous = lexical_leak(text)
     l3_per_entry = [accumulations_l3(e) for e in list_entries]
     l4_per_entry = [drifts(e) for e in list_entries]
-    # Recopie de l'étalon : elle disqualifie une accumulation L3 comme elle
-    # disqualifie une accumulation ordinaire.
+    # Reference copy disqualifies an L3 accumulation as it disqualifies an
+    # ordinary one.
     l3_copies = [[p for p in acc if reference_copy(p)] for acc in l3_per_entry]
     l3_clean = [[p for p in acc if not reference_copy(p)]
                   for acc in l3_per_entry]
 
-    # delint() en LECTURE SEULE : on jette le texte corrigé, on ne garde que
-    # les avertissements. Mesurer le modèle, pas le post-filtre.
+    # delint() READ-ONLY: the corrected text is dropped, only the warnings
+    # kept. Measure the model, not the post-filter.
     _, delint_warnings = delint(text)
 
     return {
         "mots": words(text),
         "paragraphes": len(paras),
         "phrases": len(all_sentences),
-        # EXACT — échec si présent
-        # Couche VOIX — hors citations (§7).
+        # EXACT: failure if present
+        # VOICE layer, outside quotations.
         "pastiche": _excerpts(PASTICHE, voice),
         "tics_ia": _excerpts(AI_TICS, voice),
         "exclamation_hors_dialogue": _excerpts(
@@ -1404,7 +1375,7 @@ def analyze(raw_text: str) -> dict:
         "incise_adverbiale": (_excerpts(ADVERBIAL_INCISE, text)
                               + _excerpts(PREPOSITIONAL_INCISE, text)),
         "elision": _excerpts(MISSING_ELISION, text),
-        # EXACT — échec si absent
+        # EXACT: failure if absent
         "accumulations": accumulations,
         "accumulations_recopiees": copies,
         "couperets_fin_para": closing_cleavers,
@@ -1412,7 +1383,7 @@ def analyze(raw_text: str) -> dict:
         "precision": sorted({m.group(0) for m in PRECISION.finditer(text)}),
         # CANDIDAT
         "passe_simple": ps_uniques,
-        # Défauts nemo connus, hors grille du protocole
+        # Known nemo defects, outside the protocol grid
         "delint": delint_warnings,
         # --- L1-L4 (session 3) ---
         "entrees": len(list_entries),
@@ -1432,23 +1403,23 @@ def analyze(raw_text: str) -> dict:
         "entetes_incoherents": consistent_headers(
             ENTRY_HEADER.findall(text)),
         # --- Session 6 -----------------------------------------------------
-        # Les instances descendues de la fiche servie vers l'outillage : elles
-        # ne sont plus montrées au modèle, elles sont vérifiées en sortie.
+        # Instances moved down from the served sheet into the tooling: no
+        # longer shown to the model, checked at the output (ADR-0011).
         "marques": _excerpts(MARKS, text),
         "etats_mentaux": sorted({(m.group(1) or m.group(2)).lower()
                                  for m in MENTAL_STATES.finditer(voice)}),
-        # L'accumulation qui se résume. On rend le RATIO et non un booléen : le
-        # seuil est un arbitrage (0,20), et une ligne de grille qui cache la
-        # mesure derrière son seuil interdit de le rediscuter avec des chiffres.
-        # L'étalon et les six accumulations de l'étage C sont à 0,00 ; le
-        # sommaire de C2 est à 0,47.
-        # LA REDITE (session 7). `_recoller` attrape la recopie ; ceci attrape
-        # la re-narration — S6-3 range les deux assiettes deux fois, en d'autres
-        # mots, et ses ¶2/¶3 partagent deux phrases entières.
+        # The accumulation that summarises. The RATIO is returned, not a
+        # boolean: the threshold is an arbitration (0.20), and a grid line
+        # hiding the measure behind its threshold forbids rediscussing it with
+        # numbers. The reference and the six stage C accumulations sit at
+        # 0.00; C2's summary at 0.47.
+        # REPETITION (session 7). `_reattach` catches copying; this catches
+        # re-narration: S6-3 puts the two plates away twice, in other words,
+        # and its ¶2/¶3 share two whole sentences.
         "paragraphes_redits": repeated_paragraphs(text),
-        # Citations fabriquées : l'ancre et le verdict sont exemptés par
-        # l'appelant, qui seul les connaît. Sans eux, tout passage cité compte —
-        # la grille les fournit.
+        # Fabricated quotations: the anchor and the verdict are exempted by the
+        # caller, who alone knows them. Without them every quoted passage
+        # counts; the grid supplies them.
         "citations": quotations_outside_anchor(text),
         "accumulations_3p": [a for a in accumulations_l3(text)
                              if not accumulation_at_first_person(a)[0]],
@@ -1459,10 +1430,10 @@ def analyze(raw_text: str) -> dict:
     }
 
 
-# --- Rapport -----------------------------------------------------------------
+# --- Report ------------------------------------------------------------------
 
 def _mark(present: bool) -> str:
-    """✗ = défaut, ✓ = tenu."""
+    """✗ = defect, ✓ = held."""
     return "✗" if present else "✓"
 
 
@@ -1532,10 +1503,10 @@ def report(res: dict, title: str = "") -> str:
     return "\n".join(l)
 
 
-# --- Auto-test sur les étalons de la fiche ------------------------------------
+# --- Self-test against the sheet's reference excerpts -------------------------
 
 def _references(sheet: Path) -> list[tuple[str, str]]:
-    """Extrait les blocs `> …` de la section `## Extraits étalons`."""
+    """Extract the `> …` blocks of the `## Extraits étalons` section."""
     text = sheet.read_text(encoding="utf-8")
     section = re.search(r"^## Extraits étalons(.*)\Z", text,
                         re.MULTILINE | re.DOTALL)
@@ -1558,11 +1529,11 @@ def _references(sheet: Path) -> list[tuple[str, str]]:
 
 
 def autotest(sheet: Path) -> int:
-    """Le test du test : un détecteur qui rate sa propre cible ne vaut rien.
+    """The test of the test: a detector missing its own target is worthless.
 
-    Les quatre étalons DÉFINISSENT le style. Ils doivent donc sortir propres sur
-    les lignes exactes, et l'étalon 2 — qui existe pour montrer l'accumulation —
-    doit être compté comme exactement une.
+    The four references DEFINE the style. They must come out clean against
+    the exact lines, and reference 2, which exists to show the accumulation,
+    must be counted as exactly one.
     """
     references = _references(sheet)
     if not references:
@@ -1580,19 +1551,20 @@ def autotest(sheet: Path) -> int:
                 failures.append(f"{title} : {label} détecté à tort → {r[key]}")
         if r["passe_simple"]:
             failures.append(f"{title} : passé simple à tort → {r['passe_simple']}")
-        # On somme les accumulations et les « recopies » : ici la source EST
-        # l'étalon, donc il est trivialement identique à lui-même. Ce qu'on
-        # valide dans cet auto-test est le détecteur de FORME, pas celui de
-        # plagiat — lequel se teste sur des runs, où la question a un sens.
+        # Accumulations and « recopies » are summed: here the source IS the
+        # reference, trivially identical to itself. This self-test validates
+        # the FORM detector, not the plagiarism one, which is tested against
+        # runs, where the question has a meaning.
         expected = 1 if title.startswith("Étalon 2") else 0
         found_item = len(r["accumulations"]) + len(r["accumulations_recopiees"])
         if found_item != expected:
             failures.append(f"{title} : {found_item} accumulation(s), "
                           f"attendu {expected}")
-        # --- Session 6 : les détecteurs descendus de la fiche vers l'outillage.
-        # Les étalons DÉFINISSENT le style : tout ce qui mord ici est un faux
-        # positif, et c'est cette clause qui a rattrapé le critère « propositions
-        # verbales » du protocole — il rejetait l'accumulation de l'étalon 2.
+        # --- Session 6: the detectors moved down from the sheet into the
+        # tooling. The references DEFINE the style: anything biting here is a
+        # false positive, and this clause is what caught the protocol's
+        # « propositions verbales » criterion, which rejected reference 2's
+        # accumulation.
         for key, label in [("etats_mentaux", "état mental en apposition"),
                              ("attracteurs", "attracteur")]:
             if r[key]:
@@ -1608,11 +1580,10 @@ def autotest(sheet: Path) -> int:
                 failures.append(f"{title} : accumulation jugée résumante à tort "
                               f"({ratio:.0%} d'items abstraits)")
 
-    # LES CAS CONNUS, EN NÉGATIF. Un détecteur muet sur les étalons peut être
-    # muet partout : le vert ci-dessus ne distingue pas « rien à trouver » de
-    # « incapable de trouver ». Chaque motif doit donc MORDRE sur le défaut
-    # qu'on a lu à la main, et les extraits ci-dessous sortent tous des runs de
-    # l'étage C.
+    # THE KNOWN CASES, IN NEGATIVE. A detector silent against the references
+    # may be silent everywhere: the green above does not separate « nothing to
+    # find » from « unable to find ». Each pattern must therefore BITE the
+    # defect read by hand, and the excerpts below all come from stage C runs.
     for expected_true, text, what in [
         (True, "J'ai décidé de vérifier par moi-même. Dans la cuisine, "
                "l'égouttoir était là. Incrédule, je les ai comptées à nouveau.",
@@ -1642,14 +1613,14 @@ def autotest(sheet: Path) -> int:
                          ("barquette", "j'ai sorti une barquette de lasagnes")]:
         if not material_forbidden(text, chapter=2):
             failures.append(f"cas connu « {term} » : interdit matériel raté")
-    # Le scope par chapitre doit se RELÂCHER, pas seulement se serrer.
+    # The per-chapter scope must LOOSEN, not only tighten.
     if not material_forbidden("j'ai regardé mon téléphone", chapter=2):
         failures.append("cas connu « téléphone au ch. 2 » : raté")
     if material_forbidden("j'ai regardé mon téléphone", chapter=5):
         failures.append("cas connu « téléphone au ch. 5 » : faux positif — les "
                       "mémos deviennent légitimes, le scope ne s'ouvre pas")
-    # LA REDITE — session 7. Les deux sens, parce que le contrôle est bloquant
-    # et qu'il RETIRE du texte : un faux positif coûte un paragraphe de récit.
+    # REPETITION, session 7. Both directions, because the control is blocking
+    # and REMOVES text: a false positive costs a paragraph of narrative.
     _TRUE = ("Je range les deux assiettes dans le lave-vaisselle, en prenant "
              "soin de les placer côte à côte.",
              "En attendant, je décide de ranger les deux assiettes dans le "
@@ -1669,10 +1640,10 @@ def autotest(sheet: Path) -> int:
             "seule hier soir. Et pourtant."):
         failures.append("cas connu « phrase reprise d'un ¶ à l'autre » (S6-3 "
                       "¶2/¶3) : non détectée")
-    # LES ARTEFACTS DU CODE ne sont jamais une redite — falsifié parce que sans
-    # cette protection, les trois plus fortes similarités de S6-C étaient
-    # l'en-tête, l'ancre et le glissement : le retrait aurait supprimé la
-    # bascule audio et le geste acquis à 4/4.
+    # CODE ARTEFACTS are never a repetition; falsified because without this
+    # protection the three strongest similarities of S6-C were the header, the
+    # anchor and the drift: removal would have deleted the audio switch and
+    # the gesture held 4/4.
     _ARTIFACTS = "\n\n".join([
         "Mardi 12. Ciel couvert.", "Mercredi 13. Pluie fine.",
         "« Deux assiettes mises, sans y penser. »",
@@ -1684,8 +1655,8 @@ def autotest(sheet: Path) -> int:
         failures.append("cas connu « artefacts du code » : FAUX POSITIF — "
                       "en-tête, ancre ou glissement comptés comme redite")
 
-    # LES ATTRACTEURS de la session 7 : trois runs sur quatre ont fermé sur
-    # cette famille sans une croix, à un mot près du motif attrapé.
+    # Session 7 ATTRACTORS: three runs of four closed with this family without
+    # a cross, one word away from the caught pattern.
     for _t in ("demain sera un autre jour", "demain sera une nouvelle journée",
                "demain sera une journée meilleure", "à la lumière du jour"):
         if not ATTRACTORS.search(_t):
@@ -1695,8 +1666,8 @@ def autotest(sheet: Path) -> int:
         if ATTRACTORS.search(_t):
             failures.append(f"cas connu « {_t} » : FAUX POSITIF d'attracteur")
 
-    # --- MICRO-LOT PRÉ-RÉPÉTITION (2026-08-26) ------------------------------
-    # Les trois cibles nommées par la grille remplie de la session 7.
+    # --- PRE-REPETITION MICRO-BATCH (2026-08-26) -----------------------------
+    # The three targets named by the session 7 filled grid.
     if not decision_execution_pairs(
             "Je me lève, décidée à vérifier cette erreur. "
             "Je compte les assiettes sur l'égouttoir."):
@@ -1726,17 +1697,16 @@ def autotest(sheet: Path) -> int:
     if ATTRACTORS.search("j'ai passé une bonne nuit de sommeil"):
         failures.append("cas connu « une bonne nuit de sommeil » : FAUX POSITIF")
 
-    # --- LOT ORTHOGONAL DU CHAPITRE 7 (2026-08-27) --------------------------
-    # L'image d'arme : le couperet contourné par la métaphore, relevé deux fois
-    # (session 5 et tirage 6 du ch. 7). Le lint des méta-termes ne peut pas le
-    # voir — ce n'est pas un mot d'atelier.
+    # --- ORTHOGONAL BATCH OF CHAPTER 7 (2026-08-27) --------------------------
+    # The weapon image: the cleaver dodged through metaphor, seen twice
+    # (session 5 and chapter 7 draw 6). The meta-term lint cannot see it; it
+    # is not a workshop word.
     for _t in ("le coup de couteau : je n'ai pas rêvé", "comme une lame",
                "comme un couteau", "ce n'était pas un rêve"):
         if not ATTRACTORS.search(_t):
             failures.append(f"cas connu « {_t} » : attracteur raté")
-    # Et les objets qui ne sont PAS des images : une lame de parquet, un couteau
-    # posé sur la table. Un contrôle bloquant qui confond les deux retire du
-    # récit.
+    # And the objects that are NOT images: a floorboard, a knife set down. A
+    # blocking control confusing the two removes narrative.
     for _t in ("une lame de parquet", "le couteau est sur la table",
                "j'ai rêvé de la maison"):
         if ATTRACTORS.search(_t):
@@ -1747,9 +1717,9 @@ def autotest(sheet: Path) -> int:
     if MARKS.search("l'enceinte du salon, allumée"):
         failures.append("cas connu « enceinte sans marque » : FAUX POSITIF")
 
-    # --- MÉTHODE DU MOUVEMENT (2026-08-27) ----------------------------------
-    # LA RECOPIE DU PROMPT, sur son cas connu : le tirage 6 du chapitre 7 a
-    # transcrit la consigne d'ouverture à 0,94, et rien ne le voyait.
+    # --- MOVEMENT METHOD (2026-08-27, ADR-0019) ------------------------------
+    # PROMPT COPY, against its known case: chapter 7 draw 6 transcribed the
+    # opening instruction at 0.94, and nothing saw it.
     _CONS = ("Le soir, le cahier ouvert : la phrase relue, l'écart entre ce "
              "qu'elle lit et ce dont elle se souvient, la chaise repoussée.")
     _TXT = ("Le soir, le cahier ouvert : la phrase relue, l'écart entre ce que "
@@ -1761,21 +1731,21 @@ def autotest(sheet: Path) -> int:
                          "assiette, un dîner seule.", _CONS):
         failures.append("cas connu « texte propre » : FAUX POSITIF de recopie")
 
-    # LA MACHINERIE dans un contexte servi. Le §5 du brief v2 la servait tel
-    # quel ; l'ancienne garde n'en voyait qu'un mot sur dix.
+    # MACHINERY in a served context. §5 of brief v2 served it as is; the
+    # former guard saw one word in ten.
     for _t in ("L3 exempté par la table de pilotage", "interdits bloquants",
                "possédés par le code, tamponnés en dernier"):
         if not MACHINERY.search(_t):
             failures.append(f"cas connu « {_t[:34]} » : machinerie non détectée")
-    # « la table » est un MEUBLE dans ce roman — et l'un des objets du ch. 7.
+    # « la table » is FURNITURE in this novel, and one of the chapter 7 objects.
     for _t in ("les photos sont sur la table", "la table du séjour"):
         if MACHINERY.search(_t):
             failures.append(f"cas connu « {_t} » : FAUX POSITIF de machinerie")
 
-    # L4 CONTRE LA BANQUE. Les trois glissements écrits main sont la définition
-    # du geste : L4 doit les compter conformes. La version précédente les
-    # classait tous les trois « hors champ du départ » — un vert impossible
-    # transformé en trois croix sur le geste enfin correct.
+    # L4 AGAINST THE BANK. The three hand-written drifts are the definition of
+    # the gesture: L4 must count them conforming. The previous version classed
+    # all three « hors champ du départ »: an impossible green turned into
+    # three crosses against the gesture finally correct.
     for _appr in ("Je pourrais me demander ce qui, ce soir-là",
                   "Si je savais seulement pourquoi",
                   "Il faudrait que je relise le jour où elle"):
