@@ -1,10 +1,10 @@
-"""The deterministic lint, frozen on the runs it was calibrated against.
+"""The deterministic lint, frozen against the runs it was calibrated against.
 
-``lint_style.analyse`` has no model behind it: its report on a given text is a
+``lint_style.analyse`` has no model behind it: its report for a given text is a
 pure function. Every failed run in `experiments/journal/` and the chapter 7 rehearsal
 files are run through it and the reports are compared to golden files. This is
 the falsification baseline in both directions: a detector that starts firing
-on a run it accepted, or stops firing on one it flagged, shows up here.
+for a run it accepted, or stops firing for one it flagged, shows up here.
 """
 
 from pathlib import Path

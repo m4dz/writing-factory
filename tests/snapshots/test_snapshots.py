@@ -1,6 +1,6 @@
 """The refactor invariant: served prompts and assembled chapters do not move.
 
-Each scenario runs the whole graph on the fake model at a fixed seed and is
+Each scenario runs the whole graph against the fake model at a fixed seed and is
 compared, byte for byte, to the golden files under ``tests/snapshots/<name>/``:
 
 - ``prompts.md``   every (system, user) pair served, in call order;
@@ -64,8 +64,8 @@ def test_served_prompts_and_chapter_are_frozen(scenario, fake_model, fake_chroma
 
 @pytest.mark.snapshot
 def test_ch7_structure_is_the_stage_structure(fake_model, fake_chroma, quiet_progress):
-    """Two entries the same day, anchor on the second only, fall posed by code,
-    switch on the second header, audio ending on the fall."""
+    """Two entries the same day, anchor in the second only, fall posed by code,
+    switch at the second header, audio ending with the fall."""
     sc = scenarios.all_scenarios()[0]
     final = scenarios.run(sc, fake_model)
     assert len(final["repaired"]) == 2

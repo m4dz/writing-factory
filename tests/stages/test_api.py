@@ -1,12 +1,12 @@
-"""The HTTP surface of ADR-0005, served in-process: the graph runs on the fake
-model with the machine probes and the voice replaced, runs land in a
+"""The HTTP surface of ADR-0005, served in-process: the graph runs against the
+fake model with the machine probes and the voice replaced, runs land in a
 temporary registry.
 
 Covers: mandatory payload, `202 {run_id}`, one worker with a queue, per-run
 status / events / chapter / audio / prompts, `204` before artifacts exist,
-`404` on an unknown run, `410` on the keynote's singleton routes, `409` on
-chat during generation, the whitelist on session and run identifiers, the
-traversal guard on the slides root.
+`404` for an unknown run, `410` for the keynote's singleton routes, `409` for
+chat during generation, the whitelist for session and run identifiers, the
+traversal guard at the slides root.
 """
 
 import http.client

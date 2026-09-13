@@ -96,7 +96,7 @@ def test_accumulation_validator_thresholds(sentence, last, ok, fragment):
 
 def test_short_english_accumulation_is_rejected_on_last_attempt():
     # Gap found by the safety net (plan §9), closed at step 5: the language
-    # check now runs before the last-attempt tolerance on the thresholds.
+    # check now runs before the last-attempt tolerance for the thresholds.
     ok, reason = gestures.validate_accumulation(fx.ACCUMULATION_ENGLISH, last_attempt=True,
                                              chapter=2)
     assert not ok and "langue" in reason

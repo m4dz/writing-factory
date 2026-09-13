@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
-"""Retrieval contextuel dynamique sur la bible (ChromaDB).
+"""Dynamic retrieval over the bible (ChromaDB).
 
-Le principe du projet : le contexte n'est PAS statique. À chaque scène on
-assemble un prompt système de 2-3k tokens à partir de la vérité stockée hors
-du modèle : fiches des personnages présents, lieu, scènes précédentes
-pertinentes. Le modèle n'est qu'un lecteur de cette vérité.
+Context is never static: for each scene a 2-3k-token system prompt is
+assembled from the truth stored outside the model (present characters'
+sheets, place, relevant previous scenes). The model only reads that truth.
 
-Deux stratégies combinées :
-  1. DÉTERMINISTE (par id) pour les personnages présents : on connaît le
-     patron d'id `{doc_id}::{section}`, donc on va chercher directement les
-     chunks qui comptent pour ÉCRIRE un personnage (voix, état courant,
-     psychologie) — pas de pari sémantique là où on sait déjà quoi vouloir.
-  2. SÉMANTIQUE (top-k) pour l'ambiance : lieu et scènes précédentes
-     pertinentes, retrouvés par similarité sur la requête de la scène.
+Two strategies, combined (ADR-0011):
+  1. DETERMINISTIC by id for present characters: the id pattern
+     `{doc_id}::{section}` is known, so the chunks that matter for WRITING a
+     character (voice, current state, psychology) are fetched directly.
+  2. SEMANTIC top-k for atmosphere: place and relevant previous scenes,
+     found by similarity against the scene query.
 """
 
 import os
@@ -23,80 +21,76 @@ import chromadb
 
 from factory.settings import settings
 
-# Fiche de style, servie PAR SECTIONS et lue sur disque : elle n'est jamais
-# indexée (cf. EXCLUSIONS de l'indexeur). Servie entière, elle pèse ~4 200
-# tokens sur les 8 192 de la fenêtre et pousse `FRENCH_GUARD` vers la sortie —
-# Ollama fait alors glisser la fenêtre et ampute le DÉBUT du prompt, sans une
-# erreur. Chemin : `settings.style_path`.
+# Style sheet: served BY SECTION and read from disk, never indexed (see the
+# indexer's EXCLUSIONS). Served whole it weighs ~4 200 of the 8 192-token
+# window and pushes `FRENCH_GUARD` out: Ollama then slides the window and
+# silently truncates the START of the prompt. Path: `settings.style_path`.
 
-# Ce que chaque nœud reçoit de la fiche. Les « Extraits étalons » ne sont
-# servis à AUCUN nœud : la session 3 a mesuré qu'un modèle à qui on montre un
-# étalon le recopie caractère pour caractère, dans une scène qui parle d'autre
-# chose. Ils restent artefacts d'évaluation.
-# *Lexique et registre* rejoint la liste au lot correctif de la session 5. Les
-# heures, les quantités exactes, la notation physiologique, les adjectifs rares
-# et le registre du départ y vivent — et HUIT RUNS SUR HUIT les ont manqués,
-# non pas faute de les avoir écrits dans la fiche, mais faute de les avoir
-# SERVIS. Le verdict oral de la session 4 (« la voix nulle part ») porte
-# d'abord sur ce trou de liste.
+# What each node receives from the sheet (ADR-0011). The reference excerpts
+# (« Extraits étalons ») go to NO node: session 3 measured that a model shown
+# an excerpt copies it character for character into an unrelated scene.
+# *Lexique et registre* joined the writing list in the session 5 fix batch:
+# hours, exact quantities, physiological notation, rare adjectives and the
+# opening register live there, and eight runs out of eight missed them
+# because the section was never SERVED, not because it was unwritten.
 WRITING_STYLE = ("Narration", "Lexique et registre", "Interdits")
 REVIEW_STYLE = ("Interdits", "Phrase et rythme")
 
-# La règle épistémique du roman, servie à l'écriture. Elle n'est pas une
-# section de la fiche : c'est la ligne qui décide qui a raison quand la mémoire
-# et le texte divergent, et tout le fantastique en découle.
+# The novel's epistemic rule, served at writing time. Not a style-sheet
+# section: it is the line that decides who is right when memory and text
+# diverge, and the whole fantastic register follows from it.
 EPISTEMIC_LINE = (
     "Le texte fait foi : l'entrée relue a toujours raison contre la mémoire."
 )
 
-# Chunks qui comptent pour écrire un personnage, par ordre de priorité.
-# On ne charge pas les 7 : histoire/compétences/relations gonflent le prompt
-# sans servir la rédaction immédiate d'une entrée. Les slugs suivent les
-# sections numérotées de la fiche, dont l'indexeur retire le rang.
+# Chunks that matter for writing a character, by priority. Not all 7 are
+# loaded: history/skills/relations inflate the prompt without helping the
+# immediate drafting of an entry. Slugs follow the sheet's numbered sections,
+# minus the rank the indexer strips.
 WRITING_SECTIONS = ["voix", "etat_narratif_courant", "psychologie"]
 
-# Chunks de MONDE, pour la dérivation des faits (item 3 du lot correctif).
-# `derive_facts` lisait les chunks d'écriture, dont l'état narratif — lequel
-# portait la table de pilotage. Les « faits » dérivés parlaient donc de verdict
-# imposé, de grade et de ratio : du vocabulaire de production, servi ensuite au
-# planificateur comme s'il s'agissait du monde. On dérive désormais depuis ce
-# qui décrit le monde, pas depuis ce qui pilote sa fabrication.
+# WORLD chunks, for fact derivation (session 5 fix batch, item 3).
+# `derive_facts` used to read the writing chunks, narrative state included,
+# which carried the pilot table: the derived facts spoke of imposed verdict,
+# grade and ratio, production vocabulary then served to the planner as if it
+# were world. Facts now derive from what describes the world, not from what
+# pilots its making.
 WORLD_SECTIONS = ["psychologie", "histoire", "relations"]
 
 
 def world_context(doc_id: str) -> str:
-    """Chunks de monde d'un personnage — base des faits invariants."""
+    """A character's world chunks: the base of the invariant facts."""
     ids = [f"{doc_id}::{s}" for s in WORLD_SECTIONS]
     got = _collection().get(ids=ids, include=["documents"])
     found_item = {i: d for i, d in zip(got["ids"], got["documents"])}
     return "\n\n".join(found_item[i] for i in ids if i in found_item)
 
-# Chunks qui comptent pour INCARNER un personnage (mode acteur). La liste est
-# plus large que celle d'écriture, et ce n'est pas une négligence : écrire une
-# scène n'exige pas la biographie du personnage, alors qu'un interlocuteur lui
-# posera des questions sur son passé et ses proches. Répondre « je ne sais pas »
-# à propos de sa propre histoire EST une sortie de personnage.
+# Chunks that matter for PLAYING a character (actor mode). Wider than the
+# writing list by design: writing a scene needs no biography, whereas an
+# interlocutor will ask about the character's past and relatives. Answering
+# « je ne sais pas » about one's own history IS an out-of-role slip.
 ACTING_SECTIONS = [
     "voix", "psychologie", "etat_narratif_courant",
     "histoire", "relations", "comportement",
 ]
 
-# Mémoire de conversation du mode acteur. Collection SÉPARÉE de `bible` : la
-# bible est dérivée du Markdown canonique et l'indexeur y purge les chunks
-# orphelins, ce qui effacerait une mémoire de session au premier réindexage.
-# Le sens du flux reste le même — Markdown d'abord (sessions/), index ensuite.
+# Actor-mode conversation memory lives in a collection SEPARATE from `bible`:
+# the bible is derived from canonical Markdown and the indexer purges its
+# orphan chunks, which would erase session memory at the first reindex. Same
+# flow direction as everywhere (ADR-0007): Markdown first (sessions/), index
+# second.
 
 _client = None
 
-# Journal de ROUTAGE (test d'étanchéité §5). Chaque accès à une collection y
-# laisse son nom : à la fin d'un run B, une seule valeur doit y figurer. Un
-# firewall qui repose sur « on n'interroge que la bonne collection » n'est une
-# garantie que si on peut le PROUVER après coup.
+# ROUTING journal (seal test §5). Every collection access records its name:
+# at the end of a stage B run exactly one value must appear. A firewall that
+# rests upon "only the right collection is queried" is a guarantee only if it
+# can be PROVEN afterwards.
 _ROUTING: list[str] = []
 
 
 def routing() -> list[str]:
-    """Collections réellement interrogées depuis le dernier `vider_routage`."""
+    """Collections actually queried since the last `clear_routing`."""
     return list(_ROUTING)
 
 
@@ -105,9 +99,9 @@ def clear_routing() -> None:
 
 
 def _collection(name: str | None = None):
-    """Point de passage UNIQUE vers une collection — et donc seul endroit à
-    instrumenter. Des appels dispersés à `get_collection` rendraient le
-    journal de routage incomplet sans que rien ne le signale."""
+    """The SINGLE gateway to a collection, hence the one place to instrument.
+    Scattered `get_collection` calls would leave the routing journal
+    incomplete with nothing to signal it."""
     name = name or settings.author_collection
     _ROUTING.append(name)
     return _chroma().get_collection(name)
@@ -121,7 +115,7 @@ def _chroma():
 
 
 def embed(text: str) -> list[float]:
-    """Embedding d'une requête via nomic-embed-text (même modèle que l'index)."""
+    """Embed a query with nomic-embed-text (the index's own model)."""
     import json
     import urllib.request
 
@@ -131,8 +125,8 @@ def embed(text: str) -> list[float]:
         data=payload,
         headers={"Content-Type": "application/json"},
     )
-    # Timeout large : un premier embed peut attendre le chargement du modèle
-    # d'embedding en RAM (surtout si un gros modèle auteur y est déjà chaud).
+    # Generous timeout: a first embed may wait for the embedding model to load
+    # into RAM (all the more when a large author model is already warm there).
     with urllib.request.urlopen(req, timeout=180) as resp:
         return json.loads(resp.read())["embeddings"][0]
 
@@ -141,12 +135,11 @@ _STYLE_CACHE: dict[str, str] | None = None
 
 
 def style_sections(names: tuple[str, ...]) -> str:
-    """Rend les sections nommées de la fiche de style, lues sur disque.
+    """The named sections of the style sheet, read from disk.
 
-    Sur DISQUE et non depuis Chroma : la fiche de style n'est pas de la matière
-    narrative qu'on retrouve par similarité, c'est une consigne qu'on sert
-    toujours en entier ou pas du tout. La passer par le retrieval reviendrait à
-    parier sur un embedding pour obtenir une règle qu'on connaît déjà.
+    From DISK, not from Chroma (ADR-0011): the style sheet is not narrative
+    matter found by similarity but an instruction served whole or not at
+    all. Retrieving it would bet an embedding against a rule already known.
     """
     global _STYLE_CACHE
     if _STYLE_CACHE is None:
@@ -155,7 +148,7 @@ def style_sections(names: tuple[str, ...]) -> str:
         if os.path.isfile(path):
             with open(path, encoding="utf-8") as fh:
                 text = fh.read()
-            # Le frontmatter et les commentaires HTML sont des notes d'édition.
+            # Frontmatter and HTML comments are editing notes.
             if text.startswith("---"):
                 text = text.split("---", 2)[-1]
             text = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
@@ -175,12 +168,12 @@ def style_sections(names: tuple[str, ...]) -> str:
     return "\n\n".join(blocks)
 
 
-# Les exemples Écrire / Ne pas écrire sont RETIRÉS DU SERVICE, pas de la fiche :
-# la référence reste intacte pour la relecture humaine. Motif : B′2 a écrit
-# « perplexe », qui est le contre-exemple VERBATIM de *Lexique et registre*.
-# C'est la troisième fois qu'on mesure la même chose — un exemple montré se
-# récite, quel que soit le panneau qu'on plante devant (« ne pas écrire »).
-# La règle prescriptive, elle, survit : seule l'illustration part.
+# The « Écrire / Ne pas écrire » examples are REMOVED FROM SERVICE, not from
+# the sheet, which stays intact for human review (ADR-0011). Run B′2 wrote
+# « perplexe », the VERBATIM counter-example of *Lexique et registre*: the
+# third measurement of the same fact, a shown example gets recited whatever
+# sign stands in front of it. The prescriptive rule survives; only the
+# illustration goes.
 _SERVED_EXAMPLE = re.compile(
     r"^\s*\*\*(?:Écrire|Ne pas écrire)\s*:?\*\*.*?(?=^\s*[-*]\s|^\s*\*\*|\Z)",
     re.MULTILINE | re.DOTALL)
@@ -194,21 +187,21 @@ STATE_SECTION = "etat_narratif_courant"
 
 
 def character_context(doc_id: str, chapter: int | None = None) -> str:
-    """Récupère, par id déterministe, les chunks d'écriture d'un personnage.
+    """The writing chunks of a character, fetched by deterministic id.
 
-    Retourne le texte assemblé (déjà préfixé `[doc_id / Titre]` à l'index),
-    ou une chaîne vide si le personnage n'est pas encore dans la bible.
+    Returns the assembled text (already prefixed `[doc_id / Title]` at index
+    time), or an empty string when the character is not yet in the bible.
 
-    `chapter` : l'état narratif est PAR CHAPITRE (étape 6). Le chunk
-    `{doc_id}::etat_narratif_courant::chNN`, généré par le nœud d'état
-    narratif, est servi s'il existe ; sinon la section 7 de la fiche, comme
-    avant — un chapitre dont l'état n'a pas été généré n'est pas une erreur.
+    `chapter`: narrative state is PER CHAPTER (revamp step 6). The chunk
+    `{doc_id}::etat_narratif_courant::chNN`, generated by the narrative-state
+    node, is served when it exists; otherwise section 7 of the sheet, as
+    before. A chapter whose state was never generated is not an error.
     """
     ids = [f"{doc_id}::{section}" for section in WRITING_SECTIONS]
     scoped = f"{doc_id}::{STATE_SECTION}::ch{chapter:02d}" if chapter else None
     asked = ids + ([scoped] if scoped else [])
     got = _collection().get(ids=asked, include=["documents"])
-    # Chroma renvoie les ids trouvés dans l'ordre demandé ; on filtre les absents.
+    # Chroma returns found ids in the requested order; missing ones are dropped.
     found = {i: d for i, d in zip(got["ids"], got["documents"])}
     if scoped and scoped in found:
         found[f"{doc_id}::{STATE_SECTION}"] = found[scoped]
@@ -217,16 +210,16 @@ def character_context(doc_id: str, chapter: int | None = None) -> str:
 
 
 def list_characters() -> list[dict]:
-    """Personnages disponibles dans la bible, pour peupler une interface.
+    """Characters available in the bible, to populate an interface.
 
-    Lecture par MÉTADONNÉE, sans embedding : on veut la liste exhaustive, pas
-    les plus proches d'une requête.
+    Read by METADATA, no embedding: the exhaustive list is wanted, not the
+    nearest neighbours of a query.
     """
     try:
         got = _collection().get(
             where={"type": "character"}, include=["metadatas"]
         )
-    except Exception:                      # collection absente : bible non indexée
+    except Exception:                      # no collection: bible not indexed
         return []
     seen_map: dict[str, dict] = {}
     for meta in got.get("metadatas") or []:
@@ -241,7 +234,7 @@ def list_characters() -> list[dict]:
 
 
 def acting_context(doc_id: str) -> str:
-    """Chunks nécessaires pour INCARNER un personnage (cf. ACTING_SECTIONS)."""
+    """Chunks needed to PLAY a character (see ACTING_SECTIONS)."""
     ids = [f"{doc_id}::{section}" for section in ACTING_SECTIONS]
     got = _collection().get(ids=ids, include=["documents"])
     found = {i: d for i, d in zip(got["ids"], got["documents"])}
@@ -249,10 +242,10 @@ def acting_context(doc_id: str) -> str:
 
 
 def sessions_collection():
-    """Collection de mémoire conversationnelle, créée à la demande.
+    """The conversation-memory collection, created when first needed.
 
-    `get_or_create` et non `get` : la première session d'un personnage ne peut
-    pas exiger qu'un indexeur soit passé avant elle.
+    `get_or_create`, not `get`: a character's first session cannot require an
+    indexer to have run before it.
     """
     return _chroma().get_or_create_collection(
         settings.sessions_collection, metadata={"hnsw:space": "cosine"}
@@ -260,18 +253,18 @@ def sessions_collection():
 
 
 def session_memories(doc_id: str, *, n: int = 3) -> list[str]:
-    """Résumés des dernières sessions de roleplay d'un personnage.
+    """Summaries of a character's latest roleplay sessions.
 
-    Récupérés par MÉTADONNÉE (doc_id) puis triés par horodatage décroissant, pas
-    par similarité : en début de session on ne sait pas encore de quoi on va
-    parler, donc « les plus récents » bat « les plus proches d'une requête »
-    qu'on n'a pas. Le retrieval sémantique reprend la main en cours de session.
+    Fetched by METADATA (doc_id) then sorted by descending timestamp, not by
+    similarity: at session start the topic is unknown, so "most recent" beats
+    "nearest to a query" nobody has yet. Semantic retrieval takes over during
+    the session.
     """
     try:
         got = sessions_collection().get(
             where={"doc_id": doc_id}, include=["documents", "metadatas"]
         )
-    except Exception:      # collection absente ou Chroma muet : pas de mémoire
+    except Exception:      # no collection or Chroma silent: no memory
         return []
     pairs = sorted(
         zip(got.get("metadatas") or [], got.get("documents") or []),
@@ -282,7 +275,7 @@ def session_memories(doc_id: str, *, n: int = 3) -> list[str]:
 
 
 def semantic_context(query: str, *, doc_type: str, n: int = 3) -> list[str]:
-    """Top-k chunks pertinents d'un type donné (lieu, scene) pour la requête."""
+    """Top-k relevant chunks of one type (lieu, scene) for the query."""
     results = (
         _collection()
         .query(
@@ -296,10 +289,10 @@ def semantic_context(query: str, *, doc_type: str, n: int = 3) -> list[str]:
     return docs[0]
 
 
-# Préambule de L'Involontaire. Il remplace celui d'un roman de fantasy au passé
-# simple, qui contredisait FRONTALEMENT la fiche de style — laquelle classe le
-# passé simple parmi ses interdits bloquants. Deux consignes contraires dans le
-# même prompt système ne lèvent aucune erreur : elles produisent du texte moyen.
+# Preamble of L'Involontaire. It replaced that of a fantasy novel in the passé
+# simple, which contradicted the style sheet outright (the sheet lists the passé
+# simple among its blocking interdicts). Two opposed instructions in one
+# system prompt raise no error: they produce average text.
 PREAMBLE = (
     "Tu écris le carnet de relecture d'une correctrice, à la première "
     "personne. Fantastique psychologique contemporain, passé composé et "
@@ -319,21 +312,21 @@ def assemble_system_prompt(
     epistemic: bool = True,
     chapter: int | None = None,
 ) -> str:
-    """Construit le prompt système d'une entrée.
+    """Build the system prompt of an entry.
 
-    `rag` : c'est L'UNIQUE variable qui sépare l'étage A de l'étage B de la
-        session 4. À False, aucun appel à Chroma ni au modèle d'embedding — le
-        contexte narratif se limite au brief. En faire un paramètre, plutôt
-        qu'une variable d'environnement à débrancher, est ce qui garantit que
-        les deux étages ne diffèrent que par elle.
-    `style` : sections de la fiche à servir (écriture ou relecture).
-    `include_scenes` : injecter les entrées précédentes retrouvées. À DÉSACTIVER
-        pour la rédaction : le modèle RECOPIE une entrée présente dans son
-        contexte plutôt qu'il ne s'en sert de toile de fond. La continuité est
-        assurée par le threading explicite de `write_node`.
+    `rag`: the ONE variable separating stage A from stage B of session 4. At
+        False, no call reaches Chroma or the embedding model; narrative
+        context is the brief alone. A parameter rather than an environment
+        variable to unplug: that is what guarantees the two stages differ by
+        it alone.
+    `style`: style-sheet sections to serve (writing or review).
+    `include_scenes`: inject the retrieved previous entries. OFF for drafting
+        (ADR-0011): the model COPIES an entry present in its context instead
+        of using it as backdrop. Continuity comes from the explicit threading
+        in `write_node`.
 
-    L'appel « lieu par similarité » a disparu : il n'y a qu'une maison, et
-    aucune scène hors les murs.
+    The "place by similarity" call is gone: there is one house and no scene
+    outside its walls.
     """
     parts: list[str] = [PREAMBLE]
 

@@ -1,6 +1,6 @@
 """The preflight gate, against fabricated probe results.
 
-Every blocking rule must fire on its known case and stay silent on a healthy
+Every blocking rule must fire for its known case and stay silent for a healthy
 machine; the macOS probes themselves (``sysctl``, ``vm_stat``, ``ps``, the
 Ollama HTTP calls) are replaced, not exercised.
 """

@@ -93,7 +93,7 @@ FULL_ENTRY = "\n\n".join((OPENING, RECONSTRUCTION, CLOSING))
 
 
 def accumulation(fall: str) -> str:
-    """One sentence, twelve to twenty comma-separated steps, ending on the fall.
+    """One sentence, twelve to twenty comma-separated steps, ending with the fall.
 
     Conforms to ``gestes.valider_accumulation``: at least 60 words and 6
     commas, no inner period or semicolon, under 120 words, first person or

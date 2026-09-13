@@ -4,13 +4,13 @@ Three scenarios cover every writing strategy and both plan paths:
 
 - ``ch7``: chapter 7 exactly as the API generates it (``load_chapter(7).state()``): plan
   imposed by the brief, entry 1 single call with best-of-3, entry 2 in three
-  bounded beats with best-of-3, gestures on entry 2 only, drift passage from
+  bounded beats with best-of-3, gestures for entry 2 only, drift passage from
   the brief, fall posed by code.
 - ``ch2-s7-score``: chapter 2, stage S7 scored run (``factory calibrate --stage S7``,
   run S7-1): single entry, plan short-circuited, three segments with stations,
   accumulation and drift from the bank.
 - ``ch2-s7-chapter``: same stage, the full chapter (run S7-C): three entries,
-  plan node with fact derivation and plan check, coherence on three scenes.
+  plan node with fact derivation and plan check, coherence over three scenes.
 
 Both states come from ``chapters/NN-slug/spec.yaml`` through the loader
 (step 5); the golden files were produced by the former Python constructions
@@ -52,7 +52,7 @@ def all_scenarios() -> list[Scenario]:
 
 
 def run(scenario: Scenario, fake_model) -> dict:
-    """Invoke the compiled graph on the scenario with the fake model installed."""
+    """Run the compiled graph over the scenario with the fake model installed."""
     from factory.pipeline.graph import build_graph
 
     fake_model.calls.clear()

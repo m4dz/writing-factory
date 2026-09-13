@@ -1,6 +1,6 @@
 """The narrative-state node: one generated file per chapter, indexed with its
 chapter, served in place of the sheet's section 7 — and the sheet's section
-when no state was generated, which is what the snapshot suite runs on."""
+when no state was generated, which is what the snapshot suite runs against."""
 
 from factory.chapter_spec import narrative_state as ns
 from factory.pipeline.nodes import narrative_state as node

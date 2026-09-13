@@ -1,29 +1,29 @@
 #!/usr/bin/env python3
-"""Mode ACTEUR : dialoguer avec un personnage de la bible, sans sortie de rôle.
+"""ACTOR mode: talk to a character of the bible, never out of role.
 
-Deuxième fonction du démonstrateur (la première étant le mode auteur). Même
-modèle chaud que l'écriture — on ne multiplie pas les instances, la cohérence
-vient de la mémoire externe partagée. Ce qui change, c'est le prompt système et
-la forme du contexte.
+The demonstrator's second function (the first being the author mode). Same
+warm model as the writing (ADR-0006): instances are not multiplied, coherence
+comes from the shared external memory. What changes is the system prompt and
+the shape of the context.
 
-Trois décisions structurantes :
+Three structuring decisions:
 
-1. **Le contexte d'un acteur est plus large que celui d'un auteur.** Écrire une
-   scène n'exige pas la biographie du personnage ; se faire interroger sur son
-   passé, si. Cf. `ACTING_SECTIONS` dans retrieval.py.
+1. **An actor's context is wider than an author's.** Writing a scene needs no
+   biography of the character; being questioned about one's past does. See
+   `ACTING_SECTIONS` in `factory.retrieval.context`.
 
-2. **Aucun swap de modèle pendant la session.** Le pipeline auteur décharge nemo
-   pour laisser la place à Qwen, parce qu'un swap unique se paie une fois sur
-   vingt minutes. Ici, l'utilisateur attend sa réponse : recharger 13 GB au
-   milieu d'un dialogue coûterait plus que tout le reste. Le résumé glissant est
-   donc produit par le MÊME modèle que le jeu d'acteur.
+2. **No model swap during the session.** The author pipeline unloads nemo to
+   make room for Qwen because one swap is paid once over twenty minutes. Here
+   the user waits for the reply: reloading 13 GB mid-dialogue would cost more
+   than everything else. The rolling summary is therefore produced by the
+   SAME model as the acting.
 
-3. **Mémoire à deux niveaux.** Les N derniers échanges passent en contexte
-   verbatim ; au-delà, les plus anciens sont fondus dans un résumé glissant. Le
-   résumé est écrit en Markdown sous `sessions/<personnage>/` PUIS indexé dans
-   une collection Chroma séparée — le sens du flux du projet (Markdown
-   canonique, index dérivé) vaut aussi pour la mémoire, et une réindexation de
-   la bible ne peut pas l'effacer.
+3. **Two-level memory (ADR-0014).** The last N exchanges go verbatim into the
+   context; older ones are fused into a rolling summary. The summary is
+   written as Markdown under `sessions/<personnage>/` THEN indexed into a
+   separate Chroma collection: the project's flow direction (canonical
+   Markdown, derived index, ADR-0007) holds for memory too, and a bible
+   reindex cannot erase it.
 """
 
 import re
@@ -41,16 +41,16 @@ from factory.retrieval.context import (
     sessions_collection,
 )
 
-# Sessions sur disque : `settings.sessions_dir`.
+# Sessions live at `settings.sessions_dir`.
 #
-# Échanges gardés VERBATIM en contexte (`settings.keep_turns`). Au-delà, on
-# fond dans le résumé. Six tours (douze messages) tiennent la continuité d'une
-# conversation de démo sans gonfler le prompt : le contexte de personnage pèse
-# déjà ~2k tokens.
+# Exchanges kept VERBATIM in context (`settings.keep_turns`); older ones are
+# fused into the summary. Six turns (twelve messages) hold the continuity of
+# a demo conversation without inflating the prompt: the character context
+# already weighs ~2k tokens.
 
-# Le prompt système du mode acteur. Les interdits sont explicites et NOMMÉS :
-# un modèle de 12B respecte mieux « ne dis jamais que tu es un modèle » qu'une
-# consigne générale de rester dans le personnage.
+# The actor-mode system prompt. Interdicts are explicit and NAMED: a 12B model
+# obeys « ne dis jamais que tu es un modèle » better than a general
+# instruction to stay in character.
 _ACTOR_SYS = """Tu ES {name}. Tu n'es pas un assistant, tu n'es pas un modèle de
 langue, tu n'es pas un narrateur : tu es cette personne, et tu parles à la
 première personne.
@@ -113,11 +113,10 @@ _SUMMARY_SYS = (
 )
 
 
-# Marqueurs de SORTIE DE PERSONNAGE. Un prompt ne suffit pas — mesuré : nemo a
-# répondu « je suis simplement un programme informatique conçu pour simuler des
-# conversations » à trois questions de provocation, malgré des interdits
-# explicites. Même philosophie que partout ailleurs dans ce projet : le modèle
-# est faillible, c'est le CODE qui tient la ligne.
+# OUT-OF-ROLE markers (ADR-0014). A prompt is not enough, measured: nemo
+# answered « je suis simplement un programme informatique » to three
+# provocations despite explicit interdicts. Same philosophy as everywhere in
+# this project: the model is fallible, the CODE holds the line.
 _OUT_OF_ROLE = re.compile(
     r"intelligence artificielle|\bIA\b|modèle de langue|modèle linguistique|"
     r"programme informatique|assistant virtuel|en tant qu'(?:une? )?(?:IA|"
@@ -128,24 +127,24 @@ _OUT_OF_ROLE = re.compile(
     re.I,
 )
 
-# Artefact d'imitation du prompt : le modèle recopie le tiret de dialogue de nos
-# exemples EN PLUS du sien (« — — Non, je ne peux pas »).
+# Prompt-imitation artifact: the model copies the dialogue dash of our
+# examples IN ADDITION to its own (« — — Non, je ne peux pas »).
 _DOUBLE_DASHES = re.compile(r"^\s*[—–-]\s*[—–-]\s*")
 
 
 def out_of_role(text: str) -> list[str]:
-    """Marqueurs de sortie de personnage trouvés dans une réplique."""
+    """Out-of-role markers found in a reply."""
     return sorted({m.group(0).lower() for m in _OUT_OF_ROLE.finditer(text)})
 
 
 def _clean(text: str, name: str = "") -> str:
-    """Retire les artefacts de forme d'une réplique.
+    """Strip formal artifacts from a reply.
 
-    Deux constatés à l'usage : le tiret de dialogue doublé (le modèle recopie
-    celui de nos exemples en plus du sien), et la RÉPLIQUE PRÉFIXÉE DE SON
-    PROPRE NOM (« Kael : Ah, ma chère… »), qui vient de l'habitude des corpus de
-    dialogue. Ce préfixe est invisible dans un chat, mais il ressort dans la
-    transcription rejouée sur scène, où le nom apparaît alors deux fois.
+    Two seen in use: the doubled dialogue dash (the model copies the one of
+    our examples in addition to its own), and the REPLY PREFIXED WITH ITS OWN
+    NAME (« Kael : Ah, ma chère… »), a habit of dialogue corpora. The prefix
+    is invisible in a chat but shows in the transcript replayed onstage,
+    where the name then appears twice.
     """
     text = _DOUBLE_DASHES.sub("— ", text.strip())
     if name:
@@ -155,19 +154,19 @@ def _clean(text: str, name: str = "") -> str:
 
 
 def _slug(text: str) -> str:
-    """Slug ASCII pour un nom de fichier ou un id de chunk."""
+    """ASCII slug for a file name or a chunk id."""
     flat = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
     return re.sub(r"[^a-z0-9]+", "-", flat.lower()).strip("-")
 
 
 def build_system(doc_id: str, *, name: str | None = None,
                  reminders: list[str] | None = None) -> str:
-    """Assemble le prompt système d'incarnation depuis la bible.
+    """Assemble the embodiment system prompt from the bible.
 
-    `rappels` : résumés de sessions antérieures, injectés comme des SOUVENIRS du
-    personnage. Ils sont présentés à part de la fiche : la fiche est la vérité
-    durable, le souvenir est daté et révisable — les mélanger inviterait le
-    modèle à traiter un épisode de conversation comme un fait de la bible.
+    `reminders`: summaries of earlier sessions, injected as the character's
+    MEMORIES. They are shown apart from the sheet: the sheet is durable truth,
+    a memory is dated and revisable. Mixing them would invite the model to
+    treat a conversation episode as a bible fact.
     """
     sheet = acting_context(doc_id)
     if not sheet:
@@ -188,7 +187,7 @@ def build_system(doc_id: str, *, name: str | None = None,
 
 
 def list_sessions(doc_id: str | None = None) -> list[dict]:
-    """Sessions enregistrées sur disque, les plus récentes d'abord."""
+    """Sessions recorded to disk, most recent first."""
     root = settings.sessions_dir / doc_id if doc_id else settings.sessions_dir
     if not root.exists():
         return []
@@ -205,11 +204,11 @@ def list_sessions(doc_id: str | None = None) -> list[dict]:
 
 
 def read_session(doc_id: str, timestamp: str) -> dict:
-    """Relit une session enregistrée : métadonnées, résumé, transcription.
+    """Re-read a recorded session: metadata, summary, transcript.
 
-    Le parseur est volontairement tolérant : ces fichiers sont faits pour être
-    ÉDITÉS À LA MAIN avant la scène (élaguer une réplique ratée, resserrer un
-    échange). Un format qui casserait à la première retouche manquerait son but.
+    The parser is deliberately tolerant: these files are meant to be EDITED
+    BY HAND before the stage (prune a failed line, tighten an exchange). A
+    format that broke at the first touch would miss its purpose.
     """
     path = settings.sessions_dir / doc_id / f"{timestamp}.md"
     if not path.exists():
@@ -245,12 +244,12 @@ def read_session(doc_id: str, timestamp: str) -> dict:
 
 
 class Session:
-    """Une conversation avec un personnage, mémoire à deux niveaux comprise.
+    """A conversation with a character, two-level memory included.
 
-    Volontairement sans état caché côté modèle : tout ce que le modèle voit est
-    reconstruit à chaque tour depuis la bible, le résumé et les N derniers
-    échanges. C'est la thèse du projet appliquée au dialogue — le modèle est un
-    lecteur d'une vérité stockée hors de lui, jamais son dépositaire.
+    Deliberately no hidden state model-side: everything the model sees is
+    rebuilt each turn from the bible, the summary and the last N exchanges.
+    The project's thesis applied to dialogue: the model reads a truth stored
+    outside it, never keeps it.
     """
 
     def __init__(self, doc_id: str, *, name: str | None = None,
@@ -258,26 +257,26 @@ class Session:
         self.doc_id = doc_id
         self.name = name or doc_id.split("-")[0].capitalize()
         self.keep_turns = settings.keep_turns if keep_turns is None else keep_turns
-        self.turns: list[dict] = []       # échanges verbatim (role/content)
-        self.summary: str = ""             # résumé glissant des échanges sortis
+        self.turns: list[dict] = []       # verbatim exchanges (role/content)
+        self.summary: str = ""             # rolling summary of evicted exchanges
         self.metrics: list[dict] = []
-        self.warnings: list[str] = []     # sorties de rôle, fuites de langue
-        # Transcription INTÉGRALE, distincte de `turns`. `turns` est la mémoire
-        # de travail du modèle : le résumé glissant y fond les échanges anciens
-        # puis les retire, ce qui est juste pour un acteur (il se souvient de ce
-        # qui s'est joué, pas des mots exacts) mais détruit la trace. Or c'est
-        # cette trace qu'on rejoue sur scène — les sessions sont pré-générées.
+        self.warnings: list[str] = []     # out-of-role slips, language leaks
+        # FULL transcript, distinct from `turns`. `turns` is the model's
+        # working memory: the rolling summary fuses old exchanges into it and
+        # drops them, right for an actor (who remembers what was played, not
+        # the exact words) but destructive for the trace. That trace is what
+        # gets replayed onstage: sessions are pre-generated (ADR-0014).
         self.transcript: list[dict] = []
         self.reminders = session_memories(doc_id) if remind else []
         self.start = datetime.now(timezone.utc)
-        # Valider la fiche À LA CONSTRUCTION, pas au premier tour. Sans ça
-        # l'absence de personnage ne se voyait qu'après le premier message :
-        # côté CLI le `except ValueError` de chat_character.py ne se déclenchait
-        # jamais, et côté HTTP un personnage inconnu rendait 503 (« la machine
-        # a un problème ») au lieu de 404 (« ce personnage n'existe pas »).
+        # Validate the sheet AT CONSTRUCTION, not at the first turn. Otherwise
+        # a missing character only showed after the first message: the CLI's
+        # `except ValueError` (factory.roleplay.cli) never fired, and over HTTP
+        # an unknown character returned 503 ("the machine has a problem")
+        # instead of 404 ("no such character").
         build_system(doc_id, name=self.name, reminders=self.reminders)
 
-    # --- contexte ------------------------------------------------------------
+    # --- context -------------------------------------------------------------
 
     def _system(self) -> str:
         system = build_system(self.doc_id, name=self.name, reminders=self.reminders)
@@ -288,23 +287,23 @@ class Session:
             )
         return system
 
-    # --- tour de parole ------------------------------------------------------
+    # --- speaking turn -------------------------------------------------------
 
     def say(self, question: str, *, temperature: float = 0.85) -> str:
-        """Un tour : la réplique du personnage à `question`.
+        """One turn: the character's reply to `question`.
 
-        Une sortie de personnage déclenche UNE reprise, avec la faute citée au
-        modèle. Si la reprise échoue aussi, la réplique est rendue mais marquée :
-        elle n'entrera pas dans la mémoire de session, sinon l'aveu (« je suis un
-        programme informatique ») deviendrait un souvenir du personnage et
-        empoisonnerait toutes les sessions suivantes. Mesuré au premier test.
+        An out-of-role slip triggers ONE retry, with the fault quoted to the
+        model. If the retry fails too, the reply is returned but flagged and
+        kept out of session memory: otherwise « je suis un programme
+        informatique » would become a memory of the character and poison
+        every later session. Measured at the first test (ADR-0014).
         """
         self.turns.append({"role": "user", "content": question})
         self.transcript.append({"role": "user", "texte": question})
-        # num_predict serré : la consigne demande deux à six phrases, et un
-        # plafond bas est une contrainte plus efficace qu'une prière dans le
-        # prompt. Le mode acteur n'a pas besoin du filet de continuation du mode
-        # auteur — une réplique coupée se relance d'un mot, une scène non.
+        # Tight num_predict: the instruction asks for two to six sentences, and
+        # a low cap constrains better than a plea in the prompt. Actor mode
+        # needs no continuation net like the author mode: a cut reply restarts
+        # with a word, a scene does not.
         text, m = chat_turns(self._system(), self._trimmed_turns(),
                               temperature=temperature, num_predict=320)
         self.metrics.append(m)
@@ -331,10 +330,9 @@ class Session:
         if leaks:
             self.warnings.append(f"tour {len(self.metrics)}: {'; '.join(leaks)}")
 
-        # La transcription enregistre ce qui a RÉELLEMENT été dit, y compris une
-        # réplique fautive : elle sert à relire et à élaguer à la main avant la
-        # scène, pas à nourrir le modèle. Le drapeau permet de la repérer d'un
-        # coup d'œil dans le Markdown.
+        # The transcript records what was ACTUALLY said, faulty reply included:
+        # it serves re-reading and hand pruning before the stage, not feeding
+        # the model. The flag makes it visible at a glance in the Markdown.
         self.transcript.append({
             "role": "assistant", "texte": text,
             **({"hors_role": True} if faults else {}),
@@ -345,8 +343,8 @@ class Session:
                 f"tour {len(self.metrics)} : SORTIE DE PERSONNAGE persistante "
                 f"({', '.join(faults)}) — réplique exclue de la mémoire"
             )
-            # L'échange fautif reste visible à l'écran mais ne pollue ni la
-            # fenêtre de contexte des tours suivants ni le résumé.
+            # The faulty exchange stays visible onscreen but pollutes neither
+            # the context window of later turns nor the summary.
             self.turns.pop()
             return text
 
@@ -355,15 +353,15 @@ class Session:
         return text
 
     def _trimmed_turns(self) -> list[dict]:
-        """Les 2 × keep_turns derniers messages (un tour = question + réponse)."""
+        """The last 2 × keep_turns messages (one turn = question + reply)."""
         return self.turns[-2 * self.keep_turns:]
 
     def _roll(self) -> None:
-        """Fond les échanges sortis de la fenêtre dans le résumé glissant.
+        """Fuse the exchanges that left the window into the rolling summary.
 
-        Appelé après chaque tour, ne travaille que lorsque la fenêtre débordera
-        au tour suivant : résumer coûte un appel au modèle, autant ne le payer
-        qu'une fois par tranche.
+        Called after every turn, works only when the window would overflow at
+        the next turn: summarising costs a model call, so pay it once per
+        slice.
         """
         surplus = len(self.turns) - 2 * self.keep_turns
         if surplus < 2:
@@ -384,20 +382,20 @@ class Session:
         self.summary = text.strip()
         self.turns = self.turns[surplus:]
 
-    # --- persistance ---------------------------------------------------------
+    # --- persistence ---------------------------------------------------------
 
     def close(self, *, indexer: bool = True) -> Path | None:
-        """Écrit la mémoire de session en Markdown, puis l'indexe.
+        """Write the session memory as Markdown, then index it.
 
-        Retourne le chemin du fichier, ou None si la session est trop courte pour
-        valoir un souvenir. L'ordre compte : le Markdown est écrit d'ABORD, il
-        est la source ; l'index n'en est qu'une projection.
+        Returns the file path, or None when the session is too short to be
+        worth a memory. Order matters (ADR-0007): the Markdown is written
+        FIRST, it is the source; the index is only a projection of it.
         """
         if len(self.turns) < 2 and not self.summary:
             return None
 
-        # Ce qui n'a pas encore été fondu doit l'être avant de fermer, sinon la
-        # fin de conversation — souvent la plus chargée — serait perdue.
+        # Whatever is not yet fused must be before closing, or the end of the
+        # conversation, often the densest part, would be lost.
         guard = self.keep_turns
         self.keep_turns = 0
         self._roll()
@@ -427,11 +425,11 @@ class Session:
         return path
 
     def _transcript_md(self) -> str:
-        """Échanges verbatim, dans un format relisible ET éditable à la main.
+        """Verbatim exchanges, in a format readable AND hand-editable.
 
-        Une réplique se supprime en effaçant son paragraphe ; rien d'autre à
-        maintenir cohérent. C'est le format qui décide si le contenu de démo est
-        curable, et il doit rester du Markdown que l'œil lit.
+        A line is removed by deleting its paragraph; nothing else to keep
+        consistent. The format decides whether demo content is curable, and
+        it must stay Markdown the eye reads.
         """
         lines = []
         for turn in self.transcript:
@@ -441,10 +439,10 @@ class Session:
         return "\n\n".join(lines)
 
     def index(self, path: Path, timestamp: str) -> None:
-        """Indexe un souvenir de session dans la collection `sessions`.
+        """Index a session memory into the `sessions` collection.
 
-        Même convention que l'indexeur de la bible : id déterministe, document
-        préfixé de son origine, métadonnées scalaires uniquement.
+        Same convention as the bible indexer: deterministic id, document
+        prefixed with its origin, scalar metadata only.
         """
         doc = (
             f"[{self.doc_id} / souvenir de session {timestamp}]\n{self.summary}"

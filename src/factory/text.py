@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
-"""Lint de style FR — LOCAL, pas de dépendance cloud.
+"""French style lint, LOCAL, no cloud dependency.
 
-Rôle : garde française (consigne prompt) + post-filtre déterministe des
-fuites de langue et tokens corrompus que le modèle laisse passer.
+Role: the French guard (prompt instruction) plus a deterministic post-filter
+for the language leaks and corrupted tokens the model lets through.
 
-Ce module est le point d'ancrage prévu pour le ruleset `style-writing-guide-FR` :
-aujourd'hui une map franglais minimale + détecteurs ; demain, les règles du
-guide (mots bannis, clichés, registre) viennent l'enrichir. Il reste LOCAL —
-c'est la thèse du projet, la fabrique ne sort jamais de la machine.
+This module is the intended anchor for the `style-writing-guide-FR` ruleset:
+today a minimal franglais map plus detectors; later the guide's rules (banned
+words, clichés, register) extend it. It stays LOCAL: the project's thesis,
+the factory never leaves the machine.
 """
 
 import re
 
-# Consigne système anti-code-switching. Source unique (importée par llm.py).
+# Anti-code-switching system instruction; single source (factory.infra.ollama).
 FRENCH_GUARD = (
     "IMPÉRATIF ABSOLU : tu écris EXCLUSIVEMENT en français. Aucun mot, "
     "aucune expression dans une autre langue, jamais, même par accident."
 )
 
-# Remplacements franglais 1:1 sûrs — mots que nemo laisse fuir de façon
-# récurrente (« suddenly » en tête). Remplacement déterministe, instantané.
+# Safe 1:1 franglais replacements: words nemo leaks recurrently (« suddenly »
+# first). Deterministic, instant replacement.
 _FRANGLAIS = {
     r"\bSuddenly\b": "Soudain",
     r"\bsuddenly\b": "soudain",
@@ -31,57 +31,55 @@ _FRANGLAIS = {
     r"\bindeed\b": "en effet",
 }
 
-# Mots anglais isolés à SIGNALER (remplacement auto non sûr en contexte).
+# Isolated English words to FLAG (auto-replacement unsafe in context).
 _SUSPECT_EN = re.compile(
     r"\b(the|and|with|of|from|which|before|after|dread|reveals?|"
     r"revealing|whisper(?:ed|s)?)\b",
     re.I,
 )
 
-# Tokens corrompus type « nousWantons » : minuscule (ASCII ou accentuée)
-# suivie d'une majuscule ASCII en milieu de mot (mash-up de tokens).
-# NB : la majuscule est bornée à A-Z (ASCII) pour ne PAS confondre les
-# minuscules accentuées (é, è, à...) avec des capitales — piège des plages
-# Unicode où « À-Ÿ » englobe les accents minuscules.
+# Corrupted tokens like « nousWantons »: a lowercase letter (ASCII or accented)
+# followed by an ASCII uppercase mid-word (token mash-up).
+# NB: the uppercase is bounded to A-Z (ASCII) so that accented lowercase
+# letters (é, è, à...) are NOT taken for capitals; the Unicode range « À-Ÿ »
+# swallows lowercase accents.
 _GARBAGE = re.compile(r"\b\w*[a-zà-ÿ][A-Z]\w*\b")
 
 
-# Fin de phrase française. Le guillemet fermant peut suivre la ponctuation
-# APRÈS une espace — c'est la typographie française (« Va-t'en. » et non
-# « Va-t'en.»), et l'oublier faisait classer un dialogue correctement terminé
-# comme une phrase en cours.
+# French sentence end. The closing guillemet may follow the punctuation AFTER
+# a space, French typography (« Va-t'en. » rather than « Va-t'en.»); forgetting
+# it classed a correctly closed dialogue as a sentence in progress.
 _SENTENCE_END = re.compile(r"[.!?…](?:\s*[»\"'])?\s*$")
 _FINAL_PUNCTUATION = re.compile(r"[.!?…](?:\s*[»\"'])?(?=\s|$)")
 
 
 def sentence_ends(text: str) -> list[int]:
-    """Positions (fin exclusive) de chaque phrase complète du texte.
+    """Positions (exclusive end) of every complete sentence in the text.
 
-    Sert au placement du marqueur de bascule et au bornage de l'extrait audio.
-    Même détection que `trim_to_sentence` — une seule définition de « fin de
-    phrase » dans le projet, sinon le marqueur et la coupe ne tomberaient pas
-    aux mêmes endroits.
+    Used to place the switch marker and to bound the audio excerpt. Same
+    detection as `trim_to_sentence`: one definition of "sentence end" in the
+    project, or the marker and the cut would not fall at the same places.
     """
     return [m.end() for m in _FINAL_PUNCTUATION.finditer(text)]
 
 
 def ends_mid_sentence(text: str) -> bool:
-    """Vrai si le texte s'arrête en plein milieu d'une phrase.
+    """True when the text stops mid-sentence.
 
-    Signature d'une génération coupée par `num_predict` : Ollama rend le texte
-    tel quel, sans marqueur autre que `done_reason: "length"`.
+    Signature of a generation cut by `num_predict`: Ollama returns the text
+    as is, with no marker other than `done_reason: "length"`.
     """
     return not _SENTENCE_END.search(text.rstrip())
 
 
 def trim_to_sentence(text: str) -> str:
-    """Coupe à la dernière phrase complète — filet de dernier recours.
+    """Cut at the last complete sentence: the net of last resort.
 
-    Utilisé seulement quand une continuation n'a pas suffi : mieux vaut une
-    scène qui s'arrête un peu tôt qu'un mot coupé en deux. Le texte est rendu
-    INCHANGÉ si la coupe emporterait plus d'un quart du texte (cas pathologique
-    d'un passage sans aucune ponctuation finale) : ce filet ne doit jamais
-    détruire plus qu'il ne répare.
+    Used only when a continuation was not enough: a scene ending a little
+    early beats a word cut in two. The text is returned UNCHANGED when the cut
+    would remove more than a quarter of it (pathological case of a passage
+    with no final punctuation): this net must never destroy more than it
+    repairs.
     """
     t = text.rstrip()
     if not ends_mid_sentence(t):
@@ -94,20 +92,20 @@ def trim_to_sentence(text: str) -> str:
 
 
 def delint(text: str) -> tuple[str, list[str]]:
-    """Nettoie les fuites 1:1 et retourne (texte_corrigé, avertissements).
+    """Clean the 1:1 leaks and return (corrected_text, warnings).
 
-    Les avertissements listent ce que le filtre déterministe ne peut pas
-    corriger seul (mots anglais résiduels, tokens corrompus) : c'est le signal
-    pour la passe stylistique nemo, ou pour l'humain.
+    The warnings list what the deterministic filter cannot fix alone
+    (residual English words, corrupted tokens): the signal for the nemo style
+    pass, or for the human.
     """
     warnings: list[str] = []
     for pattern, repl in _FRANGLAIS.items():
         text = re.sub(pattern, repl, text)
 
-    # Collage « j'aiallumé » : « j'ai » soudé à son participe, tout en
-    # minuscules — invisible pour `_GARBAGE` (qui cherche une majuscule ASCII).
-    # On sépare sur une liste de participes : sûr, aucune collision avec
-    # « j'aime » / « j'aie ». Récurrent dans l'accumulation (« j'ai X, j'ai Y »).
+    # Glued « j'aiallumé »: « j'ai » welded to its participle, all lowercase,
+    # invisible to `_GARBAGE` (which looks for an ASCII capital). Split against
+    # a list of participles: safe, no collision with « j'aime » / « j'aie ».
+    # Recurrent in the accumulation (« j'ai X, j'ai Y »).
     text = re.sub(
         r"\bj'ai(allumé|éteint|mangé|sorti|mis|ouvert|regardé|préparé|rangé"
         r"|débarrassé|fait|pris|accroché|enlevé|commencé|essuyé|vérifié|dansé"

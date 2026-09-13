@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Mode ACTEUR en ligne de commande : parler à un personnage de la bible.
+"""Actor mode at the command line: talk to a character of the bible.
 
-    python chat_character.py --character judith
-    python chat_character.py --character judith --nom Judith --no-memoire
+    factory chat --character judith
+    factory chat --character judith --nom Judith --no-memoire
 
-Commandes en session : `/quit` termine et écrit le souvenir, `/oubli` termine
-sans rien écrire, `/etat` affiche le résumé glissant et le coût des tours.
+In-session commands: `/quit` ends and writes the memory, `/oubli` ends
+without writing, `/etat` prints the rolling summary and the cost of the turns.
 
-Le préflight n'est PAS appelé ici, contrairement au mode auteur : une
-conversation se surveille en direct et s'interrompt d'un Ctrl-C, là où un
-chapitre tourne vingt minutes sans témoin. En revanche le modèle est le même,
-donc une session lancée juste après un chapitre trouvera nemo déjà chaud.
+Preflight is NOT run here, unlike the author mode: a conversation is watched
+live and stopped with Ctrl-C, where a chapter runs twenty minutes unattended.
+The model is the same (ADR-0006), so a session started right after a chapter
+finds nemo already warm.
 """
 
 import argparse

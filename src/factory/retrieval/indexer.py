@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Indexeur de la bible monde.
+"""Indexer of the world bible.
 
-Lit les fichiers Markdown de la bible, découpe chaque fiche en chunks
-(un chunk par section `## `), génère les embeddings via nomic-embed-text
-sur Ollama, et pousse le tout dans ChromaDB.
+Reads the bible's Markdown files, splits each sheet into chunks (one per
+`## ` section), embeds them with nomic-embed-text through Ollama and pushes
+everything into ChromaDB.
 
-Idempotent : les IDs de chunks sont déterministes ({id}::{section}),
-un re-run met à jour les chunks modifiés et purge les chunks disparus.
+Idempotent (ADR-0007): chunk ids are deterministic ({id}::{section}); a
+re-run updates changed chunks and purges vanished ones.
 """
 
 import re
@@ -25,69 +25,60 @@ from factory.settings import settings
 # fixture tree; everything else is read from `settings` at call time.
 BIBLE_DIR = settings.bible_dir
 
-# --- Firewall ----------------------------------------------------------------
+# --- Firewall (ADR-0017) -----------------------------------------------------
 #
-# L'Involontaire se lit en deux couches : une vérité de surface, que le modèle
-# auteur a le droit de connaître, et une vérité profonde qui ne doit JAMAIS
-# l'atteindre. Le cloisonnement n'est pas une précaution de principe : la
-# nouvelle ne tient que si le modèle ignore ce que le lecteur ignore.
-#
-# Trois barrières, du gros grain au fin :
-#   1. des répertoires entiers jamais lus (ci-dessous) ;
-#   2. dans un fichier mixte, seuls les blocs de couche autorisés ;
-#   3. dans un fichier de personnage, seules les sections numérotées.
-# Chacune est indépendante — c'est voulu : une barrière qui tombe ne doit pas
-# emporter les autres.
+# L'Involontaire reads in two layers: a surface truth the author model may
+# know, and a deep truth it must NEVER reach. Three independent barriers,
+# coarse to fine: whole directories never read (below), allowed layer blocks
+# only in a mixed file, numbered sections only in a character sheet. One
+# barrier falling must not take the others down.
 
-# Répertoires et fichiers jamais indexés côté auteur, quel que soit leur contenu.
+# Directories and files never indexed for the author, whatever they contain.
 EXCLUSIONS = (
-    "profond/",          # chronologie en partie double, fiches Romane/thérapeute…
-    "style-auteur.md",   # servi par sections à la génération, jamais récupéré
+    "profond/",          # double-entry chronology, Romane/therapist sheets…
+    "style-auteur.md",   # served by section at generation, never retrieved
 )
 
-# Couches admises dans un fichier mixte. `[PROFOND]` n'est jamais lu — pas même
-# chargé en mémoire pour être filtré plus tard.
-# [GABARIT] et [VALEURS] SORTENT du périmètre servi au lot correctif de la
-# session 5 (item 2) : ils portent la langue de production — régime, grade,
-# ratio, chaleur — et l'étage B a écrit des formulaires parce qu'on lui servait
-# des tableaux. Ils restent dans la fiche, où ils sont la SOURCE du générateur
-# `build_etat_narratif.py` ; c'est sa traduction diégétique, en [SURFACE], qui
-# est désormais indexée à leur place.
+# Layers admitted in a mixed file. `[PROFOND]` is never read, not even loaded
+# to be filtered later.
+# [GABARIT] and [VALEURS] LEFT the served perimeter in the session 5 fix batch
+# (item 2): they carry production language (régime, grade, ratio, chaleur) and
+# stage B wrote forms because it was served tables. They stay in the sheet as
+# the SOURCE of `factory.chapter_spec.narrative_state`, whose diegetic
+# translation, in [SURFACE], is indexed in their place.
 ALLOWED_LAYERS = ("SURFACE",)
 LAYER_BLOCK = re.compile(r"^###\s*\[([A-ZÉ]+)[^\]]*\]\s*$", re.MULTILINE)
 
-# La même convention à crochets sert AU NIVEAU SECTION : `objets.md` marque
-# ainsi `## [RÉSERVÉS — chapitre 7, ne jamais mentionner…]`, qui liste le
-# quatuor (photos, playlist, plat, couverts). Ces objets sont précisément ceux
-# que la grille linte comme interdits hors du chapitre 7 : les indexer
-# reviendrait à pouvoir servir à une génération de chapitre 2 la liste de ce
-# qu'elle n'a pas le droit d'écrire, et la session 3 a mesuré qu'un modèle à
-# qui l'on montre une matière s'en sert. On réutilise la règle des couches
-# plutôt que d'entretenir une liste de titres interdits.
+# The same bracket convention works AT SECTION LEVEL: `objets.md` marks
+# `## [RÉSERVÉS — chapitre 7, ne jamais mentionner…]`, which lists the quartet
+# (photos, playlist, dish, cutlery). Those are exactly the objects the grid
+# lints as forbidden outside chapter 7: indexing them could serve a chapter 2
+# generation the list of what it may not write, and session 3 measured that a
+# model shown matter uses it. Reusing the layer rule beats maintaining a list
+# of forbidden titles.
 LAYER_SECTION = re.compile(r"^\s*\[([A-ZÉ]+)[^\]]*\]\s*$")
 
-# Une fiche de personnage annonce ses chunks par une section NUMÉROTÉE
-# (« ## 1. Voix »). Les sections non numérotées sont des notes de travail —
-# celle de la fiche Judith cite la chronologie firewallée. Règle déterministe :
-# elle ne dépend d'aucune liste de titres à maintenir.
+# A character sheet announces its chunks with a NUMBERED section
+# (« ## 1. Voix »). Unnumbered sections are working notes: Judith's cites the
+# firewalled chronology. Deterministic rule, no title list to maintain.
 NUMBERED_SECTION = re.compile(r"^\s*(\d+)\.\s+(.+)$")
 
-# Clés de métadonnées recopiées dans Chroma. LISTE BLANCHE, et non liste noire :
-# le frontmatter de `verite-de-surface.md` porte un `depends_on` qui NOMME la
-# chronologie firewallée. Une liste noire laisserait passer la prochaine clé
-# qu'on ajoutera sans y penser.
+# Metadata keys copied into Chroma. A WHITELIST, not a blacklist: the
+# frontmatter of `verite-de-surface.md` carries a `depends_on` that NAMES the
+# firewalled chronology. A blacklist would let the next thoughtlessly added
+# key through.
 ALLOWED_METADATA = ("doc_id", "type", "layer", "version", "section",
                        "source_file", "nom", "chapter")
 
-# TRADUCTION DES NOMS À L'INDEXATION (item 8, session 5). Le prénom reste dans
-# la bible — c'est du canon — mais il disparaît du contexte de génération : au
-# run BC de la session 4, le modèle a ÉCRIT « Judith » dans la prose, alors que
-# la règle du roman réserve ce prénom au chapitre 8, où il doit être le premier
-# et l'unique nom propre du texte.
+# NAME TRANSLATION AT INDEX TIME (session 5, item 8; ADR-0017). The first
+# name stays in the bible, it is canon, but leaves the generation context: in
+# run BC of session 4 the model WROTE « Judith » in the prose, while the novel
+# reserves that name for chapter 8, where it must be the first and only proper
+# noun of the text.
 #
-# L'ordre des règles compte : le LABEL de chunk (`[fiche-judith / Voix]`) est
-# servi au modèle au même titre que le corps. Le traduire d'abord évite qu'il
-# ne devienne « fiche-la narratrice ».
+# Rule order matters: the chunk LABEL (`[fiche-judith / Voix]`) is served to
+# the model like the body. Translating it first keeps it from becoming
+# « fiche-la narratrice ».
 NAME_TRANSLATION = (
     (re.compile(r"\bfiche-judith\b", re.IGNORECASE), "fiche-narratrice"),
     (re.compile(r"\bJudith\b"), "la narratrice"),
@@ -96,12 +87,12 @@ NAME_TRANSLATION = (
 
 
 def translate_names(text: str) -> str:
-    """Remplace les prénoms canoniques par leur désignation neutre."""
+    """Replace canonical first names with their neutral designation."""
     for pattern, replacement in NAME_TRANSLATION:
         text = pattern.sub(replacement, text)
     return text
 
-# --- Utilitaires -------------------------------------------------------------
+# --- Utilities ---------------------------------------------------------------
 
 HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 
@@ -115,10 +106,10 @@ def slugify(text: str) -> str:
 
 
 def split_sections(body: str) -> list[tuple[str, str]]:
-    """Découpe le corps Markdown en (titre_de_section, contenu).
+    """Split a Markdown body into (section_title, content).
 
-    Tout ce qui précède le premier `## ` est rattaché à une section
-    `_preambule` (le titre `# Nom` de la fiche, typiquement).
+    Everything before the first `## ` goes to a `_preambule` section
+    (typically the sheet's `# Nom` title).
     """
     sections: list[tuple[str, str]] = []
     current_title = "_preambule"
@@ -151,23 +142,23 @@ def source_label(path: Path) -> str:
 
 
 def excluded(path: Path) -> bool:
-    """Vrai si le fichier ne doit jamais atteindre la collection auteur."""
+    """True when the file must never reach the author collection."""
     relative = str(path.relative_to(BIBLE_DIR))
     return any(pattern in relative for pattern in EXCLUSIONS)
 
 
 def filter_layers(content: str) -> str:
-    """Ne garde que le CORPS des blocs de couche autorisés.
+    """Keep only the BODY of allowed layer blocks.
 
-    Deux détails qui ont l'air cosmétiques et ne le sont pas :
+    Two details that look cosmetic and are not:
 
-    - la ligne de titre du bloc est retirée avec le reste. `[GABARIT — seul
-      chunk mutable : régénéré depuis LA PARTIE DOUBLE entre chaque chapitre]`
-      est une consigne adressée à l'humain, et elle nomme un document
-      firewallé. L'indexer reviendrait à publier le nom de ce qu'on cache.
-    - un fichier SANS marqueur de couche passe intact. Tous les fichiers de
-      surface ne sont pas mixtes, et exiger le balisage partout ferait
-      disparaître `objets.md` de l'index sans que personne ne s'en aperçoive.
+    - the block's title line goes with the rest: the `[GABARIT — …]` title is
+      addressed to the human and names a firewalled document (the
+      double-entry chronology). Indexing it would publish the name of what is
+      hidden.
+    - a file WITHOUT layer markers passes intact. Not every surface file is
+      mixed, and requiring markup everywhere would drop `objets.md` from the
+      index with nobody noticing.
     """
     marks = list(LAYER_BLOCK.finditer(content))
     if not marks:
@@ -175,8 +166,8 @@ def filter_layers(content: str) -> str:
 
     pieces = []
     bounds = [m.start() for m in marks] + [len(content)]
-    # Ce qui précède le premier marqueur appartient à la section, pas à une
-    # couche : on le garde (chapeau de section, le cas échéant).
+    # What precedes the first marker belongs to the section, not to a layer:
+    # keep it (a section lead, when there is one).
     if marks[0].start() > 0:
         pieces.append(content[: marks[0].start()])
     for mark, end in zip(marks, bounds[1:]):
@@ -186,15 +177,15 @@ def filter_layers(content: str) -> str:
 
 
 def clean_for_embedding(text: str) -> str:
-    """Retire les commentaires HTML (instructions pour l'humain,
-    pas pour le retrieval) et compacte les lignes vides."""
+    """Strip HTML comments (instructions for the human, not for retrieval)
+    and collapse blank lines."""
     text = HTML_COMMENT.sub("", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
 
 def embed(client: httpx.Client, texts: list[str]) -> list[list[float]]:
-    """Embeddings par lot via l'API Ollama /api/embed."""
+    """Batch embeddings through the Ollama /api/embed endpoint."""
     resp = client.post(
         f"{settings.ollama_url}/api/embed",
         json={"model": settings.embed_model, "input": texts},
@@ -205,11 +196,11 @@ def embed(client: httpx.Client, texts: list[str]) -> list[list[float]]:
 
 
 def scalar_metadata(meta: dict) -> dict:
-    """ChromaDB n'accepte que des métadonnées scalaires :
-    les listes (tags, relations) sont sérialisées en CSV.
+    """ChromaDB accepts scalar metadata only: lists (tags, relations) are
+    serialised as CSV.
 
-    Filtre par LISTE BLANCHE avant conversion : le frontmatter est exclu du
-    texte indexé, mais il finissait quand même dans l'index par cette porte.
+    WHITELIST filter before conversion: the frontmatter is excluded from the
+    indexed text, yet it used to reach the index through this door.
     """
     out = {}
     for key, value in meta.items():
@@ -224,16 +215,16 @@ def scalar_metadata(meta: dict) -> dict:
     return out
 
 
-# --- Indexation ---------------------------------------------------------------
+# --- Indexing -----------------------------------------------------------------
 
 def index_file(path: Path, ollama: httpx.Client) -> tuple[list[str], list[str], list[dict]]:
-    """Retourne (ids, documents, metadatas) pour un fichier de la bible."""
+    """(ids, documents, metadatas) for one bible file."""
     post = frontmatter.load(path)
-    # `doc_id` AVANT `id` : c'est la clé qu'emploient les fiches de
-    # L'Involontaire. Sans elle, on retombait sur `slugify(path.stem)`, qui
-    # rend `fiche_judith` là où le retrieval demande `fiche-judith` — et
-    # `character_context()` serait revenu VIDE, sans erreur, à chaque appel de
-    # l'étage B. Un firewall qui ne sert rien a l'air parfaitement étanche.
+    # `doc_id` BEFORE `id`: the key the sheets of L'Involontaire use. Without
+    # it the fallback was `slugify(path.stem)`, which yields `fiche_judith`
+    # where retrieval asks for `fiche-judith`, and `character_context()` came
+    # back EMPTY, without error, at every stage B call. A firewall that serves
+    # nothing looks perfectly sealed.
     doc_id = post.get("doc_id") or post.get("id") or slugify(path.stem)
     doc_meta = scalar_metadata(dict(post.metadata))
     doc_meta["doc_id"] = doc_id
@@ -244,15 +235,15 @@ def index_file(path: Path, ollama: httpx.Client) -> tuple[list[str], list[str], 
     chapter = post.get("chapter")
     suffix = f"::ch{int(chapter):02d}" if chapter is not None else ""
 
-    # Une fiche de personnage n'expose que ses sections numérotées ; les autres
-    # sont des notes de travail (celle de la fiche Judith cite la chronologie
-    # firewallée). Un fichier sans aucune section numérotée n'est pas une fiche :
-    # tout y est indexable, et `verite-de-surface.md` en dépend.
+    # A character sheet exposes only its numbered sections; the others are
+    # working notes (Judith's cites the firewalled chronology). A file with no
+    # numbered section is not a sheet: all of it is indexable, and
+    # `verite-de-surface.md` relies upon that.
     sections = split_sections(post.content)
     numbered = [(t, c) for t, c in sections if NUMBERED_SECTION.match(t)]
     if numbered:
         sections = numbered
-    # Une section entière peut porter une couche, comme un sous-bloc.
+    # A whole section may carry a layer, like a sub-block.
     sections = [
         (t, c) for t, c in sections
         if not (LAYER_SECTION.match(t)
@@ -264,25 +255,25 @@ def index_file(path: Path, ollama: httpx.Client) -> tuple[list[str], list[str], 
         content = filter_layers(content)
         cleaned = clean_for_embedding(content)
         if title == "_preambule":
-            # Ne garder le préambule que s'il contient autre chose
-            # que le titre `# Nom` de la fiche (sinon : bruit).
+            # Keep the preamble only when it holds more than the sheet's
+            # `# Nom` title (otherwise: noise).
             without_heading = re.sub(r"^#\s+.*$", "", cleaned, flags=re.MULTILINE).strip()
             if not without_heading:
                 continue
         if not cleaned:
-            continue  # section vide du template, pas encore remplie
-        # Le numéro de tête ne fait pas partie de l'identité de la section :
-        # `## 1. Voix` donne `voix`, pas `1_voix`. Un id qui porte un rang se
-        # casse au premier réordonnancement de la fiche, et le retrieval
-        # déterministe demande des noms (`WRITING_SECTIONS`), pas des rangs.
+            continue  # empty template section, not yet filled
+        # The leading number is not part of the section's identity: `## 1. Voix`
+        # gives `voix`, not `1_voix`. An id carrying a rank breaks at the first
+        # reordering of the sheet, and deterministic retrieval asks for names
+        # (`WRITING_SECTIONS`), not ranks.
         number = NUMBERED_SECTION.match(title)
         if number:
             title = number.group(2).strip()
         section = slugify(title)
-        # Préfixer le chunk avec son identité améliore nettement le retrieval :
-        # l'embedding "sait" de qui et de quoi il parle.
-        # La traduction s'applique au document COMPLET, label compris : le
-        # préfixe `[fiche-judith / …]` est servi au modèle comme le reste.
+        # Prefixing the chunk with its identity clearly improves retrieval: the
+        # embedding "knows" who and what it is about.
+        # Translation applies to the WHOLE document, label included: the
+        # `[fiche-judith / …]` prefix is served to the model like the rest.
         document = translate_names(f"[{doc_id} / {title}]\n{cleaned}")
         ids.append(f"{doc_id}::{section}{suffix}")
         documents.append(document)
@@ -297,13 +288,13 @@ def main() -> int:
 
     files = sorted(
         p for p in BIBLE_DIR.rglob("*.md")
-        if not p.name.startswith("_")  # _template.md et consorts sont ignorés
-        and not excluded(p)               # firewall : profond, fiche de style
+        if not p.name.startswith("_")  # _template.md and the like are skipped
+        and not excluded(p)               # firewall: profond, style sheet
     )
     if not files:
         print(f"Aucune fiche à indexer dans {BIBLE_DIR} (les _template.md sont ignorés).")
-        # On ne s'arrête PAS ici : il faut quand même purger d'éventuels
-        # chunks orphelins (cas où l'on vient de supprimer la dernière fiche).
+        # Do NOT stop here: orphan chunks must still be purged (the last sheet
+        # may just have been deleted).
 
     chroma = chromadb.HttpClient(host=settings.chroma_host, port=settings.chroma_port)
     collection = chroma.get_or_create_collection(
@@ -325,7 +316,7 @@ def main() -> int:
             all_ids.extend(ids)
             print(f"  + {path.relative_to(BIBLE_DIR)} : {len(ids)} chunks")
 
-    # Purge des chunks orphelins (sections ou fiches supprimées)
+    # Purge orphan chunks (deleted sections or sheets)
     existing = collection.get(include=[])["ids"]
     stale = [i for i in existing if i not in set(all_ids)]
     if stale:

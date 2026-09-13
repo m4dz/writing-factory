@@ -1,5 +1,5 @@
-"""The ``factory`` command: dispatch, and ``generate`` end to end on the fake
-model with the machine nodes switched off."""
+"""The ``factory`` command: dispatch, and ``generate`` end to end against the
+fake model with the machine nodes switched off."""
 
 import pytest
 

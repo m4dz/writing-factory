@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Validation du retrieval.
+"""Retrieval smoke test.
 
-Usage :
-  python query_test.py "que relit la narratrice le soir ?"
-  python query_test.py "les deux couverts" --type prop
-  python query_test.py "sa voix" --doc judith --n 3
+Usage:
+  factory query "que relit la narratrice le soir ?"
+  factory query "les deux couverts" --type prop
+  factory query "sa voix" --doc judith --n 3
 """
 
 import argparse

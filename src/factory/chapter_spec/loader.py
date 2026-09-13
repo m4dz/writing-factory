@@ -8,7 +8,7 @@ the text they already carry, so a brief keeps one truth:
   section of the brief file (fabrication notes stripped, no bible file name);
   ``brief: "..."`` serves the literal.
 - ``plan: entries-of-brief`` — one beat per entry, cut from the served brief
-  on its ``**Entrée N`` headings.
+  at its ``**Entrée N`` headings.
 - entry ``source: <file>`` — trajectory, material, drift passage and beat
   instructions read from the entry brief's sections (``## 1. Intention``,
   ``## 2. Trajectoire``, ``## 3. Matière``, ``## 4. Glissement``, ``## 7.``
@@ -102,7 +102,7 @@ def blockquote_section(text: str, title: str) -> str:
 
 
 def plan_from_brief(brief: str) -> list[str]:
-    """One beat per entry, cut on the brief's own ``**Entrée N`` headings; the
+    """One beat per entry, cut at the brief's own ``**Entrée N`` headings; the
     shared tail (material, progression, fall, interdicts) goes to every entry."""
     parts = re.split(r"(?=\*\*Entrée \d)", brief)
     if len(parts) < 2:

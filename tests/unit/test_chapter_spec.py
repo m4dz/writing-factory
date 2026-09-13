@@ -1,5 +1,5 @@
 """Chapter knowledge as data: the spec files load, point at the briefs without
-copying them, build the states the graph runs on, and refuse what leaks."""
+copying them, build the states the graph runs from, and refuse what leaks."""
 
 import re
 import textwrap
