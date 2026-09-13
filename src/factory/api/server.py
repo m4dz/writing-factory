@@ -1,33 +1,25 @@
 #!/usr/bin/env python3
-"""Serveur HTTP de la démo — surface consommée par le deck de la keynote.
+"""HTTP surface: one-worker queue, per-run routes, actor mode (ADR-0005, ADR-0014).
 
-    python api.py            # écoute sur 0.0.0.0:8420
+    factory serve            # listens at settings.api_host:settings.api_port
 
-CONTRAT GELÉ AILLEURS. Ce fichier n'invente rien : il implémente le contrat
-figé dans le dépôt du talk (`openspec/changes/remote-integration-contract/`),
-qui attendait explicitement cette surface pour se débloquer. Les quatre
-opérations, leurs codes et leur sémantique viennent de là.
+    POST /generate {chapter, seed?, overrides?}   202 {run_id}; queued, never refused
+    GET  /runs/<id>/status|events|chapter|audio|prompts|manifest
+    POST /runs/<id>/cancel                        `/runs/latest/…` aliases the newest
+    POST /chat, GET /characters, /sessions, /session/<c>/<ts>, /acteur, /health
 
-    POST /generate   202, fire-and-forget, IDEMPOTENT (un second POST ne
-                     relance pas la génération)
-    GET  /chapter    200 text/markdown (contient `<!-- BASCULE -->`), sinon 204
-    GET  /audio      200 audio/wav (portion post-bascule, voix clonée), sinon 204
-    GET  /status     200 {phase, ready, …}  — OPTIONNEL côté deck
+Two principles the deck's fallback policy imposes, which dictate the rest:
 
-Deux principes que le contrat impose et qui dictent tout le reste :
+1. **The deck NEVER sees an error.** At any failure it falls back silently to
+   its embedded assets. A refused preflight, a fallen model, an exception in
+   the graph: all of it yields `204` for artifacts and `phase: error` in the
+   status, never a 500 in the deck's face. The error must wake the OPERATOR
+   (notifications), not the room.
 
-1. **Le deck ne doit JAMAIS voir d'erreur.** À toute défaillance il bascule en
-   silence sur ses assets embarqués. Donc un préflight qui refuse, un modèle qui
-   tombe, une exception dans le graphe : tout cela rend `204` sur les
-   ressources et un statut `error` sur `/status`, jamais un 500 dans la figure
-   du deck. L'erreur, c'est MOI qu'elle doit réveiller (notifications), pas la
-   salle.
-
-2. **Les artefacts vivent sur le DISQUE avant d'être servis.** `GET /chapter`
-   lit un fichier. Si ce serveur meurt après la génération, le chapitre est
-   toujours là, et un simple redémarrage le ressert. L'inverse — garder le
-   chapitre en mémoire de processus — perdrait vingt minutes de calcul sur un
-   Ctrl-C malheureux.
+2. **Artifacts live IN A RUN DIRECTORY before they are served.** `GET /runs/<id>/chapter`
+   reads a file. If this server dies after the generation, the chapter is
+   still there and a restart serves it again; keeping it in process memory
+   would lose twenty minutes of compute to an unlucky Ctrl-C.
 """
 
 import json
@@ -54,20 +46,17 @@ from factory.roleplay.session import read_session, list_sessions
 
 STATIC = Path(__file__).resolve().parent / "static"
 
-# Build Slidev du talk. Servi À LA RACINE parce que le build référence ses
-# assets en chemins ABSOLUS (`/assets/...`, `/favicon.svg`) : impossible de le
-# monter sous un préfixe sans le rebuilder avec une `base`. Conséquence
-# heureuse — le deck se retrouve sur la MÊME origine que l'API, donc ses fetch
-# `/status`, `/chapter`, `/audio` sont same-origin, sans CORS. C'est la raison
-# d'être de cet endpoint : la machine de présentation charge le deck ICI, et
-# l'API répond à côté, sur le même hôte.
-#   ../talk/slides/dist depuis le dépôt  →  ia-devant-soi/talk/slides/dist
-# Chemin : `settings.slides_dir`.
+# The talk's Slidev build, served AT THE ROOT: the build references its assets
+# by ABSOLUTE path (`/assets/...`, `/favicon.svg`) and cannot be mounted under
+# a prefix without a rebuild with a `base`. Happy consequence: the deck sits at
+# the SAME origin as the API, so its fetches of `/runs/<id>/…` are same-origin,
+# no CORS. The presentation machine loads the deck HERE and the API answers
+# beside it, same host. Path: `settings.slides_dir`.
 
-# Types MIME servis pour le build statique. `mimetypes` suffirait pour la
-# plupart, mais on FIGE les critiques (`.js`, `.mjs`, `.css`, `.woff2`) : un
-# module ES servi en `text/plain` est refusé par le navigateur, et le défaut
-# système varie d'une machine à l'autre.
+# MIME types for the static build. `mimetypes` would do for most, but the
+# critical ones (`.js`, `.mjs`, `.css`, `.woff2`) are PINNED: an ES module
+# served as `text/plain` is refused by the browser, and the system default
+# varies from one machine to the next.
 _TYPES = {
     ".html": "text/html; charset=utf-8",
     ".js": "text/javascript; charset=utf-8",
@@ -93,21 +82,19 @@ _TYPES = {
     ".txt": "text/plain; charset=utf-8",
 }
 
-# Hôte, port et origine autorisée : `settings.api_host`, `settings.api_port`,
-# `settings.cors_origin` (`*` par défaut : on est sur un réseau local, le
-# service ne lit aucun secret et n'accepte aucune donnée sensible — et une
-# origine mal devinée le jour J casserait la démo pour rien. À resserrer si le
-# deck est servi depuis une origine stable connue).
+# Host, port and allowed origin: `settings.api_host`, `settings.api_port`,
+# `settings.cors_origin` (`*` by default: local network, the service reads no
+# secret and accepts no sensitive data, and a misguessed origin would break the
+# demo for nothing. Tighten once the deck has a stable, known origin).
 
-# UN SEUL TRAVAILLEUR (ADR-0005). La machine ne tient qu'un modèle de 13 GB :
-# les runs s'exécutent l'un après l'autre, dans l'ordre des POST. Un POST
-# pendant un run est mis en file, pas refusé — le deck reçoit son `run_id` tout
-# de suite et suit `/runs/<id>/status`. Le chapitre à écrire est dans la charge
-# utile : la machine ne connaît plus de chapitre par défaut.
+# ONE WORKER (ADR-0005). The machine holds one 13 GB model: runs execute one
+# after the other, in POST order. A POST during a run is queued, not refused;
+# the deck gets its `run_id` at once and follows `/runs/<id>/status`. The
+# chapter to write is in the payload: there is no default chapter.
 
 
 class Worker:
-    """La file des runs et le fil qui les exécute, un à la fois."""
+    """The run queue and the thread that executes it, one run at a time."""
 
     def __init__(self):
         self.lock = threading.Lock()
@@ -118,10 +105,10 @@ class Worker:
         self.started_at: float | None = None
         self.thread: threading.Thread | None = None
 
-    # --- soumission ----------------------------------------------------------
+    # --- submission ----------------------------------------------------------
 
     def submit(self, run: Run) -> int:
-        """Met le run en file ; rend sa position (0 = démarre tout de suite)."""
+        """Queue the run; return its position (0 = starts right away)."""
         with self.lock:
             self.queue.append(run)
             position = len(self.queue) - 1 + (1 if self.current else 0)
@@ -137,11 +124,11 @@ class Worker:
             return self.current is not None
 
     def cancel(self, run_id: str) -> bool:
-        """Retire un run de la file, ou demande l'arrêt du run en cours.
+        """Remove a run from the queue, or ask the current run to stop.
 
-        Sortie de secours d'opérateur (cf. la politique de reprise du deck) :
-        l'arrêt prend effet à la frontière de nœud suivante, donc au pire
-        après l'appel modèle en cours.
+        Operator escape hatch (the deck's recovery policy): the stop takes
+        effect at the next node boundary, so at worst after the model call in
+        flight.
         """
         with self.lock:
             for run in self.queue:
@@ -154,7 +141,7 @@ class Worker:
                 return True
         return False
 
-    # --- exécution -----------------------------------------------------------
+    # --- execution -----------------------------------------------------------
 
     def _loop(self) -> None:
         while True:
@@ -170,11 +157,11 @@ class Worker:
                     self.current, self.tracking, self.started_at = None, None, None
 
     def _execute(self, run: Run) -> None:
-        """Exécute UN run. N'échoue JAMAIS vers l'appelant HTTP."""
+        """Execute ONE run. NEVER fails towards the HTTP caller."""
         tracking = progress.Progress(active=True)
-        # Le bipeur écoute les changements de phase. Il ne reçoit que le
-        # LIBELLÉ de phase et le pourcentage — jamais les notes, qui citent
-        # la bible et le chapitre (cf. notify.py).
+        # The beeper observes phase changes. It receives only the phase LABEL
+        # and the percentage, never the notes, which quote the bible and the
+        # chapter (ADR-0015).
         tracking.observer = lambda s: notify.advancement(
             s.current_phase, s.advancement, int(time.time() - s.t0))
         with self.lock:
@@ -192,12 +179,13 @@ class Worker:
         final: dict | None = None
         status, error = "error", None
         try:
-            # Le préflight est le PREMIER NŒUD du graphe ; son refus devient un
-            # état `error` que le deck traite comme « pas prêt ». `timer=True` :
-            # c'est la voie de la scène. `narrative_state=True` : l'état du
-            # chapitre est régénéré et indexé avant le premier appel.
-            # `render=True` : le dernier nœud écrit chapitre.md puis le WAV dans
-            # le dossier du run ; un échec de voix laisse le chapitre servi.
+            # Preflight is the FIRST NODE of the graph; its refusal becomes an
+            # `error` state the deck reads as not ready. `timer=True`: the
+            # stage path (ADR-0016). `narrative_state=True`: the chapter's
+            # state is regenerated and indexed before the first call.
+            # `render=True`: the last node writes `chapitre.md` then the WAV
+            # into the run directory; a voice failure leaves the chapter
+            # served (ADR-0012).
             graph = build_graph()
             final = graph.invoke(
                 {**load_chapter(run.chapter).state(seed=run.seed),
@@ -217,16 +205,16 @@ class Worker:
             progress.note("génération annulée")
             notify.cancelled()
         except PreflightError as exc:
-            # Le message de préflight vient de NOUS, sans contenu d'œuvre — mais
-            # c'est un mode d'emploi de plusieurs lignes, illisible sur une
-            # montre : le bipeur n'en reçoit que la première.
+            # The preflight message is OURS, with no content of the work, but
+            # it is a multi-line how-to, unreadable at a glance: the beeper
+            # gets only its first line.
             error = f"préflight refusé : {exc}"
             lines = str(exc).splitlines()
             self._fail(error, kind="préflight",
                        short=lines[1].strip(" -") if len(lines) > 1 else str(exc))
         except Exception as exc:                       # noqa: BLE001
-            # Large volontairement : sur scène, une exception non prévue doit
-            # produire un fallback propre, pas un traceback dans un thread.
+            # Deliberately broad: onstage an unexpected exception must produce
+            # a clean fallback, not a traceback in a thread.
             error = f"{type(exc).__name__} : {exc}"
             self._fail(error, kind=type(exc).__name__, short=str(exc))
         finally:
@@ -246,14 +234,14 @@ class Worker:
         progress.note(f"ÉCHEC : {reason}")
         notify.failure(kind, short or reason)
 
-    # --- lecture -------------------------------------------------------------
+    # --- reading -------------------------------------------------------------
 
     def snapshot(self, run: Run) -> dict:
-        """Charge utile de `GET /runs/<id>/status`.
+        """Payload of `GET /runs/<id>/status`.
 
-        En mémoire pour le run en cours (le puits de progression) et les runs
-        en file ; depuis le manifeste pour les runs terminés — le serveur ne
-        garde aucun chapitre en mémoire (ADR-0005).
+        In memory for the current run (the progress sink) and the queued
+        runs; from the manifest for finished runs. The server keeps no
+        chapter in memory (ADR-0005).
         """
         with self.lock:
             current = self.current
@@ -277,7 +265,7 @@ class Worker:
         m = manifest.manifest if manifest else run.manifest
         state = m.get("status", "unknown")
         snap = {**base, "state": state,
-                # `phase` et `ready` sont les deux champs du contrat du deck.
+                # `phase` and `ready` are the two fields of the deck's GenStatus contract.
                 "phase": {"ready": "ready", "error": "error", "cancelled": "idle",
                           "queued": "queued"}.get(state, "generating"),
                 "ready": state == "ready" and run.chapter_path.exists(),
@@ -297,41 +285,40 @@ class Worker:
 WORKER = Worker()
 
 
-# --- Mode acteur -------------------------------------------------------------
+# --- Actor mode --------------------------------------------------------------
 #
-# Les sessions de roleplay vivent CÔTÉ SERVEUR : notre mémoire est stateful
-# (résumé glissant, souvenirs indexés), et c'est précisément pourquoi on n'a pas
-# pris une API compatible OpenAI, qui suppose un client renvoyant tout
-# l'historique à chaque tour — il court-circuiterait le résumeur.
+# Roleplay sessions live SERVER-SIDE: the memory is stateful (rolling summary,
+# indexed memories), which is exactly why an OpenAI-compatible API was not
+# taken: it assumes a client resending the whole history each turn and would
+# bypass the summariser (ADR-0014).
 
 
 
 class ChatRoom:
-    """Registre des conversations en cours, purgé sur inactivité."""
+    """Registry of open conversations, purged after inactivity."""
 
     def __init__(self):
         self.lock = threading.Lock()
         self.sessions: dict[str, tuple[object, float]] = {}
 
     def _purge(self) -> None:
-        """Ferme et ÉCRIT les sessions inactives avant de les oublier.
+        """Close and WRITE inactive sessions before forgetting them.
 
-        Une session qui s'évapore sans laisser de trace contredirait toute la
-        conception de la mémoire — et c'est par cette API qu'on enregistre les
-        sessions pré-générées de la scène. L'oubli silencieux serait la perte
-        d'un contenu de démo.
+        A session that evaporates without a trace would contradict the whole
+        memory design, and this API is how the stage's pre-generated sessions
+        are recorded. Silent forgetting would lose demo content.
         """
-        limit = time.time() - settings.chat_ttl_s   # 2 h d'inactivité
+        limit = time.time() - settings.chat_ttl_s   # 2 h of inactivity
         for key in [k for k, (_, seen) in self.sessions.items() if seen < limit]:
             session, _ = self.sessions.pop(key)
             try:
                 session.close()
             except Exception:                           # noqa: BLE001
-                pass    # une purge ne doit jamais faire échouer la requête en cours
+                pass    # a purge must never fail the request in flight
 
     def close_chat(self, key: str):
-        """Termine une session : écrit le Markdown et l'indexe. Retourne le
-        chemin, ou None si la session est inconnue ou trop courte."""
+        """End a session: write the Markdown and index it. Return the path,
+        or None if the session is unknown or too short."""
         with self.lock:
             entry = self.sessions.pop(key, None)
         if entry is None:
@@ -339,7 +326,7 @@ class ChatRoom:
         return entry[0].close()
 
     def acquire(self, key: str | None, character: str, name: str | None):
-        """Session existante, ou nouvelle. Retourne (clé, session)."""
+        """Existing session, or a new one. Return (key, session)."""
         from factory.roleplay.session import Session
 
         with self.lock:
@@ -348,8 +335,8 @@ class ChatRoom:
                 session, _ = self.sessions[key]
                 self.sessions[key] = (session, time.time())
                 return key, session
-        # Construction HORS verrou : elle interroge ChromaDB (souvenirs, fiche)
-        # et n'a aucune raison de bloquer les autres conversations.
+        # Built OUTSIDE the lock: it queries ChromaDB (memories, sheet) and has
+        # no reason to block the other conversations.
         session = Session(character, name=name)
         key = f"{character}-{int(time.time() * 1000):x}"
         with self.lock:
@@ -363,7 +350,7 @@ ROOM = ChatRoom()
 class Handler(BaseHTTPRequestHandler):
     server_version = "fiction-assistant/1.0"
 
-    # --- utilitaires ---------------------------------------------------------
+    # --- helpers -------------------------------------------------------------
 
     def _cors(self) -> None:
         self.send_header("Access-Control-Allow-Origin", settings.cors_origin)
@@ -377,7 +364,7 @@ class Handler(BaseHTTPRequestHandler):
         if body:
             self.send_header("Content-Type", mime_type)
             self.send_header("Content-Length", str(len(body)))
-        # Aucun cache : le deck interroge la même URL pendant que l'état change.
+        # No cache: the deck polls the same URL while the state changes.
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         if body and self.command != "HEAD":
@@ -387,11 +374,12 @@ class Handler(BaseHTTPRequestHandler):
         self._reply(code, json.dumps(payload_dict, ensure_ascii=False).encode())
 
     def _file(self, path: Path, mime_type: str) -> None:
-        """Sert un artefact, ou 204 s'il n'est pas prêt.
+        """Serve an artifact, or 204 when it is not ready.
 
-        204 et non 404 : le contrat traite les deux comme « pas prêt », mais 204
-        dit « rien à donner pour l'instant » là où 404 dirait « cette route
-        n'existe pas ». Le deck retentera puis basculera sur son embarqué.
+        204 and not 404: the deck treats both as not ready, but 204 says
+        "nothing to give yet" where 404 would say "this route does not
+        exist". The deck retries, then falls back to its embedded assets
+        (ADR-0005).
         """
         if not path.exists() or path.stat().st_size == 0:
             self._reply(204)
@@ -399,13 +387,13 @@ class Handler(BaseHTTPRequestHandler):
         self._reply(200, path.read_bytes(), mime_type)
 
     def _serve_static(self, path: Path, mime: str) -> None:
-        """Sert un fichier du build, avec cache adapté.
+        """Serve a file of the build, with a fitting cache policy.
 
-        On N'UTILISE PAS `_repondre` : il force `no-store`, ce qui est juste pour
-        les artefacts changeants (`/chapter`, `/status`) mais gâche le cache des
-        assets hashés du deck. Ici les fichiers `/assets/<hash>.<ext>` sont
-        immuables par construction (le hash change avec le contenu) → cache long ;
-        l'index et le reste → revalidation simple.
+        Not `_reply`: it forces `no-store`, right for changing artifacts
+        (`/runs/<id>/chapter`, `/runs/<id>/status`) but wasteful for the
+        deck's hashed assets. `/assets/<hash>.<ext>` files are immutable by
+        construction (the hash changes with the content) → long cache; the
+        index and the rest → plain revalidation.
         """
         body = path.read_bytes()
         self.send_response(200)
@@ -422,26 +410,25 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def _serve_slides(self, route: str) -> None:
-        """Sert le build Slidev du talk (SPA à base `/`), repli sur index.html.
+        """Serve the talk's Slidev build (SPA with base `/`), falling back to index.html.
 
-        Ordre imposé par le contrat : les routes de l'API passent AVANT (elles
-        sont testées plus haut dans `do_GET`). Tout le reste tombe ici — assets
-        du build, mais aussi les routes CLIENT de Slidev (`/2`, `/overview`,
-        `/presenter/...`) qui n'ont pas de fichier : elles rendent l'app, qui
-        route côté navigateur. C'est exactement le `_redirects: /* -> /index.html`
-        du build.
+        Order matters: the API routes are tested BEFORE this one, higher in
+        `do_GET`. Everything else lands here: build assets, but also Slidev's
+        CLIENT routes (`/2`, `/overview`, `/presenter/...`) that have no
+        file: they render the app, which routes in the browser. Exactly the
+        build's `_redirects: /* -> /index.html`.
         """
         slides = settings.slides_dir.resolve()
         if not slides.is_dir():
-            # Build absent : ce n'est pas une route d'API, donc 404 franc, pas un
-            # 204 « pas prêt » (qui a un sens précis pour les artefacts du deck).
+            # Build absent: not an API route, so a plain 404, not a 204 "not
+            # ready" (which has a precise meaning for the deck's artifacts).
             self._json(404, {"error": "slides non buildées",
                              "detail": f"attendu dans {slides}"})
             return
         rel = route.lstrip("/") or "index.html"
         target = (slides / rel).resolve()
-        # Anti-traversée : la cible DOIT rester sous dist. Ce serveur écoute sur
-        # le réseau d'une conférence — même garde que les identifiants de session.
+        # Anti-traversal: the target MUST stay under dist. This server listens
+        # to a conference network; same guard as the session identifiers.
         try:
             target.relative_to(slides)
         except ValueError:
@@ -456,26 +443,25 @@ class Handler(BaseHTTPRequestHandler):
         self._serve_static(target, mime)
 
     def _event_stream(self, run: Run) -> None:
-        """Flux SSE des instantanés de `/runs/<id>/status` — le compteur du deck
-        y lit les étapes en direct (phase, label, detail, notes, progress).
+        """SSE stream of `/runs/<id>/status` snapshots; the deck's counter reads
+        the steps live there (phase, label, detail, notes, progress).
 
-        On N'UTILISE PAS `_repondre` : il force `Content-Length` et un write
-        unique. On ouvre la réponse à la main, en `text/event-stream`, et on
-        pousse un snapshot `WORKER.snapshot(run)` toutes les ~1 s. Chaque événement
-        est ABSOLU (pas incrémental) : une reconnexion reprend l'état courant,
-        aucun `Last-Event-ID` nécessaire.
+        Not `_reply`: it forces `Content-Length` and a single write. The
+        response is opened by hand as `text/event-stream`, and a
+        `WORKER.snapshot(run)` is pushed about every second. Each event is
+        ABSOLUTE, not incremental: a reconnection resumes from the current
+        state, no `Last-Event-ID` needed.
 
-        C'est un ENRICHISSEMENT, pas une dépendance : s'il tombe, le compteur du
-        deck reste autonome (invariant du contrat). On streame tant que la
-        génération tourne, on émet un dernier événement à l'état terminal
-        (`ready`/`error`/`idle`), puis on ferme.
+        An ENRICHMENT, not a dependency: if it drops, the deck's counter
+        stays autonomous. Stream while the generation runs, emit one last
+        event at the terminal state (`ready`/`error`/`idle`), then close.
         """
         self.send_response(200)
         self._cors()
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
-        # `BaseHTTPRequestHandler` n'auto-chunk pas : on ferme la connexion à la
-        # fin plutôt que d'annoncer une longueur inconnue d'avance.
+        # `BaseHTTPRequestHandler` does not chunk by itself: close the
+        # connection at the end rather than announce a length unknown upfront.
         self.send_header("Connection", "close")
         self.end_headers()
         try:
@@ -489,8 +475,8 @@ class Handler(BaseHTTPRequestHandler):
                     break
                 time.sleep(1)
         except (BrokenPipeError, ConnectionResetError):
-            # Client parti (slide changée, deck fermé) : la génération continue
-            # sur son thread. Sans ce garde, une traceback par déconnexion.
+            # Client gone (slide changed, deck closed): the generation continues
+            # in its thread. Without this guard, one traceback per disconnect.
             pass
 
     # --- routes --------------------------------------------------------------
@@ -499,18 +485,18 @@ class Handler(BaseHTTPRequestHandler):
         self._reply(204)
 
     def _param(self, name: str) -> str:
-        """Valeur d'un paramètre de requête, ou chaîne vide."""
+        """Value of a query parameter, or the empty string."""
         _, _, request = self.path.partition("?")
         return parse_qs(request).get(name, [""])[0]
 
-    # Composants d'identifiant de session. Le filtre est une LISTE BLANCHE, pas
-    # une chasse aux `..` : ce serveur écoute sur le réseau d'une conférence, et
-    # ces deux valeurs arrivent dans un chemin de fichier.
+    # Session identifier components. The filter is a WHITELIST, not a hunt for
+    # `..`: this server listens to a conference network, and both values end
+    # up in a file path (ADR-0014).
     _CHARACTER_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
     _TIMESTAMP_ID = re.compile(r"^[0-9A-Za-z:_-]{1,40}$")
 
     def _saved_session(self, rest: str) -> None:
-        """`GET /session/<personnage>/<horodatage>` — transcription rejouable."""
+        """`GET /session/<character>/<timestamp>`: a replayable transcription."""
         pieces = [m for m in rest.split("?")[0].split("/") if m]
         if len(pieces) != 2:
             self._json(400, {"error": "format attendu : /session/<perso>/<horodatage>"})
@@ -534,15 +520,14 @@ class Handler(BaseHTTPRequestHandler):
             return {}
 
     def _chat(self) -> None:
-        """Un tour de roleplay. `{character, message, session?, nom?}`."""
-        # UN SEUL MODÈLE À LA FOIS SUR CETTE MACHINE. Le roleplay tourne sur le
-        # même nemo (13 GB) que la génération : pendant un chapitre, une
-        # réplique attendrait la fin de l'appel d'écriture en cours, soit
-        # jusqu'à deux minutes de silence sur scène. Et faire cohabiter deux
-        # modèles, c'est 17,8 GB sur 19,3 — la pression qui a fait paniquer la
-        # machine. On refuse franchement plutôt que de laisser découvrir la
-        # latence en direct. Conséquence de planning : la démo d'acteur se joue
-        # AVANT le lancement du chapitre, ou APRÈS sa récolte.
+        """One roleplay turn. `{character, message, session?, nom?}`."""
+        # ONE MODEL AT A TIME FOR THIS MACHINE (ADR-0006). Roleplay runs the
+        # same nemo (13 GB) as the generation: during a chapter, a line would
+        # wait for the writing call in flight, up to two minutes of silence
+        # onstage. Two co-resident models are 17.8 GB of 19.3, the pressure
+        # that panicked the machine. Refuse plainly rather than let the latency
+        # be discovered live. Planning consequence: the actor demo plays BEFORE
+        # the chapter launch, or AFTER its harvest.
         if WORKER.busy:
             self._json(409, {
                 "error": "génération en cours",
@@ -557,8 +542,8 @@ class Handler(BaseHTTPRequestHandler):
         character = (payload_dict.get("character") or "").strip()
         message = (payload_dict.get("message") or "").strip()
 
-        # Fin explicite : c'est ce qui transforme une conversation en artefact
-        # rejouable sur scène (résumé + transcription écrits en Markdown).
+        # Explicit end: this is what turns a conversation into an artifact
+        # replayable onstage (summary + transcription written as Markdown).
         if payload_dict.get("close") and payload_dict.get("session"):
             path = ROOM.close_chat(payload_dict["session"])
             self._json(200, {
@@ -575,7 +560,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             key, session = ROOM.acquire(payload_dict.get("session"), character,
                                          payload_dict.get("nom"))
-        except ValueError as exc:          # fiche absente de la bible
+        except ValueError as exc:          # sheet absent from the bible
             self._json(404, {"error": str(exc)})
             return
 
@@ -590,8 +575,8 @@ class Handler(BaseHTTPRequestHandler):
             "character": character,
             "nom": session.name,
             "reply": reply,
-            # Les alertes (sortie de rôle rattrapée, fuite de langue) sont
-            # rendues pour l'opérateur — la page ne les montre pas au public.
+            # Warnings (caught out-of-role reply, language leak) are returned
+            # for the operator; the page does not show them to the audience.
             "warnings": session.warnings[-3:],
             "turns": len(session.metrics),
         })
@@ -604,9 +589,9 @@ class Handler(BaseHTTPRequestHandler):
     def _generate(self) -> None:
         """`POST /generate {chapter, seed?, overrides?}` → 202 {run_id}.
 
-        La charge utile est OBLIGATOIRE : le chapitre nomme une spécification
-        existante, la graine est aléatoire par défaut et consignée, les
-        overrides sont une liste blanche de clés de configuration.
+        The payload is MANDATORY: the chapter names an existing spec, the
+        seed is random by default and recorded, the overrides are a whitelist
+        of configuration keys (ADR-0005).
         """
         payload_dict = self._json_body()
         if not payload_dict or "chapter" not in payload_dict:
@@ -701,9 +686,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(404, {"error": "route inconnue"})
 
     def _gone(self, route: str) -> None:
-        # Les routes singleton du contrat de la keynote (ADR-0005 les remplace).
-        # 410 et non un repli silencieux sur le deck : un client non migré doit
-        # le savoir tout de suite.
+        # The keynote contract's singleton routes, replaced by ADR-0005. 410
+        # and not a silent fallback: an unmigrated client must know at once.
         self._json(410, {"error": f"{route} n'existe plus",
                          "detail": "POST /generate {chapter, seed?} puis /runs/<id>/status, "
                                    "/events, /chapter, /audio, /prompts, POST /runs/<id>/cancel "
@@ -729,22 +713,23 @@ class Handler(BaseHTTPRequestHandler):
         elif route.startswith("/session/"):
             self._saved_session(route[len("/session/"):])
         elif route == "/acteur":
-            # La page du mode acteur. Servie par nous : elle peut donc être
-            # ouverte en iframe depuis une slide, sur le même hôte que le reste.
-            # La racine `/` est désormais le DECK — l'iframe pointe ici, `/acteur`.
+            # The actor mode page, served by us so a slide can open it in an
+            # iframe at the same host as the rest. The root `/` is the DECK;
+            # the iframe points here, `/acteur` (ADR-0014).
             page = STATIC / "acteur.html"
             if page.exists():
                 self._reply(200, page.read_bytes(), "text/html; charset=utf-8")
             else:
                 self._json(404, {"error": "page absente"})
         else:
-            # Tout le reste — `/`, `/favicon.svg`, `/assets/...`, routes client
-            # de Slidev — est servi par le build du deck, repli sur index.html.
+            # Everything else (`/`, `/favicon.svg`, `/assets/...`, Slidev
+            # client routes) is served from the deck's build, index.html as
+            # fallback.
             self._serve_slides(route)
 
     def log_message(self, fmt: str, *args) -> None:
-        # Le journal par défaut écrit sur stderr en écrasant le panneau de
-        # progression. On garde une ligne courte, préfixée.
+        # The default log writes to stderr over the progress panel. Keep one
+        # short, prefixed line.
         print(f"[api] {fmt % args}")
 
 

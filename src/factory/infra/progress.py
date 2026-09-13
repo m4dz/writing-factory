@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
-"""Affichage de progression et compte à rebours pour la démo de scène.
+"""Progress display and countdown for the stage demo.
 
-Le problème que ce module résout n'est pas cosmétique. La génération d'un
-chapitre prend dix-sept minutes, pendant lesquelles le pilote en ligne de commande n'affichait
-RIEN : la sortie n'arrivait qu'à la fin. Devant une salle, un écran figé se lit
-comme une machine plantée — soit l'inverse exact de ce que la démo doit montrer.
+Not cosmetic: a chapter takes about seventeen minutes to generate, during
+which the CLI used to show NOTHING, the output arriving at the end. In front
+of a room a frozen screen reads as a crashed machine, the exact opposite of
+what the demo must show.
 
-Deux principes de conception :
+Two design principles:
 
-1. **Les nœuds du graphe ne connaissent pas l'affichage.** Ils appellent
-   `phase()`, `note()`, `tokens()` sur un puits d'événements global. Le puits
-   décide s'il dessine un panneau ANSI, écrit des lignes plates, ou se taise.
-   Un `Progress` inactif (le défaut) rend tous les appels gratuits, ce qui
-   permet d'instrumenter le graphe sans conditionnelle nulle part.
+1. **Graph nodes know nothing of the display.** They call `phase()`, `note()`,
+   `tokens()` against a global event sink, which decides whether to draw an
+   ANSI panel, write flat lines, or stay silent. An inactive `Progress` (the
+   default) makes every call free, so the graph is instrumented without a
+   conditional anywhere.
 
-2. **Montrer le TRAVAIL, pas seulement le temps.** Un compte à rebours qui
-   tourne pendant qu'un appel de 1 min 45 bloque prouve que le temps passe, pas
-   que la machine calcule. Les tokens qui arrivent un par un, si — d'où le
-   branchement sur le streaming d'Ollama (cf. `llm.chat_turns(on_token=…)`).
+2. **Show the WORK, not only the time.** A countdown running while a 1 min 45
+   call blocks proves that time passes, not that the machine computes. Tokens
+   arriving one by one do; hence the hook into Ollama's streaming
+   (`OllamaClient.chat_turns(on_token=…)`).
 """
 
 import shutil
@@ -26,33 +26,32 @@ import time
 
 from factory.settings import settings
 
-# Budget de scène, en minutes : `settings.stage_budget_min`. La keynote récolte
-# le chapitre ~25 min après l'avoir lancé (abaissé de 35' à 25' le 2026-08-06).
+# Stage budget, in minutes: `settings.stage_budget_min`. The keynote harvests
+# the chapter ~25 min after launching it (lowered from 35' to 25' the 2026-08-06).
 
 _ANSI_CLEAR_LINE = "\x1b[2K"
 _ANSI_LINE_START = "\r"
 
-# Bandes d'avancement par phase, en fraction du travail total. Les bornes sont
-# grossières et c'est assumé : elles servent à faire progresser une barre pour
-# la salle, pas à prédire une fin. Elles vivent ICI et non dans les nœuds du
-# graphe, pour qu'on puisse les recaler après une répétition sans toucher au
-# pipeline. Mesures du run de référence (17,0 min, 4 scènes) : le plan pèse
-# ~2 min, l'écriture ~7, la relecture ~5, la QA ~3.
+# Progress bands per phase, as a fraction of the total work. The bounds are
+# coarse by design: they move a bar for the room, they do not predict an end.
+# They live HERE, not in the graph nodes, so a rehearsal can recalibrate them
+# without touching the pipeline. Reference run (17.0 min, 4 scenes): the plan
+# weighs ~2 min, writing ~7, review ~5, QA ~3.
 BANDS = {
     "Préflight": (0.00, 0.01),
     "État narratif": (0.01, 0.01),
     "Invariants de la bible": (0.01, 0.03),
-    # Plan et « Plan d'entrées » sont deux CHEMINS du même nœud (brief imposé vs
-    # généré) : même bande, un seul est émis par run.
+    # Plan and « Plan d'entrées » are two PATHS of the same node (imposed vs
+    # generated brief): same band, only one is emitted per run.
     "Plan": (0.03, 0.08),
     "Plan d'entrées": (0.03, 0.08),
     "Contrôle du plan contre la bible": (0.08, 0.12),
     "Écriture": (0.12, 0.50),
-    # Accumulation / Glissement : SOUS-ÉTAPES d'une entrée d'écriture, dans la
-    # boucle write→accumulate→glisse. VOLONTAIREMENT sans bande : elles tiennent
-    # la valeur atteinte par « Écriture » (dont i/n mène la barre). Une bande
-    # propre sauterait à contretemps de la boucle, puis le garde monotone
-    # figerait l'écriture des entrées suivantes.
+    # Accumulation / Glissement: SUB-STEPS of one writing entry, inside the
+    # write→accumulate→drift loop. DELIBERATELY without a band: they keep the
+    # value reached by « Écriture » (whose i/n drives the bar). A band of their
+    # own would jump out of step with the loop, then the monotonic guard would
+    # freeze the writing of the following entries.
     "Relecture": (0.50, 0.72),
     "Bascule des modèles": (0.72, 0.73),
     "Réparation linguistique": (0.73, 0.85),
@@ -62,20 +61,20 @@ BANDS = {
     "Restitution": (0.97, 1.00),
 }
 
-# Phases telles que le deck les connaît (contrat gelé côté talk :
-# `GenStatus`). Notre granularité interne est plus fine ; on la projette.
+# Phases as the deck knows them (the deck's GenStatus contract). Our internal
+# granularity is finer; it is projected.
 DECK_PHASES = {
     "Restitution": "tts",
 }
 
 
 class Cancelled(RuntimeError):
-    """Le job en cours a été annulé par l'opérateur.
+    """The current job was cancelled by the operator.
 
-    Levée depuis `phase()`, c'est-à-dire aux FRONTIÈRES DE NŒUD du graphe : on
-    ne peut pas tuer proprement un thread Python, mais on peut refuser de passer
-    à l'étape suivante. Le pire délai est donc la durée d'un appel au modèle
-    (~2 min sur une écriture de scène), pas l'éternité.
+    Raised from `phase()`, that is at the graph's NODE BOUNDARIES: a Python
+    thread cannot be killed cleanly, but it can refuse to move to the next
+    step. The worst delay is one model call (~2 min for a scene), not
+    forever.
     """
 
 
@@ -85,15 +84,15 @@ def _mmss(seconds: float) -> str:
 
 
 class Progress:
-    """Puits d'événements de progression.
+    """Progress event sink.
 
-    Trois modes, choisis à la construction :
-      * `actif=False` — silencieux, coût nul. C'est le défaut, donc les tests et
-        les appels programmatiques ne changent pas de comportement.
-      * terminal interactif — un panneau d'une ligne réécrit en place.
-      * sortie redirigée — des lignes plates horodatées, une par événement. Une
-        barre réécrite en place produirait des milliers de `\\r` dans un fichier
-        de log, illisible ; et c'est exactement le cas d'usage `> run.log`.
+    Three modes, chosen at construction:
+      * `active=False`: silent, zero cost. The default, so tests and
+        programmatic calls keep their behaviour.
+      * interactive terminal: a one-line panel redrawn in place.
+      * redirected output: flat timestamped lines, one per event. A bar
+        redrawn in place would put thousands of `\\r` in a log file,
+        unreadable; and `> run.log` is exactly the use case.
     """
 
     def __init__(self, *, active: bool = False, budget_min: float | None = None,
@@ -107,37 +106,37 @@ class Progress:
         self.t0 = time.time()
         self.current_phase = ""
         self.detail = ""
-        self.deck_phase = "generating"   # projection sur le contrat du deck
-        self.advancement = 0.0            # fraction 0..1, monotone
-        self.gen_toks = 0          # tokens du chapitre entier
-        self.cancelled = False              # demande d'arrêt de l'opérateur
-        # Appelé à chaque changement de phase, avec le puits en argument. Sert
-        # aux notifications téléphone sans que ce module connaisse le réseau.
+        self.deck_phase = "generating"   # projection onto the deck's contract
+        self.advancement = 0.0            # fraction 0..1, monotonic
+        self.gen_toks = 0          # tokens of the whole chapter
+        self.cancelled = False              # operator stop request
+        # Called at each phase change with the sink as argument. Serves the
+        # phone notifications without this module knowing the network.
         self.observer = None
-        self.notes: list[str] = []       # événements marquants, pour /status
-        self._call_toks = 0       # tokens de l'appel en cours
+        self.notes: list[str] = []       # notable events, for the status payload
+        self._call_toks = 0       # tokens of the current call
         self._last_draw = 0.0
         self._call_t = 0.0
 
-    # --- API appelée par le graphe -------------------------------------------
+    # --- API called by the graph ---------------------------------------------
 
     def phase(self, title: str, detail: str = "", *,
               i: int | None = None, n: int | None = None) -> None:
-        """Change de phase (plan, écriture scène 2/4, relecture, QA…).
+        """Change phase (plan, writing scene 2/4, review, QA…).
 
-        `i`/`n` situent l'étape dans sa bande d'avancement (scène 2 sur 4). Les
-        nœuds les fournissent quand ils les connaissent ; sans eux, la phase
-        vaut le début de sa bande.
+        `i`/`n` place the step within its band (scene 2 of 4). Nodes give
+        them when they know them; without them the phase is worth the start
+        of its band.
 
-        Ce calcul tourne MÊME si l'affichage est inactif : `/status` doit pouvoir
-        rendre un avancement quand le serveur HTTP n'écrit rien sur un terminal.
+        This runs EVEN when the display is inactive: the status payload must
+        report progress when the HTTP server writes nothing to a terminal.
         """
         if self.cancelled:
             raise Cancelled("génération annulée par l'opérateur")
         start, end = BANDS.get(title, (self.advancement, self.advancement))
         part = (i / n) if (i is not None and n) else 0.0
-        # Monotone : un avancement qui recule (replanification, phase inconnue)
-        # se lit comme un bug depuis la salle.
+        # Monotonic: a progress that recedes (replanning, unknown phase) reads
+        # as a bug from the room.
         self.advancement = max(self.advancement, start + (end - start) * part)
         self.current_phase = title
         self.detail = detail
@@ -146,7 +145,7 @@ class Progress:
             try:
                 self.observer(self)
             except Exception:                          # noqa: BLE001
-                pass    # un observateur défaillant n'arrête pas une génération
+                pass    # a failing observer never stops a generation
         if not self.active:
             return
         self._call_toks = 0
@@ -157,10 +156,10 @@ class Progress:
             self._line(f"{title}" + (f" — {detail}" if detail else ""))
 
     def note(self, message: str) -> None:
-        """Événement ponctuel digne d'être vu (replanification, réparation…)."""
-        # Conservées même en mode inactif : ce sont elles que `/status` et les
-        # notifications téléphone relaient, et le serveur HTTP n'a pas de
-        # terminal. Bornées, sinon un run long les accumule sans fin.
+        """One-off event worth seeing (replanning, repair…)."""
+        # Kept even when inactive: these are what the status payload and the
+        # phone notifications relay, and the HTTP server has no terminal.
+        # Bounded, or a long run accumulates them without end.
         self.notes.append(message)
         del self.notes[:-20]
         if not self.active:
@@ -173,7 +172,7 @@ class Progress:
             self._line(f"  · {message}")
 
     def on_token(self, fragment: str, cumulative: int) -> None:
-        """Callback de streaming : un fragment vient d'arriver."""
+        """Streaming callback: a fragment just arrived."""
         if not self.active:
             return
         self._call_toks = cumulative
@@ -182,18 +181,18 @@ class Progress:
             self._draw()
 
     def end(self) -> None:
-        """Rend la ligne au terminal (le panneau ne doit pas rester collé)."""
+        """Give the line back to the terminal (the panel must not stick)."""
         if self.active and self.interactive:
             self.stream.write(_ANSI_CLEAR_LINE + _ANSI_LINE_START)
             self.stream.flush()
 
     def snapshot(self) -> dict:
-        """État courant, pour `GET /status` et les notifications.
+        """Current state, for `GET /runs/<id>/status` and the notifications.
 
-        `phase` est la valeur du CONTRAT GELÉ côté deck
-        (`generating` | `tts` | `ready`, cf. talk/openspec remote-integration) ;
-        tout le reste est additif et le deck peut l'ignorer sans rien perdre —
-        c'est la condition pour enrichir l'affichage sans casser le contrat.
+        `phase` is the value of the deck's GenStatus contract (`generating` |
+        `tts` | `ready`); everything else is additive and the deck can ignore
+        it without losing anything, which is the condition for enriching the
+        display without breaking the contract.
         """
         return {
             "phase": self.deck_phase,
@@ -207,7 +206,7 @@ class Progress:
             "notes": list(self.notes[-5:]),
         }
 
-    # --- rendu ---------------------------------------------------------------
+    # --- rendering -----------------------------------------------------------
 
     def _line(self, text: str) -> None:
         elapsed = time.time() - self.t0
@@ -215,8 +214,8 @@ class Progress:
         self.stream.flush()
 
     def _draw(self, *, force: bool = False) -> None:
-        # Dix tokens par seconde suffiraient à redessiner dix fois par seconde,
-        # ce qui ne se voit pas et coûte des écritures : on plafonne à 5 Hz.
+        # Ten tokens per second would redraw ten times a second, invisible and
+        # costly in writes: capped at 5 Hz.
         now = time.time()
         if not force and now - self._last_draw < 0.2:
             return
@@ -225,8 +224,8 @@ class Progress:
         elapsed = now - self.t0
         remaining = self.budget - elapsed
         speed = self._call_toks / max(0.1, now - self._call_t)
-        # Le dépassement s'affiche en clair plutôt que de rester à zéro : sur
-        # scène, mieux vaut savoir qu'on est à +2:30 que croire qu'il reste 0:00.
+        # Overrun is shown plainly rather than stuck at zero: onstage, better
+        # to know we are at +2:30 than to believe 0:00 remains.
         clock = (f"reste {_mmss(remaining)}" if remaining >= 0
                    else f"DÉPASSÉ de {_mmss(-remaining)}")
         line = (
@@ -241,13 +240,13 @@ class Progress:
         self.stream.flush()
 
 
-# Puits global. Le graphe l'utilise sans le connaître : par défaut il est
-# inactif, donc importer le graphe depuis un test n'affiche rien.
+# Global sink. The graph uses it without knowing it: inactive by default, so
+# importing the graph from a test displays nothing.
 SINK = Progress(active=False)
 
 
 def install(sink: Progress) -> None:
-    """Remplace le puits global (appelé par `factory generate` et l'API)."""
+    """Replace the global sink (called by `factory generate` and the API)."""
     global SINK
     SINK = sink
 
@@ -266,6 +265,6 @@ def on_token(fragment: str, cumulative: int) -> None:
 
 
 def token_sink():
-    """Callback de streaming à passer à `llm`, ou None si l'affichage est
-    inactif — pour que le mode non-streamé reste le chemin par défaut."""
+    """Streaming callback to hand to the Ollama client, or None when the display
+    is inactive, so the non-streamed mode stays the default path."""
     return on_token if SINK.active else None

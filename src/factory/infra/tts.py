@@ -1,28 +1,26 @@
 #!/usr/bin/env python3
-"""Rendu du chapitre en voix clonée (Qwen3-TTS via MLX), LOCAL.
+"""Chapter rendering in a cloned voice (Qwen3-TTS via MLX), LOCAL (ADR-0012).
 
-Dernière étape du pipeline de démo : le clone reprend la lecture là où la voix
-humaine s'arrête (cf. `chapitre.py` pour le marqueur de bascule).
+Last step of the demo pipeline: the clone picks up the reading where the
+human voice stops (see `pipeline/assembly.py` for the switch marker).
 
-## Pourquoi ce module existe alors que `../TTS/lire_chapitre.py` fait déjà le
-## rendu
+Why this module exists while `../TTS/lire_chapitre.py` already renders: that
+script is a CLI, not a library. Its render loop lives in `main()`, glued to
+`argparse`, and its loader calls `sys.exit()` when the marker is missing.
+Inside a server `SystemExit` is a `BaseException`: it passes through `except
+Exception`, kills the thread silently and leaves the job in "generating"
+forever. So it is not imported.
 
-Parce que ce script est une CLI, pas une bibliothèque. Sa boucle de rendu vit
-dans `main()`, collée à `argparse`, et son `charger_texte()` appelle
-`sys.exit()` quand le marqueur manque. Dans un serveur, `SystemExit` est une
-`BaseException` : elle traverse un `except Exception`, tue le thread en silence
-et laisse le job bloqué en « generating » pour toujours. On ne l'importe donc
-pas.
+What the two repositories share is not code but **the voice**
+(`voix/ma-voix.wav` and its transcription) and the model id. Their script and
+this module are both thin clients of `mlx_audio`, fifteen lines around
+`load_model().generate()`. `TTS/RUNBOOK.md` stays the reference for the
+parameters (model, short segments, pause, language); when one moves there, it
+moves here.
 
-Ce que les deux dépôts partagent n'est pas du code mais **la voix** —
-`voix/ma-voix.wav` et sa transcription — et l'identifiant du modèle. Leur script
-comme ce module sont des clients minces de `mlx_audio` : quinze lignes autour de
-`load_model().generate()`. `TTS/RUNBOOK.md` reste la référence des paramètres
-(modèle, segments courts, pause, langue) ; si l'un bouge là-bas, il bouge ici.
-
-L'import de `mlx_audio` est PARESSEUX, fait dans la fonction de rendu : ce module
-est importé par un serveur qui vit des heures et ne synthétise qu'une fois, il
-n'a pas à porter `mlx` + `transformers` en mémoire tout ce temps.
+The `mlx_audio` import is LAZY, inside the render function: this module is
+imported by a server that lives for hours and synthesises once; it has no
+reason to carry `mlx` + `transformers` in memory all that time.
 """
 
 import time
@@ -32,22 +30,22 @@ from factory.infra import progress
 from factory.pipeline.assembly import audio_excerpt
 from factory.settings import settings
 
-# Modèle, référence vocale (asset du dépôt TTS voisin : la SEULE dépendance
-# inter-dépôts, en lecture seule), taille des segments (courts = prosodie
-# stable, pas de dérive du clone) et pause : `settings.tts_*`, `settings.voice_dir`.
+# Model, voice reference (asset of the neighbouring TTS repository: the ONLY
+# cross-repository dependency, read-only), segment size (short = stable
+# prosody, no drift of the clone) and pause: `settings.tts_*`, `settings.voice_dir`.
 DEFAULT_SAMPLE_RATE = 24_000
 
 
 class TTSUnavailable(RuntimeError):
-    """Rendu impossible (référence vocale absente, mlx-audio non installé…).
+    """Rendering impossible (voice reference missing, mlx-audio not installed…).
 
-    Exception ORDINAIRE, pas un `sys.exit` : l'appelant est un serveur, il doit
-    pouvoir la rattraper, la journaliser et laisser le deck basculer en silence.
+    An ORDINARY exception, not a `sys.exit`: the caller is a server, it must
+    be able to catch it, log it and let the deck fall back silently.
     """
 
 
 def split_segments(text: str, *, max_chars: int | None = None) -> list[str]:
-    """Découpe en segments courts, jamais au milieu d'une phrase."""
+    """Split into short segments, never in the middle of a sentence."""
     from factory.text import sentence_ends
 
     if max_chars is None:
@@ -77,7 +75,7 @@ def split_segments(text: str, *, max_chars: int | None = None) -> list[str]:
 
 
 def _reference() -> tuple[str, str]:
-    """Chemin du WAV de référence et sa transcription. Lève si absents."""
+    """Path of the reference WAV and its transcription. Raises when absent."""
     voice_dir = settings.voice_dir
     wav, txt = voice_dir / "ma-voix.wav", voice_dir / "ma-voix.txt"
     if not wav.exists() or not txt.exists():
@@ -90,12 +88,12 @@ def _reference() -> tuple[str, str]:
 
 def render(text: str, output: Path, *, model_id: str | None = None,
            pause_s: float | None = None) -> dict:
-    """Synthétise `texte` dans la voix de référence, écrit un WAV, rend les
-    métriques (durée d'audio, durée de calcul, facteur temps réel).
+    """Synthesise `text` in the reference voice, write a WAV, return the
+    metrics (audio duration, compute duration, real-time factor).
 
-    Le facteur temps réel est LA mesure qui compte : il dit si la synthèse tient
-    dans la queue du compte à rebours. Le RUNBOOK l'annonce à ~1×, à confirmer
-    sur cette machine.
+    The real-time factor is THE measure that counts: it says whether the
+    synthesis fits in the tail of the countdown. The RUNBOOK announces ~1×;
+    measured here 1.57× warm, 0.60× cold (ADR-0012).
     """
     model_id = model_id or settings.tts_model
     pause_s = settings.tts_pause_s if pause_s is None else pause_s
@@ -137,8 +135,8 @@ def render(text: str, output: Path, *, model_id: str | None = None,
 
     compute_s = time.time() - t0
     duration = len(audio) / sr
-    # Rendre la mémoire du GPU : ce processus vit encore des heures après, et la
-    # pression mémoire est l'ennemi numéro un de cette machine.
+    # Return the GPU memory: this process lives for hours afterwards, and
+    # memory pressure is this machine's enemy number one.
     try:
         import mlx.core as mx
 
@@ -146,10 +144,11 @@ def render(text: str, output: Path, *, model_id: str | None = None,
     except Exception:                                   # noqa: BLE001
         pass
 
-    # Le débit du clone est une HYPOTHÈSE (190 mots/min, mesurés sur un seul
-    # échantillon) qui sert à convertir la durée voulue par le deck en nombre de
-    # mots. Si elle est fausse, l'extrait sort trop court ou trop long, et
-    # personne ne s'en aperçoit avant la scène — sauf si on le dit ici.
+    # The clone's rate (`settings.audio_words_per_minute`) is an ASSUMPTION
+    # (190 words/min first, from a 117-word sample; 177 measured since,
+    # ADR-0013) that converts the duration the deck wants into a word count.
+    # If it is wrong the excerpt comes out too short or too long, and nobody
+    # notices before the stage, unless it is said here.
     cible_s = settings.audio_seconds
     gap = duration - cible_s
     if abs(gap) > settings.audio_tolerance_s:
@@ -173,5 +172,5 @@ def render(text: str, output: Path, *, model_id: str | None = None,
 
 
 def render_chapter(markdown: str, output: Path, **kwargs) -> dict:
-    """Rend la portion post-bascule et bornée d'un chapitre Markdown."""
+    """Render the post-switch, bounded portion of a Markdown chapter."""
     return render(audio_excerpt(markdown), output, **kwargs)

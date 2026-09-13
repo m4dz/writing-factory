@@ -1,44 +1,32 @@
 #!/usr/bin/env python3
-"""Contrôle de sécurité machine avant une génération longue.
+"""Machine safety gate before a long generation (ADR-0016).
 
-Motivation : une session de tests a fait paniquer le MacBook (watchdog
-timeout, `no checkins from watchdogd in 91 seconds`). Cause racine : disque à
-99 %, donc swap incapable de grandir, sous la pression d'un modèle de 13 GB
-sur 18 GB de mémoire unifiée. Le kernel n'a pas pu ordonnancer watchdogd.
+Born from an incident: a test session panicked the MacBook (watchdog timeout,
+`no checkins from watchdogd in 91 seconds`). Root cause: disk at 99 %, so the
+swap could not grow under a 13 GB model in 18 GB of unified memory; the
+kernel could not schedule watchdogd.
 
-Sur scène, la génération tourne ~20 min SANS surveillance. Un plantage à ce
-moment-là n'est pas rattrapable. Ces vérifications coûtent quelques
-millisecondes et refusent de démarrer sur une machine déjà étranglée.
+Onstage the generation runs ~20 min UNATTENDED, and a crash then cannot be
+recovered. These checks cost milliseconds and refuse to start a machine that
+is already choked. Signals, from the most decisive to the most indicative:
 
-Trois signaux, du plus déterminant au plus indicatif :
+1. DISK: a full data volume means macOS cannot allocate a swapfile. The exact
+   condition of the observed panic.
+2. SWAP: a consumed swap blocks only in timer mode, and only when the pageout
+   rate says the machine LIVES in its swap (see `_swap_cold`). It never
+   crashed the machine; it makes durations uninterpretable.
+3. macOS MAINTENANCE: two runs showed 5 to 18 MINUTE holes between two model
+   calls with 0.8 s of CPU used in 49 minutes; `mediaanalysisd` at 197-227 %
+   CPU after a reboot, against a generation process at `nice 5`. First
+   blamed paging, until the second run reproduced it with a fresh machine
+   and an empty swap: two simultaneous symptoms are not a cause.
+4. MODEL CO-RESIDENCE: two warm LLMs (nemo 13 GB + small 14 GB) do not fit in
+   18 GB. Without `OLLAMA_MAX_LOADED_MODELS=2` Ollama allows three; `/api/ps`
+   reports the real state.
 
-1. DISQUE — si le volume de données est plein, macOS ne peut plus allouer de
-   swapfile. C'est la condition exacte du panic observé.
-2. SWAP — un swap déjà saturé signale une machine qui n'a pas digéré la
-   session précédente. Un redémarrage est le seul remède (macOS ne rend pas
-   les swapfiles à chaud). C'est BLOQUANT : un modèle de 13 GB sur 18 GB
-   unifiés n'a aucune marge sur une machine qui vit déjà sur son swap. Ça ne
-   l'a pas toujours été — j'avais d'abord raisonné que la saturation n'était
-   dangereuse qu'avec un disque plein, puisque macOS peut sinon allouer un
-   swapfile de plus. Il le fait, mais ce n'est pas une machine sur laquelle on
-   chronomètre une démo.
-
-3. ENTRETIEN macOS — le risque le plus concret, et le dernier trouvé. Deux runs
-   ont montré des trous de cinq à dix-huit MINUTES entre deux appels au modèle,
-   avec 0,8 s de CPU consommé en 49 minutes : le processus dormait. Cause :
-   `mediaanalysisd` à 197-227 % de CPU, réveillé par le redémarrage, contre un
-   processus de génération à `nice 5`. À noter, parce que je me suis trompé
-   d'abord : j'ai attribué ces trous à la pagination avant que le second run,
-   sur machine fraîche et swap vide, ne reproduise le même motif. Deux
-   symptômes simultanés ne font pas une cause.
-4. CO-RÉSIDENCE DE MODÈLES — deux LLM chauds (nemo 13 GB + small 14 GB) ne
-   tiennent pas dans 18 GB. Sans `OLLAMA_MAX_LOADED_MODELS=2`, Ollama en
-   autorise trois. L'API `/api/ps` dit l'état réel, elle ne ment pas.
-
-La pression mémoire est rapportée en plus, d'après le verdict de macOS lui-même
-(`kern.memorystatus_vm_pressure_level`) et non d'après un comptage de pages
-maison — cf. `_pressure_level`, où la première version alertait sur une machine
-parfaitement saine.
+Memory pressure is reported as well, from macOS's own verdict
+(`kern.memorystatus_vm_pressure_level`) and not a home-made page count; see
+`_pressure_level` for the false alarm the first version raised.
 """
 
 import json
@@ -51,74 +39,53 @@ import urllib.request
 
 from factory.settings import settings
 
-# Seuils : `settings.min_disk_gb` (le disque doit pouvoir absorber la
-# croissance du swap, macOS va jusqu'à ~2× la RAM physique, plus une marge de
-# travail), `settings.min_swap_free_gb`, `settings.pageout_block_kb_s`,
+# Thresholds: `settings.min_disk_gb` (the disk must absorb the swap's growth,
+# up to ~2× physical RAM under macOS, and a working margin),
+# `settings.min_swap_free_gb`, `settings.pageout_block_kb_s`,
 # `settings.daemon_warn_cpu` / `daemon_block_cpu`, `settings.probe_model`.
 
-# Swap : AVERTISSEMENT par défaut, bloquant seulement en mode chrono
-# (cf. `preflight(chrono=...)`). Révision du 2026-08-09, sur mesure.
-#
-# Ce seuil bloquait tout, et il le faisait sur un raisonnement que le dossier du
-# projet contredit lui-même :
-#   - Les kernel panics venaient d'un DISQUE À 99 % (macOS ne pouvait plus
-#     agrandir le swap), pas d'un swap consommé. `MIN_DISK_GB` couvre ce cas
-#     directement, et mieux.
-#   - Les trous de 5 à 18 minutes venaient de `mediaanalysisd`, pas de la
-#     pagination — le run 4 les a reproduits sur une machine fraîchement
-#     redémarrée, swap à zéro. `NOISY_DAEMONS` couvre ce cas directement.
-# Le swap libre n'était donc qu'un PROXY de deux signaux déjà mesurés, et il
-# coûtait un redémarrage à chaque session de test.
-#
-# Mesuré le 2026-08-09, sans autre intervention que l'expiration de `keep_alive`
-# d'Ollama : mémoire libre 11 % → 87 %, swap `used` −1,35 GB, et `total` passé de
-# 4096 à 3072 MB. macOS REND donc les swapfiles à chaud, contrairement à ce que
-# ce fichier affirmait. Décharger le modèle suffit ; redémarrer est un dernier
-# recours.
-#
-# Ce qui reste vrai : une machine qui vit sur son swap ne donne pas des DURÉES
-# fiables. D'où le mode chrono, pour les runs dont le chiffre est l'objet.
+# Swap: a WARNING by default, blocking only in timer mode (ADR-0016). The
+# 2026-08-09 revision withdrew the blanket block: the panics came from a disk
+# at 99 % (covered by `min_disk_gb`), the holes from `mediaanalysisd` (covered
+# by `NOISY_DAEMONS`; run 4 reproduced them with swap at zero). Measured
+# 2026-08-09, after Ollama's `keep_alive` expired and nothing else: free memory
+# 11 % → 87 %, swap `used` −1.35 GB, `total` 4096 → 3072 MB. macOS DOES return
+# swapfiles live; unloading the model suffices, a reboot is a last resort. What
+# stays true: a machine living in its swap gives no reliable DURATIONS, hence
+# timer mode.
 
-# SWAP FROID — la correction du 2026-08-22, et elle porte sur une faille de
-# LOGIQUE, pas sur un arbitrage.
-#
-# `free = total - used`, et macOS DIMENSIONNE `total` juste au-dessus de `used` :
-# à mesure qu'il rend les swapfiles, `free` reste petit. Observé en une heure sur
-# cette machine, modèles déchargés : total 10240 → 8192 → 4096 MB, `free` toujours
-# entre 0,5 et 1,1 GB. Le seuil `free < 2 GB` est donc l'ÉTAT STATIONNAIRE NORMAL
-# d'une machine à swap modeste — il ne peut jamais redevenir vert par attente, et
-# il a bloqué les runs S6-2, S6-3 et S6-C alors que la mesure directe donnait
-# 85 % de mémoire libre et 88 pages sorties en vingt secondes (1,4 Mo).
-#
-# Ce que la règle NOMME, c'est « une machine qui vit sur son swap ». Ça se mesure :
-# le débit de pageouts. Un swap consommé mais froid est de la mémoire morte que
-# personne ne relit ; il ne coûte rien aux durées.
-#
-# C'est la leçon déjà gravée dans CLAUDE.md, appliquée une fois de plus : un
-# seuil qui corrèle n'est pas un seuil qui cause, et avant d'imposer un rituel,
-# vérifier que le signal bloquant n'est pas déjà couvert par un signal direct.
+# COLD SWAP, the 2026-08-22 fix: a LOGIC flaw, not an arbitration.
+# `free = total - used`, and macOS SIZES `total` just above `used`, so `free`
+# stays small while swapfiles are returned. Observed over an hour with models
+# unloaded: total 10240 → 8192 → 4096 MB, `free` always 0.5-1.1 GB. The
+# `free < 2 GB` threshold is the NORMAL STEADY STATE of a modest swap: it can
+# never turn green by waiting, and it blocked runs S6-2, S6-3 and S6-C while
+# direct measurement gave 85 % free memory and 88 pages out in twenty seconds
+# (1.4 MB). What the rule NAMES is a machine living in its swap, and that is
+# measurable: the pageout rate. A consumed but cold swap is dead memory nobody
+# rereads; it costs durations nothing. Lesson (ADR-0016): a threshold that
+# correlates is not a threshold that causes.
 PAGEOUT_WINDOW_S = 4.0
-# Taille de page mémoire d'Apple Silicon. `vm_stat` la rappelle en en-tête ;
-# on la fixe plutôt que de la parser, elle ne varie pas sur cette plateforme.
+# Apple Silicon memory page size. `vm_stat` prints it in its header; pinned
+# rather than parsed, it does not vary for this platform.
 PAGE_SIZE_BYTES = 16384
 
-# Pression mémoire : on s'en remet au verdict de macOS (cf. _pressure_level),
-# pas à un comptage de pages maison. 1 = normal, 2 = warn, 4 = critique.
+# Memory pressure: macOS's own verdict (see _pressure_level), not a home-made
+# page count. 1 = normal, 2 = warn, 4 = critical.
 PRESSURE_BLOCK = 4
 
-# Au-delà, un modèle chargé n'est plus un embedder mais un vrai LLM qui
-# dispute la mémoire au modèle auteur. nomic-embed pèse 370 MB.
+# Above this size a loaded model is no embedder but a real LLM competing for
+# memory with the author model. nomic-embed weighs 370 MB.
 EMBED_SIZE_LIMIT_GB = 2.0
 
 DATA_VOLUME = "/System/Volumes/Data"
 
-# Démons d'entretien macOS qui se réveillent après un redémarrage ou une grosse
-# copie et monopolisent CPU, mémoire et disque pendant des dizaines de minutes.
-# Mesuré le 2026-08-06 : `mediaanalysisd` à 197 % de CPU (deux cœurs) pendant un
-# run, avec des trous de dix-sept minutes entre deux appels au modèle. Le
-# processus de génération, lancé en tâche de fond, tourne à `nice 5` : il perd
-# systématiquement l'arbitrage. C'est le risque de scène le plus concret —
-# la machine décide d'indexer la photothèque pendant la keynote.
+# macOS maintenance daemons that wake after a reboot or a large copy and hog
+# CPU, memory and disk for tens of minutes. Measured 2026-08-06:
+# `mediaanalysisd` at 197 % CPU (two cores) during a run, with seventeen-minute
+# holes between two model calls. A generation launched in the background runs
+# at `nice 5` and loses every arbitration (ADR-0016). The most concrete stage
+# risk: the machine decides to index the photo library during the keynote.
 NOISY_DAEMONS = (
     "mediaanalysisd", "photoanalysisd", "photolibraryd", "mdworker",
     "mds_stores", "mds", "backupd", "cloudphotod", "corespotlightd",
@@ -127,18 +94,18 @@ NOISY_DAEMONS = (
     "AssetCacheLocatorService", "syspolicyd",
 )
 
-# Modèle de la sonde de génération. Le PLUS PETIT du projet : on vérifie que le
-# serveur sait lancer un llama-server, pas que nemo tient en mémoire — et
-# charger 4,8 GB coûte dix secondes contre une trentaine pour 13 GB.
-# Vider la variable désactive la sonde.
+# Generation probe model (`settings.probe_model`): the SMALLEST of the project.
+# It checks that the server can start a llama-server, not that nemo fits in
+# memory, and loading 4.8 GB takes ten seconds against about thirty for 13 GB.
+# An empty value disables the probe.
 
 
 class PreflightError(RuntimeError):
-    """Condition machine incompatible avec une génération longue."""
+    """Machine condition incompatible with a long generation."""
 
 
 def _disk_free_gb(path: str = DATA_VOLUME) -> float:
-    """Espace libre du volume de données, en Go."""
+    """Free space of the data volume, in GB."""
     try:
         return shutil.disk_usage(path).free / 1e9
     except OSError:
@@ -146,16 +113,16 @@ def _disk_free_gb(path: str = DATA_VOLUME) -> float:
 
 
 def _swap_gb() -> dict[str, float] | None:
-    """État du swap en Go, via `sysctl vm.swapusage`. None si illisible.
+    """Swap state in GB, via `sysctl vm.swapusage`. None when unreadable.
 
-    Format attendu :
+    Expected format:
         vm.swapusage: total = 9216.00M  used = 8515.12M  free = 700.88M
-    Les unités peuvent être M ou G selon la taille — on normalise.
+    Units may be M or G according to size; normalised here.
 
-    On lit `total` autant que `free` : sur une machine fraîchement redémarrée
-    macOS n'a encore alloué AUCUN swapfile, donc `total = free = 0`. Ne
-    regarder que `free` conclut « swap saturé, redémarrez » juste après un
-    redémarrage — exactement l'inverse de la vérité.
+    `total` is read as well as `free`: a freshly rebooted macOS has allocated
+    NO swapfile yet, so `total = free = 0`. Looking at `free` alone concludes
+    "swap saturated, reboot" right after a reboot, the exact opposite of the
+    truth.
     """
     try:
         out = subprocess.run(
@@ -165,7 +132,7 @@ def _swap_gb() -> dict[str, float] | None:
     except (subprocess.SubprocessError, OSError):
         return None
 
-    # « total = 9216.00M  used = ...  free = 700.88M » → jeton après chaque clé.
+    # « total = 9216.00M  used = ...  free = 700.88M » → token after each key.
     tokens = out.replace("=", " = ").split()
     values: dict[str, float] = {}
     for i, tok in enumerate(tokens):
@@ -186,7 +153,7 @@ def _swap_gb() -> dict[str, float] | None:
 
 
 def _pageouts() -> int | None:
-    """Compteur cumulé de pages sorties vers le swap, via `vm_stat`."""
+    """Cumulative count of pages written out to swap, via `vm_stat`."""
     try:
         out = subprocess.run(["vm_stat"], capture_output=True, text=True,
                              timeout=5, check=True).stdout
@@ -202,12 +169,12 @@ def _pageouts() -> int | None:
 
 
 def _swap_cold(window: float = PAGEOUT_WINDOW_S) -> bool:
-    """Le swap est-il consommé mais INERTE ?
+    """Is the swap consumed but INERT?
 
-    Coûte `fenetre` secondes, et seulement dans la branche où le swap paraît
-    bas — le chemin normal est inchangé. En cas de lecture impossible on rend
-    False : on retombe alors sur l'ancien comportement, plus sévère. Un garde
-    qui échoue doit échouer du côté du refus.
+    Costs `window` seconds, and only in the branch where the swap looks low;
+    the normal path is unchanged. When the counter cannot be read, return
+    False and fall back to the older, stricter behaviour: a guard that fails
+    must fail towards refusal.
     """
     a = _pageouts()
     if a is None:
@@ -221,17 +188,16 @@ def _swap_cold(window: float = PAGEOUT_WINDOW_S) -> bool:
 
 
 def _pressure_level() -> int | None:
-    """Niveau de pression mémoire SELON macOS : 1 normal, 2 warn, 4 critique.
+    """Memory pressure level ACCORDING TO macOS: 1 normal, 2 warn, 4 critical.
 
-    C'est le verdict du système lui-même (celui qui pilote jetsam), et il vaut
-    mieux que tout comptage de pages fait à la main. Première version de ce
-    contrôle : je sommais les pages « free + speculative » de `vm_stat` en
-    excluant « inactive », au motif que les récupérer suppose de la pagination.
-    Faux — l'essentiel des pages inactives sont du cache fichier PROPRE, que le
-    noyau libère sans rien écrire. Sur une machine fraîchement redémarrée et
-    parfaitement saine, ce calcul annonçait 0,45 GB disponibles quand macOS
-    rapportait 79 % de mémoire libre et une pression normale. Exactement le
-    piège du contrôle de swap : alerter juste après un redémarrage.
+    The system's own verdict (the one driving jetsam) beats any hand count
+    of pages. The first version of this check summed `vm_stat`'s "free +
+    speculative" pages and excluded "inactive", reasoning that reclaiming
+    them means paging. Wrong: most inactive pages are CLEAN file cache the
+    kernel drops without writing anything. With a fresh, healthy machine
+    that count announced 0.45 GB available while macOS reported 79 % free
+    memory and normal pressure: the swap check's trap again, alerting right
+    after a reboot.
     """
     try:
         out = subprocess.run(
@@ -244,11 +210,10 @@ def _pressure_level() -> int | None:
 
 
 def _ram_available_gb() -> float | None:
-    """Mémoire récupérable sans pagination, en Go — chiffre INDICATIF du log.
+    """Memory reclaimable without paging, in GB; an INDICATIVE figure for the log.
 
-    Pages libres + spéculatives + inactives + purgeables. Sert à donner un ordre
-    de grandeur dans le rapport, pas à décider : c'est `_pressure_level` qui
-    tranche.
+    Free + speculative + inactive + purgeable pages. Gives an order of
+    magnitude in the report, decides nothing: `_pressure_level` rules.
     """
     try:
         out = subprocess.run(
@@ -270,13 +235,13 @@ def _ram_available_gb() -> float | None:
 
 
 def _busy_daemons() -> list[tuple[str, float]] | None:
-    """Démons d'entretien macOS actuellement gourmands. None si `ps` illisible.
+    """macOS maintenance daemons currently greedy. None when `ps` is unreadable.
 
-    Retourne [(nom, %cpu)] trié décroissant, pour les seuls processus de
-    `NOISY_DAEMONS` au-dessus du seuil d'avertissement. Le `%cpu` de `ps` est
-    une moyenne sur la vie du processus, pas un instantané : un démon qui vient
-    de se réveiller est donc sous-estimé — l'erreur va dans le bon sens pour un
-    contrôle, jamais vers la fausse alerte.
+    Returns [(name, %cpu)] sorted descending, for the `NOISY_DAEMONS`
+    processes above the warning threshold only. The `%cpu` of `ps` is an
+    average over the process lifetime, not an instant: a daemon that just
+    woke is underestimated, which errs the right way for a gate, never
+    towards a false alarm.
     """
     try:
         out = subprocess.run(
@@ -296,7 +261,7 @@ def _busy_daemons() -> list[tuple[str, float]] | None:
         except ValueError:
             continue
         if cpu < settings.daemon_warn_cpu:
-            break  # `-r` trie par CPU décroissant : plus rien au-dessus du seuil
+            break  # `-r` sorts by CPU descending: nothing above the threshold remains
         name = parts[1].rsplit("/", 1)[-1].strip()
         if name in NOISY_DAEMONS:
             found_list.append((name, cpu))
@@ -304,20 +269,21 @@ def _busy_daemons() -> list[tuple[str, float]] | None:
 
 
 def _probe_generation(model: str, timeout: float = 120.0) -> str | None:
-    """Fait RÉELLEMENT générer un token. Retourne None si tout va bien, sinon la
-    raison de l'échec.
+    """REALLY generate one token. Return None when all is well, else the reason
+    of the failure.
 
-    Sans cette sonde, le contrôle d'Ollama se limitait à `/api/ps`, qui répond
-    200 avec une liste vide quand rien n'est chargé — indiscernable d'une
-    machine saine. Or après une MISE EN VEILLE, le démon Ollama survit mais ne
-    parvient plus à lancer `llama-server` : « timed out waiting for llama-server
-    to start », et TOUTES les requêtes rendent 500. Mesuré le 2026-08-07 après
-    une nuit de veille. Un préflight qui ne fait pas générer un token ne dit rien
-    de ce qui compte. Remède : `launchctl kickstart -k gui/$(id -u)/local.ollama`.
+    Without this probe the Ollama check stopped at `/api/ps`, which answers
+    200 with an empty list when nothing is loaded, indistinguishable from a
+    healthy machine. After SLEEP the Ollama daemon survives but can no longer
+    start `llama-server` (« timed out waiting for llama-server to start »)
+    and EVERY request returns 500; measured 2026-08-07 after a night of
+    sleep. A preflight that does not generate a token says nothing of what
+    counts. Remedy: `launchctl kickstart -k gui/$(id -u)/local.ollama`
+    (ADR-0009).
     """
-    # `keep_alive: 0` : la sonde rend la mémoire qu'elle emprunte. Sans ça elle
-    # laisserait le modèle chaud, et le run démarrerait avec deux modèles en
-    # co-résidence — la pression mémoire que ce préflight existe pour empêcher.
+    # `keep_alive: 0`: the probe returns the memory it borrows. Otherwise it
+    # would leave the model warm and the run would start with two co-resident
+    # models, the memory pressure this preflight exists to prevent.
     payload = json.dumps({
         "model": model, "prompt": "1", "stream": False, "keep_alive": 0,
         "options": {"num_predict": 1},
@@ -337,10 +303,10 @@ def _probe_generation(model: str, timeout: float = 120.0) -> str | None:
 
 
 def _loaded_llms() -> list[dict] | None:
-    """Modèles actuellement chauds, embedders exclus. None si Ollama muet.
+    """Models currently warm, embedders excluded. None when Ollama is silent.
 
-    On filtre sur la taille : `/api/ps` ne distingue pas un embedder d'un
-    LLM, mais 370 MB contre 13 GB, l'écart tranche tout seul.
+    Filtered by size: `/api/ps` does not tell an embedder from an LLM, but
+    370 MB against 13 GB settles it alone.
     """
     try:
         with urllib.request.urlopen(f"{settings.ollama_url}/api/ps", timeout=5) as resp:
@@ -355,16 +321,15 @@ def _loaded_llms() -> list[dict] | None:
 
 
 def preflight(*, strict: bool = True, timer: bool = False) -> list[str]:
-    """Vérifie la machine. Retourne les avertissements non bloquants.
+    """Check the machine. Return the non-blocking warnings.
 
-    Lève PreflightError sur une condition qui a déjà fait planter la machine.
-    `strict=False` dégrade tout en avertissement (itération de dev).
+    Raises PreflightError for a condition that has already crashed the
+    machine. `strict=False` degrades everything to a warning (dev iteration).
 
-    `chrono=True` ajoute les conditions qui ne menacent pas la machine mais
-    faussent les DURÉES : c'est le mode des runs dont le chiffre est l'objet
-    (run de référence, répétition, génération de scène). Un test de style, lui,
-    juge de la prose et se moque des secondes — il n'a pas à exiger un
-    redémarrage.
+    `timer=True` adds the conditions that do not threaten the machine but
+    distort DURATIONS: the mode of runs whose figure is the object (reference
+    run, rehearsal, stage generation). A style test judges prose and does not
+    care about seconds; it has no reason to demand a reboot (ADR-0016).
     """
     blocking: list[str] = []
     warnings: list[str] = []
@@ -381,7 +346,7 @@ def preflight(*, strict: bool = True, timer: bool = False) -> list[str]:
     if swap is None:
         warnings.append("Swap : état illisible (sysctl vm.swapusage).")
     elif swap["total"] == 0:
-        pass  # Aucun swapfile alloué : machine fraîche, rien à signaler.
+        pass  # No swapfile allocated: fresh machine, nothing to report.
     elif swap["free"] < settings.min_swap_free_gb and _swap_cold():
         warnings.append(
             f"Swap : {swap['free']:.2f} GB libres sur {swap['total']:.1f} GB "
@@ -401,9 +366,9 @@ def preflight(*, strict: bool = True, timer: bool = False) -> list[str]:
             "macOS rend alors les pages ET rétrécit les swapfiles. Redémarrer "
             "n'est qu'un dernier recours."
         )
-        # Bloquant seulement quand on chronomètre : un swap consommé ne casse
-        # pas la machine (le disque, lui, si — cf. min_disk_gb), il rend les
-        # durées ininterprétables.
+        # Blocking only when timing: a consumed swap does not break the
+        # machine (the disk does, see min_disk_gb), it makes durations
+        # uninterpretable.
         if timer:
             blocking.append(
                 msg + " Mesure de temps refusée dans cet état : les durées "
@@ -483,7 +448,7 @@ def preflight(*, strict: bool = True, timer: bool = False) -> list[str]:
 
 
 def report() -> str:
-    """Résumé lisible de l'état machine, pour le log de démo."""
+    """Readable summary of the machine state, for the demo log."""
     disk = _disk_free_gb()
     swap = _swap_gb()
     ram = _ram_available_gb()

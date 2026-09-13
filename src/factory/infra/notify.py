@@ -1,29 +1,24 @@
 #!/usr/bin/env python3
-"""Notifications de progression vers un téléphone (Telegram), COUPÉES PAR DÉFAUT.
+"""Progress notifications to a phone (Telegram), OFF BY DEFAULT (ADR-0015).
 
-## L'exception à la règle d'or, et sa limite exacte
+The one exception to the golden rule, and its exact limit. The project bans
+every cloud API; this module is the OPERATOR'S BEEPER, not a link of the
+factory. It says, from the stage, that a generation failed and plan B is due.
+Its value is being OUT OF BAND: it goes through the cellular network, so it
+survives the conference WiFi dropping, the very case it must signal.
 
-Le projet interdit toute API cloud : « la fabrique reste à notre main ». Ce
-module est la seule exception, et elle est assumée pour une raison précise —
-c'est le BIPEUR DE L'OPÉRATEUR, pas un maillon de la fabrique. Il sert à savoir,
-depuis la scène, qu'une génération a échoué et qu'il faut basculer sur le plan B.
-Son intérêt tient justement à ce qu'il est HORS BANDE : il passe par le réseau
-cellulaire, donc il survit à la panne du wifi de la conférence — c'est-à-dire au
-cas même qu'il doit signaler.
+What leaves the machine is strictly bounded:
 
-Ce qui sort de la machine est strictement borné :
+    phase, percentage, durations, counters, error class.
 
-    phase, pourcentage, durées, compteurs, classe d'erreur.
+What NEVER leaves: the chapter text, a bible excerpt, a character's line, a
+prompt. Not a discipline but a mechanism: messages are composed from
+STRUCTURED FIELDS, never free text, and a second filter strips what sits
+between quotation marks before sending. Our own progress notes quote the bible
+(« PLAN REFUSÉ — contredit … ») and the chapter (« fin coupée — … »); relaying
+them verbatim would have exported the work.
 
-Ce qui ne sort JAMAIS : le texte du chapitre, un extrait de la bible, une
-réplique de personnage, un prompt. Ce n'est pas une discipline, c'est une
-mécanique — les messages sont composés à partir de CHAMPS STRUCTURÉS, jamais de
-texte libre, et un second filtre retire ce qui est entre guillemets avant
-l'envoi. Nos propres notes de progression citent la bible (« PLAN REFUSÉ —
-contredit « … » ») et le chapitre (« fin coupée — « … » ») : les relayer
-verbatim aurait exporté l'œuvre.
-
-Sans `TELEGRAM_BOT_TOKEN` ni `TELEGRAM_CHAT_ID`, tout appel est un no-op silencieux.
+Without `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`, every call is a silent no-op.
 """
 
 import json
@@ -35,11 +30,10 @@ import urllib.request
 
 from factory.settings import settings
 
-# Jeton, chat, délai et période minimale entre deux messages d'avancement
-# (sur une montre, une rafale de notifications est pire que pas de
-# notification du tout) : `settings.telegram_*`.
+# Token, chat, timeout and minimum period between two progress messages (at
+# the wrist, a burst of notifications is worse than none): `settings.telegram_*`.
 
-# Tout ce qui est cité l'est parce que ça vient du modèle ou de la bible.
+# Anything quoted is quoted because it comes from the model or the bible.
 _QUOTATIONS = re.compile(r"[«\"“][^»\"”]*[»\"”]")
 _MAX_LENGTH = 200
 
@@ -52,11 +46,11 @@ def active() -> bool:
 
 
 def _sanitize(text: str) -> str:
-    """Retire les citations et borne la longueur — second rideau.
+    """Strip quotations and bound the length: the second curtain.
 
-    Le premier rideau est de ne composer les messages qu'à partir de champs
-    structurés ; celui-ci protège le cas où une exception inattendue porterait
-    du contenu dans son message.
+    The first curtain is composing messages from structured fields only;
+    this one covers the case where an unexpected exception carries content
+    in its message.
     """
     without_quotation = _QUOTATIONS.sub("[…]", text)
     without_quotation = " ".join(without_quotation.split())
@@ -64,7 +58,7 @@ def _sanitize(text: str) -> str:
 
 
 def _post(text: str) -> None:
-    """Envoi réel, en tâche de fond. N'échoue jamais vers l'appelant."""
+    """The real send, in the background. Never fails towards the caller."""
     payload_dict = json.dumps({
         "chat_id": settings.telegram_chat_id, "text": text, "disable_notification": False,
     }).encode()
@@ -75,16 +69,16 @@ def _post(text: str) -> None:
     try:
         urllib.request.urlopen(req, timeout=settings.telegram_timeout_s).read()
     except (urllib.error.URLError, OSError, ValueError):
-        # Le bipeur qui tombe ne doit surtout pas emporter la génération : c'est
-        # un confort d'opérateur, pas une dépendance du pipeline.
+        # A falling beeper must never take the generation down: it is an
+        # operator comfort, not a pipeline dependency.
         pass
 
 
 def _send(text: str, *, priority: bool = False) -> None:
-    """Poste un message, sauf si le débit est déjà atteint (hors priorité).
+    """Post a message, unless the rate is already reached (priority excepted).
 
-    L'envoi part dans un THREAD : une génération ne doit pas attendre cinq
-    secondes de timeout réseau parce qu'un opérateur veut être prévenu.
+    The send runs in a THREAD: a generation must not wait five seconds of
+    network timeout because an operator wants to be warned.
     """
     global _last_sent
     if not active():
@@ -98,11 +92,11 @@ def _send(text: str, *, priority: bool = False) -> None:
                      daemon=True).start()
 
 
-# --- Événements : la seule surface d'appel autorisée -------------------------
+# --- Events: the only permitted call surface ---------------------------------
 #
-# Chaque fonction compose son message à partir de champs typés. Il n'existe
-# volontairement PAS de `notify.texte(...)` générique : ce serait la porte par
-# laquelle le contenu finirait par sortir.
+# Each function composes its message from typed fields. There is deliberately
+# NO generic `notify.text(...)`: it would be the door through which content
+# ends up leaving (ADR-0015).
 
 def startup(planned_scenes: str = "") -> None:
     _send(f"▶️ Génération lancée{f' ({planned_scenes})' if planned_scenes else ''}",
@@ -110,12 +104,12 @@ def startup(planned_scenes: str = "") -> None:
 
 
 def advancement(label: str, percent: float, elapsed_s: int) -> None:
-    """Battement de progression. `label` vient de nos PHASES, pas du modèle."""
+    """Progress beat. `label` comes from our PHASES, not from the model."""
     _send(f"⏳ {int(percent * 100)} % — {label} — {elapsed_s // 60} min écoulées")
 
 
 def alert(code: str) -> None:
-    """Événement notable. `code` est un libellé COURT et fixe, pas une citation."""
+    """Notable event. `code` is a SHORT, fixed label, not a quotation."""
     _send(f"⚠️ {code}", priority=True)
 
 
@@ -126,7 +120,7 @@ def ready(duration_s: int, scenes: int, audio_s: float | None) -> None:
 
 
 def failure(kind: str, reason: str) -> None:
-    """Échec. `raison` passe par l'assainisseur : elle peut venir d'ailleurs."""
+    """Failure. `reason` goes through the sanitizer: it may come from elsewhere."""
     _send(f"❌ ÉCHEC ({kind}) — {reason} — PLAN B", priority=True)
 
 
