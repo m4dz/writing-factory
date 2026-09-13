@@ -1,33 +1,34 @@
 #!/usr/bin/env python3
-"""Micro-nœuds d'assemblage — les gestes signatures du style (étage C).
+"""Assembly micro-nodes — the signature gestures of the style (stage C).
 
-Deux gestes que huit runs n'ont jamais produits spontanément :
+Two gestures that eight runs never produced spontaneously:
 
-  `accumulate` — la phrase d'accumulation : une seule phrase longue, en
-      propositions juxtaposées par des virgules, qui reprend les faits dans
-      l'ordre jusqu'à celui qui cloche. Quatre sessions ont établi qu'elle ne
-      s'obtient ni par la fiche (trois formulations essayées) ni par une boucle
-      de reproche (jamais une seule authentique). Elle est donc ASSEMBLÉE.
+  `accumulate` — the accumulation sentence: one long sentence of comma-joined
+      clauses that retraces the facts in order up to the one that is off.
+      Four sessions established that neither the sheet (three formulations)
+      nor a reproach loop yields it (never one authentic). It is therefore
+      ASSEMBLED.
 
-  `glisse` — le glissement : une phrase d'approche du départ, coupée sur « … »,
-      immédiatement suivie d'un fait matériel. Zéro occurrence en huit runs.
+  `drift` — the drift passage: a sentence approaching the departure, cut at
+      « … », immediately followed by a material fact. Zero occurrences in
+      eight runs.
 
-Le partage du travail est le même pour les deux : le modèle fournit la MATIÈRE
-(une phrase), le code fait la FORME (la coupe, la place, le comptage). C'est la
-doctrine du projet — le garde-fou qui tient est dans le code — appliquée non
-plus à interdire mais à construire.
+Division of labour, identical for both: the model supplies the MATTER (one
+sentence), the code makes the FORM (the cut, the place, the count). Project
+doctrine — the guard that holds is in the code — applied to building rather
+than forbidding (ADR-0018).
 
-Deux règles d'assemblage, explicites parce qu'elles sont faciles à rater :
+Two assembly rules, explicit because they are easy to miss:
 
-  1. **Jamais les deux gestes dans le même paragraphe.** Le glissement vit dans
-     la reconstruction, l'accumulation se place avant le verdict. Adjacents, ils
-     ne font pas un style : ils font un tic — exactement le défaut qu'on cherche
-     à éteindre, et que l'étage C pourrait fabriquer lui-même.
+  1. **Never both gestures in the same paragraph.** The drift lives in the
+     reconstruction, the accumulation goes before the verdict. Adjacent, they
+     make not a style but a tic — the very defect stage C is meant to put out,
+     and could manufacture itself.
 
-  2. **Les positions se calculent sur le texte ORIGINAL, les insertions
-     s'appliquent de la FIN vers le DÉBUT.** Sinon la première insertion décale
-     les offsets de la seconde et le glissement atterrit à côté. Coût nul, et le
-     genre d'erreur qui ne se voit qu'une fois sur trois.
+  2. **Positions are computed against the ORIGINAL text, insertions applied
+     from the END to the START.** Otherwise the first insertion shifts the
+     offsets of the second and the drift lands off target. Costs nothing, and
+     the kind of error seen one time in three.
 """
 
 import random
@@ -41,45 +42,42 @@ from factory.text import delint
 
 MAX_ATTEMPTS = 2
 
-# PLAFOND de l'accumulation. La spec ne posait qu'un plancher (60 mots), et le
-# modèle occupe l'espace offert : 214 mots sur C1, contre 90 pour l'étalon. Le
-# raisonnement est celui qui avait fait écarter la montée de `num_predict` en
-# session 1, pris par l'autre bout — un seuil sans borne haute ne cadre rien.
+# CEILING of the accumulation. The spec set only a floor (60 words), and the
+# model fills the space offered: 214 words in C1 against 90 for the reference.
+# A threshold without an upper bound frames nothing — the reasoning that
+# rejected raising `num_predict` in session 1, taken from the other end.
 ACC_WORDS_MAX = 120
 
-# Le terme de verdict est le REPÈRE PRIMAIRE de l'entrée, et ce n'est pas un
-# détail d'implémentation : c'est le seul point garanti, parce qu'un autre
-# contrôle l'exige en présence (lint du verdict, notes d'outillage §3).
+# The verdict term is the PRIMARY landmark of the entry, and not an
+# implementation detail: it is the only guaranteed point, because another
+# check requires its presence (the verdict lint).
 #
-# Les marqueurs de reconstruction ne servent qu'en repli. Ils sont dépendants du
-# chapitre : « fatigue » est la marche du chapitre 2, mais la table de pilotage
-# la fait migrer (automatisme, trouble, l'autre). S'appuyer sur eux en primaire
-# aurait cassé EN SILENCE dès le chapitre 3.
+# Reconstruction markers serve only as fallback. They depend upon the chapter:
+# « fatigue » is chapter 2's step, but the pilot table migrates it
+# (automatisme, trouble, l'autre). Relying upon them as primary would have
+# broken SILENTLY from chapter 3.
 RECONSTRUCTION_MARKERS = re.compile(
     r"\b(dans l'ordre|reprends? les faits|repass\w+|reconstitu\w+|"
     r"fatigue|automatisme|trouble|distraction|inattention)\b", re.IGNORECASE)
 
-# LE PIVOT SUSPENDU — ce qui fait qu'une phrase est une approche.
+# THE SUSPENDED PIVOT — what makes a sentence an approach.
 #
-# ⚠ Ce motif REMPLACE un `CHAMP_DEPART` qui exigeait un mot du départ (partie,
-# absence, quittée…). Ce critère était FAUX, et il coûtait le geste :
+# ⚠ This pattern REPLACED a check that required a departure word (partie,
+# absence, quittée…) in the approach. That criterion was WRONG and cost the
+# gesture: it rejected the THREE hand-written approaches delivered by the
+# protocol (« Je pourrais me demander ce qui, ce soir-là », « Si je savais
+# seulement pourquoi », « Il faudrait que je relise le jour où elle ») — none
+# names the departure — and it is literally what rejected the model's approach
+# in C2, two attempts in a row.
 #
-#   · il rejette les TROIS approches écrites main livrées par le protocole
-#     (« Je pourrais me demander ce qui, ce soir-là », « Si je savais seulement
-#     pourquoi », « Il faudrait que je relise le jour où elle ») — aucune ne
-#     contient de mot du départ ;
-#   · et c'est littéralement lui qui a rejeté l'approche du modèle sur C2, deux
-#     essais de suite : « approche rejetée — n'approche pas le départ (champ
-#     lexical absent) ».
+# The gesture is defined by the interruption BEFORE the departure is named.
+# Requiring the departure word in the approach demands that the gesture not
+# happen: the validator meant to guarantee the drift was what prevented it.
 #
-# Le geste est défini par l'interruption AVANT que le départ soit nommé. Exiger
-# le mot du départ dans l'approche, c'est exiger que le geste n'ait pas lieu :
-# le validateur qui devait garantir le glissement était ce qui l'empêchait.
-#
-# Ce qu'une approche porte vraiment, c'est un PIVOT resté ouvert — un mot
-# interrogatif ou relatif après lequel la phrase se coupe.
-# Le champ du départ, INTERDIT dans un passage rédigé : le geste s'arrête avant
-# de nommer. Même liste que le lint L4, employée à l'envers.
+# What an approach really carries is a PIVOT left open — an interrogative or
+# relative word after which the sentence cuts.
+# The departure field, FORBIDDEN in a written passage: the gesture stops
+# before naming. Same list as lint L4, used the other way round.
 FORBIDDEN_DEPARTURE_FIELD = re.compile(
     r"\b(partie|départ|absence|absente|quittée|plus là)\b", re.IGNORECASE)
 SUSPENSION_PASSAGE = re.compile(r"…|\.\.\.")
@@ -90,7 +88,7 @@ SUSPENDED_PIVOT = re.compile(
 
 
 def paragraphs(text: str) -> list[tuple[int, int, str]]:
-    """(début, fin, contenu) de chaque paragraphe, offsets sur le texte donné."""
+    """(start, end, content) of each paragraph, offsets into the given text."""
     out, pos = [], 0
     for block in text.split("\n\n"):
         out.append((pos, pos + len(block), block))
@@ -99,11 +97,11 @@ def paragraphs(text: str) -> list[tuple[int, int, str]]:
 
 
 def accumulation_position(text: str, verdict: str) -> int:
-    """Offset d'insertion : juste AVANT le paragraphe du verdict.
+    """Insertion offset: just BEFORE the verdict paragraph.
 
-    Repli sur le dernier paragraphe portant des marqueurs de reconstruction,
-    puis sur l'avant-dernier paragraphe. Rend toujours une position valide : un
-    geste qu'on renonce à placer est un geste perdu.
+    Falls back to the last paragraph carrying reconstruction markers, then to
+    the second-to-last paragraph. Always returns a valid position: a gesture
+    we give up placing is a gesture lost.
     """
     paras = paragraphs(text)
     if verdict:
@@ -120,39 +118,39 @@ def accumulation_position(text: str, verdict: str) -> int:
 def drift_position(text: str, acc_position: int,
                         reconstruction_bounds: tuple[int, int] | None = None
                         ) -> int:
-    """Offset d'insertion du glissement, dans la reconstruction.
+    """Insertion offset of the drift, inside the reconstruction.
 
-    RÈGLE 1 : jamais dans le paragraphe qui va recevoir l'accumulation. Si le
-    seul candidat est celui-là, on recule d'un paragraphe.
+    RULE 1: never in the paragraph that will receive the accumulation. If the
+    only candidate is that one, step back one paragraph.
 
-    Quand `write` génère en trois segments, les BORNES de la reconstruction sont
-    connues et font foi. C'est un gain de fond, pas de confort : le repli sur
-    `MARQUEURS_RECONSTRUCTION` s'indexait sur *fatigue* et *automatisme*, qui
-    sont des valeurs de la colonne « marche des explications » — la table de
-    pilotage les fait migrer (fatigue → automatisme → trouble → l'autre), donc
-    ce repli aurait cassé EN SILENCE dès le chapitre 3. Le découpage rend la
-    reconstruction repérable par construction plutôt que par lexique.
+    When `write` generates in three segments, the BOUNDS of the reconstruction
+    are known and authoritative. A gain of substance, not of comfort: the
+    fallback to `RECONSTRUCTION_MARKERS` keys off *fatigue* and *automatisme*,
+    values of the « marche des explications » column that the pilot table
+    migrates (fatigue → automatisme → trouble → l'autre), so it would have
+    broken SILENTLY from chapter 3. Segmenting makes the reconstruction
+    locatable by construction rather than by lexicon.
     """
     paras = paragraphs(text)
-    # LE DERNIER TIERS EST INTERDIT AU GLISSEMENT (micro-lot, item 3).
+    # THE LAST THIRD IS OFF LIMITS TO THE DRIFT (micro-batch, item 3).
     #
-    # Sur S7-2 il s'est posé en DERNIÈRE LIGNE de l'entrée, après le couperet et
-    # la physiologie : là, une phrase suspendue ne suspend plus rien, elle
-    # console. Le geste vit dans la reconstruction, où il interrompt une pensée
-    # en cours ; en clôture, il défait la chute que la fermeture vient de poser.
+    # In S7-2 it landed as the LAST LINE of the entry, after the « couperet »
+    # and the physiology: there a suspended sentence suspends nothing, it
+    # consoles. The gesture lives in the reconstruction, where it interrupts a
+    # thought in progress; at the close it undoes the fall the ending just set.
     last_third = int(len(text) * 2 / 3)
     if reconstruction_bounds:
         a, b = reconstruction_bounds
         b = min(b, last_third) if a < last_third else b
         inner = [p for p in paras if a <= p[0] < b]
-        # NON ADJACENT, et pas seulement « pas dans le même paragraphe ».
-        # Le §2 du protocole dit « jamais adjacent à l'accumulation », et la
-        # nuance compte : posé en fin du dernier paragraphe de la
-        # reconstruction, le glissement tombe juste au-dessus de l'accumulation
-        # — deux signatures collées, ce qui fait un tic et non un style. On
-        # préfère donc un paragraphe qui ne touche pas le point d'épissure.
-        # Mesuré sur un cas de test avant d'être écrit : la reconstruction à
-        # deux paragraphes produisait exactement cette collision.
+        # NOT ADJACENT, not merely « pas dans le même paragraphe ». The
+        # protocol's §2 says « jamais adjacent à l'accumulation », and the
+        # nuance matters: set at the end of the reconstruction's last
+        # paragraph, the drift lands right above the accumulation — two
+        # signatures glued together, a tic rather than a style. Prefer a
+        # paragraph that does not touch the splice point. Measured before
+        # being written: a two-paragraph reconstruction produced exactly this
+        # collision.
         distant = [p for p in inner if p[1] + 2 != acc_position]
         for start, end, _ in reversed(distant or inner):
             if start != acc_position:
@@ -174,18 +172,18 @@ def drift_position(text: str, acc_position: int,
 
 
 def approach_valid(approach: str) -> tuple[bool, str]:
-    """Une approche est-elle exploitable ? ASSERTION DE BANQUE.
+    """Is an approach usable? BANK ASSERTION.
 
-    Depuis que la matière est écrite main, cette fonction ne filtre plus une
-    sortie de modèle : elle vérifie que la banque est conforme. On la garde —
-    « avant de faire confiance à un contrôle, exiger qu'il échoue sur un cas
-    connu » suppose un contrôle, et une banque éditée à la main peut recevoir
-    une ligne fautive comme n'importe quel fichier.
+    Since the matter is written by hand, this function no longer filters a
+    model output: it checks that the bank conforms. Kept because
+    « avant de faire confiance à un contrôle, exiger qu'il échoue sur un cas connu »
+    presumes a check, and a hand-edited bank can take a faulty line like any
+    file.
 
-    Trois critères, et pas un de plus : assez longue pour être une phrase, pas
-    un en-tête daté (le modèle avait rendu « Mardi 12. Pluie fine » comme
-    approche, et le code en avait composé un faux en-tête au milieu de
-    l'entrée), et un pivot resté ouvert.
+    Three criteria, not one more: long enough to be a sentence, not a dated
+    header (the model once returned « Mardi 12. Pluie fine » as an approach,
+    and the code composed a false header mid-entry from it), and a pivot left
+    open.
     """
     a = approach.strip()
     if len(a.split()) < 5:
@@ -199,19 +197,19 @@ def approach_valid(approach: str) -> tuple[bool, str]:
 
 
 def passage_valid(passage: str) -> tuple[bool, str]:
-    """Le glissement RÉDIGÉ, livré entier par le brief. Validation symétrique.
+    """The WRITTEN drift, delivered whole by the brief. Symmetric validation.
 
-    Deux conditions, et la seconde est neuve :
-      · un PIVOT resté ouvert — la phrase s'approche puis se coupe ;
-      · AUCUN mot du champ du départ — nommer le départ est un refus.
+    Two conditions, the second new:
+      · a PIVOT left open — the sentence approaches, then cuts;
+      · NO word of the departure field — naming the departure is a refusal.
 
-    La session 6 avait retiré l'exigence inverse : `CHAMP_DEPART` demandait un
-    mot du départ DANS l'approche, ce qui rejetait les trois approches livrées
-    et bloquait le geste. La règle se retourne ici et devient plus forte : le
-    geste consiste à s'interrompre AVANT de nommer, donc nommer le disqualifie.
+    Session 6 removed the opposite requirement (a departure word IN the
+    approach), which rejected the three delivered approaches and blocked the
+    gesture. The rule turns around here and gets stronger: the gesture is to
+    break off BEFORE naming, so naming disqualifies (ADR-0019).
 
-    Falsifiée dans les deux sens sur le passage livré et sur une variante qui
-    nomme le départ — sans quoi ce ne serait qu'une préférence.
+    Falsified both ways, against the delivered passage and a variant that
+    names the departure — otherwise it would be a mere preference.
     """
     p = passage.strip()
     if len(p.split()) < 8:
@@ -231,75 +229,73 @@ def passage_valid(passage: str) -> tuple[bool, str]:
 
 def draw_approach(bank: dict, already_drawn: list[str],
                    seed: int) -> tuple[str, str]:
-    """Tire une approche non encore utilisée dans ce chapitre, et le fait.
+    """Draw an approach not yet used in this chapter, and the fact.
 
-    Tirage ALÉATOIRE SANS REMISE, graine fournie par l'appelant et consignée au
-    frontmatter du run. Le déterminisme par index d'entrée aurait remis la même
-    phrase à la même place à chaque run : une liturgie de notre propre gabarit,
-    exactement le défaut mesuré trois fois (l'étalon récité, les contre-exemples
-    repris). La graine garde le run rejouable.
+    RANDOM DRAW WITHOUT REPLACEMENT, seed supplied by the caller and recorded
+    in the run's frontmatter. Determinism by entry index would have put the
+    same sentence at the same place at every run: a liturgy of our own
+    template, exactly the defect measured three times (the reference recited,
+    the counter-examples reused). The seed keeps the run replayable (ADR-0018).
 
-    Rend `("", "")` si le chapitre n'a pas de banque (`{approaches, facts}`
-    de la spec) : un chapitre sans glissement prévu n'est pas une erreur, et M1
-    le lit comme « non prévu ».
+    Returns `("", "")` when the chapter has no bank (`{approaches, facts}` in
+    the spec): a chapter with no planned drift is not an error, and M1 reads
+    it as « non prévu ».
     """
     approaches = list((bank or {}).get("approaches") or ())
     facts = list((bank or {}).get("facts") or ())
     if not approaches or not facts:
         return "", ""
-    # Le fait tourne AVEC l'approche, sur son propre index : deux glissements
-    # d'un même chapitre ne partagent ni leur tête ni leur queue.
+    # The fact rotates WITH the approach, at its own index: two drifts of the
+    # same chapter share neither head nor tail.
     fact = facts[len(already_drawn) % len(facts)]
     remaining_ones = [a for a in approaches if a not in already_drawn]
     if not remaining_ones:
-        # Plus d'approche neuve : on rend vide plutôt que de répéter. Deux fois
-        # la même phrase dans un chapitre, c'est le tic qu'on cherche à éteindre.
+        # No fresh approach left: return empty rather than repeat. The same
+        # sentence twice in a chapter is the tic we are trying to put out.
         return "", fact
     return random.Random(seed + len(already_drawn)).choice(remaining_ones), fact
 
 
 def compose_drift(approach: str, material_fact: str) -> str:
-    """Coupe l'approche sur « … » et enchaîne le fait matériel.
+    """Cut the approach at « … » and append the material fact.
 
-    Le code COMPOSE : c'est ce qui rend le geste conforme par construction —
-    au plus une occurrence, la coupe au bon endroit, le retour immédiat au
-    matériel. Le modèle n'a fourni qu'une phrase.
+    The code COMPOSES: that is what makes the gesture conform by construction
+    — at most one occurrence, the cut at the right place, the immediate return
+    to the material. The model supplied only a sentence.
     """
     a = approach.strip().rstrip(" .!?…")
-    # Si le modèle a déjà mis des points de suspension, on coupe là.
+    # If the model already put suspension points, cut there.
     a = re.split(r"\s*(?:…|\.\.\.)", a)[0].rstrip(" ,;")
     return f"{a}… {material_fact.strip()}"
 
 
 def validate_accumulation(sentence: str, last_attempt: bool = False,
                          chapter: int = 2) -> tuple[bool, str]:
-    """Vérification COMPTABLE, plus une garde anti-recopie.
+    """COUNTING check, with an anti-copy guard.
 
-    Une accumulation recopiée de l'étalon n'en est pas une : la session 3 a vu
-    deux « réussites » qui étaient l'étalon au caractère près, dans une scène
-    qui parlait d'autre chose.
+    An accumulation copied from the reference is not one: session 3 saw two
+    « réussites » that were the reference to the character, in a scene about
+    something else.
     """
-    # LA LANGUE D'ABORD. Une accumulation en anglais n'est pas « un peu courte »,
-    # elle n'est pas une accumulation : le contrôle passe avant toute tolérance
-    # de seuil, sinon la tolérance du dernier essai l'acceptait (écart relevé
-    # par le filet de sécurité de l'étape 2, corrigé à l'étape 5).
+    # LANGUAGE FIRST. An English accumulation is not « un peu courte », it is
+    # not an accumulation: this check runs before any threshold tolerance,
+    # otherwise the last-attempt tolerance accepted it (gap found by the
+    # step 2 safety net, fixed at step 5).
     _, alerts = delint(sentence)
     leaks = [a for a in alerts if "anglais" in a]
     if leaks:
         return False, f"langue : {leaks[0]}"
     if not accumulations_l3(sentence):
-        # LE MESSAGE DIT CE QUE LA PORTE A MESURÉ, pas ce que le candidat pèse.
+        # THE MESSAGE SAYS WHAT THE GATE MEASURED, not what the candidate weighs.
         #
-        # L'ancienne version comptait la phrase ENTIÈRE (`len(split())`) alors
-        # que `accumulations_l3` mesure la plus longue PHRASE et refuse tout
-        # point-virgule. D'où le message impossible de S6-2 : « 60 mots,
-        # 10 virgules ; il faut 60 et 6 » — et refusé. Le candidat portait un
-        # point interne ou un `;`, pas huit mots de moins.
-        #
-        # Ce n'est pas un détail de confort : c'est sur ce message que le
-        # protocole de session 7 a diagnostiqué « perdue pour huit mots » et
-        # demandé de symétriser les seuils. Un contrôle qui rapporte autre chose
-        # que ce qu'il mesure fait corriger la mauvaise pièce.
+        # The old version counted the WHOLE candidate (`len(split())`) while
+        # `accumulations_l3` measures the longest SENTENCE and refuses any
+        # semicolon. Hence the impossible message of S6-2, refused:
+        # « 60 mots, 10 virgules ; il faut 60 et 6 ». The candidate carried
+        # an inner period or a `;`, not eight words too few. Session 7's
+        # protocol diagnosed « perdue pour huit mots » from that message and
+        # asked to symmetrise the thresholds: a check that reports something
+        # other than what it measures gets the wrong part fixed.
         segments = sentences(sentence)
         longest = max(segments, key=lambda p: len(p.split()), default=sentence)
         cause = []
@@ -313,58 +309,58 @@ def validate_accumulation(sentence: str, last_attempt: bool = False,
         if v < L3_COMMAS:
             cause.append(f"{v} virgules au lieu de {L3_COMMAS}")
         detail = ", ".join(cause) + f" (candidat entier : {len(sentence.split())} mots)"
-        # SYMÉTRIE DU SEUIL (session 7). Le plafond était toléré au dernier
-        # essai, le plancher non : S6-2 a rendu une accumulation à huit mots du
-        # compte et l'a perdue, pendant que S6-1 en gardait une de 215. Une
-        # accumulation un peu courte est un défaut de style ; une accumulation
-        # absente est un échec bloquant — l'asymétrie punissait le moindre mal.
+        # THRESHOLD SYMMETRY (session 7). The ceiling was tolerated at the last
+        # attempt, the floor was not: S6-2 returned an accumulation eight words
+        # short and lost it while S6-1 kept one of 215. A slightly short
+        # accumulation is a style defect; a missing one is a blocking failure —
+        # the asymmetry punished the lesser evil.
         #
-        # La tolérance ne vaut QUE pour le compte. Une phrase coupée en deux ou
-        # portant un point-virgule n'est pas une accumulation trop courte, c'est
-        # autre chose : la forme reste refusée jusqu'au bout.
+        # The tolerance covers ONLY the count. A sentence cut in two or carrying
+        # a semicolon is not a short accumulation, it is something else: the
+        # form stays refused to the end.
         broken_form = len(segments) > 1 or ";" in sentence
         if not last_attempt or broken_form:
             return False, "seuils non atteints — " + detail
         return True, f"ACCEPTÉE malgré des seuils non atteints — {detail} — dernier essai"
     if reference_copy(sentence):
         return False, "étalon recopié — ce n'est pas une accumulation"
-    # Le plafond est STRICT au premier essai, TOLÉRÉ au dernier : une
-    # accumulation trop longue est un défaut de style, une accumulation absente
-    # est un échec bloquant. On refuse la démesure quand on peut encore
-    # relancer, on l'accepte en la signalant quand c'est le dernier tour.
+    # The ceiling is STRICT at the first attempt, TOLERATED at the last: an
+    # over-long accumulation is a style defect, a missing one a blocking
+    # failure. Refuse excess while a relaunch is still possible; accept and
+    # flag it at the last round.
     n = len(sentence.split())
-    # PLAFOND DUR (1,4× le plafond souple). La tolérance du dernier essai n'avait
-    # PAS de limite : un tirage a rendu 190 mots (~30 étapes), accepté « malgré
-    # 190 mots — dernier essai », et coupé en plein mot au service. Au-delà de
-    # ~1,5× le plafond, ce n'est plus « un peu longue », c'est un emballement.
-    # L'accumulation est optionnelle : mieux vaut aucune qu'une litanie tronquée.
+    # HARD CEILING (1.4× the soft ceiling). The last-attempt tolerance had NO
+    # limit: one draw returned 190 words (~30 steps), accepted as
+    # « malgré 190 mots — dernier essai », and was cut mid-word when served.
+    # Beyond ~1.5× the ceiling this is not « un peu longue », it is a runaway.
+    # The accumulation is optional: none beats a truncated litany.
     if n > int(ACC_WORDS_MAX * 1.4):
         return False, (f"emballement ({n} mots ; plafond dur "
                        f"{int(ACC_WORDS_MAX * 1.4)}) — rejetée même au dernier "
                        "essai, l'accumulation est droppée")
     if n > ACC_WORDS_MAX and not last_attempt:
         return False, (f"trop longue ({n} mots ; plafond {ACC_WORDS_MAX})")
-    # (La langue a été contrôlée en tête : au premier run C, `accumulate` a
-    # rendu une phrase de 75 mots et 7 virgules — en ANGLAIS — et la validation
-    # l'a acceptée parce qu'elle comptait des mots, pas une langue. Compter
-    # n'est pas lire ; FRENCH_GUARD dans le prompt système ne suffit pas.)
-    # L'ACCUMULATION QUI SE RÉSUME (session 6). C2 a rendu 131 mots de table des
-    # matières — « perplexité, concentration sur les détails, rappel des faits,
-    # fatigue, panique… » — et les compteurs l'ont acceptée. C'est *compter n'est
-    # pas lire* pour la deuxième fois, après l'anglais.
+    # (Language was checked first: at the first stage-C run, `accumulate`
+    # returned 75 words and 7 commas — in ENGLISH — and validation accepted it
+    # because it counted words, not a language. Counting is not reading;
+    # FRENCH_GUARD in the system prompt is not enough.)
+    # THE ACCUMULATION THAT SUMMARISES (session 6). C2 returned 131 words of
+    # table of contents — « perplexité, concentration, rappel, fatigue, panique… »
+    # — and the counters accepted it: *counting is not reading* a second time,
+    # after English.
     #
-    # ⚠ Le protocole prescrivait « propositions verbales exigées ». Mesuré :
-    # ce critère REJETTE L'ÉTALON, dont l'accumulation est nominale à 88 % de
-    # ses items (« le café de sept heures, le départ de sept heures quarante,
-    # la réunion, le déjeuner, le garage… »). Le vrai discriminant est
-    # l'ABSTRACTION — l'étalon énumère des choses et des moments, C2 énumérait
-    # les beats de l'entrée. Étalon : 0 %. Six accumulations de l'étage C : 0 %.
-    # C2 : 47 %.
-    # LA PERSONNE. Le carnet n'a qu'un sujet. S7-3 a rendu « Elle est revenue à
-    # vingt heures, a refermé le cahier… » au milieu d'une entrée entièrement à
-    # la première personne — un basculement que seule la lecture debout voyait.
-    # Rejet à la porte : c'est mécanique, et une accumulation à la mauvaise
-    # personne n'est pas réparable en aval.
+    # ⚠ The protocol prescribed « propositions verbales exigées ». Measured:
+    # that criterion REJECTS THE REFERENCE, whose accumulation is nominal in
+    # 88 % of its items (« le café de sept heures, le départ, la réunion… »).
+    # The real discriminant is ABSTRACTION — the reference lists things and
+    # moments, C2 listed the entry's beats. Reference: 0 %. Six stage-C
+    # accumulations: 0 %. C2: 47 %.
+    # THE PERSON. The notebook has one subject. S7-3 returned
+    # « Elle est revenue à vingt heures, a refermé le cahier… » in the middle
+    # of an entry wholly in the first person — a switch only a standing
+    # read-through saw.
+    # Rejected at the gate: mechanical, and an accumulation in the wrong person
+    # cannot be repaired downstream.
     person_ok, person_reason = accumulation_at_first_person(sentence)
     if not person_ok:
         return False, person_reason
@@ -372,16 +368,16 @@ def validate_accumulation(sentence: str, last_attempt: bool = False,
     if part > ACC_ABSTRACT_MAX:
         return False, (f"elle se résume au lieu de compter : {part:.0%} d'items "
                        f"abstraits ({', '.join(abstract_items[:4])})")
-    # LE DÉCOR GÉNÉRIQUE, bloquant ICI et nulle part ailleurs. `accumulate` est
-    # devenu le canal de famine de l'étage C : ne recevant que l'entrée et une
-    # consigne de forme, le nœud inventait les étapes manquantes depuis ses
-    # priors — télévision et messages (C1), « revenue du travail » alors qu'elle
-    # travaille chez elle (C3), sac à main et barquette (CC). Le monde générique
-    # de nemo, chassé de `write` par le RAG, rentrait par ici.
+    # GENERIC DECOR, blocking HERE and nowhere else. `accumulate` became stage
+    # C's famine channel: receiving only the entry and a form instruction, the
+    # node invented the missing steps from its priors — television and
+    # messages (C1), « revenue du travail » though she works at home (C3),
+    # handbag and tray (CC). Nemo's generic world, driven out of `write` by the
+    # RAG, came back in here.
     #
-    # Bloquant sur ce nœud, simple drapeau sur le texte d'écriture : automatiser
-    # un contrôle et le rendre bloquant sont deux décisions distinctes, et le
-    # §4.2 exige « zéro terme » dans les accumulations PRODUITES.
+    # Blocking in this node, a mere flag in the writing text: automating a
+    # check and making it blocking are two distinct decisions, and §4.2
+    # demands « zéro terme » in PRODUCED accumulations.
     scenery = material_forbidden(sentence, chapter)
     if scenery and not last_attempt:
         return False, (f"décor hors du monde : "
@@ -392,41 +388,41 @@ def validate_accumulation(sentence: str, last_attempt: bool = False,
     return True, ""
 
 
-# La frontière déclarée du brief est une phrase en français (« à la frontière
-# entre la découverte de la musique et celle du plat »). Le composeur en tire
-# l'ANCRE d'aval : le passage s'insère juste avant ce qui suit la frontière.
+# The brief declares the frontier as a French sentence
+# (« à la frontière entre la découverte de la musique et celle du plat »).
+# The composer derives the DOWNSTREAM anchor from it: the passage goes just
+# before what follows the frontier.
 _FRONTIER_ANCHORS = {
     "plat": re.compile(r"\b(le plat|le four|au four)\b", re.IGNORECASE),
     "musique": re.compile(r"\b(la musique|la playlist|l'enceinte)\b", re.IGNORECASE),
     "photos": re.compile(r"\b(les photos|la boîte)\b", re.IGNORECASE),
     "couverts": re.compile(r"\b(les? (?:deux )?couverts?)\b", re.IGNORECASE),
-    # CH7 e2 v3 : le moteur uncanny (objets qui se découvrent) est évacué, ses
-    # ancres d'aval avec. Le glissement lexical revient au geste de correction —
-    # « la marge » est de la matière servie, donc présente de façon fiable ; le
-    # verdict/constat en secours si la marge n'est pas nommée.
+    # CH7 e2 v3: the uncanny engine (objects discovering themselves) is gone,
+    # its downstream anchors with it. The lexical drift returns to the
+    # correction gesture — « la marge » is served matter, hence reliably
+    # present; verdict/constat as backup when the margin is not named.
     "marge": re.compile(r"\b(la marge|dans la marge|en marge)\b", re.IGNORECASE),
     "verdict": re.compile(r"\b(le verdict|un verdict|le constat)\b", re.IGNORECASE),
 }
 
 
 def frontier_position(text: str, position: str) -> int | None:
-    """Offset d'insertion d'un passage à une frontière déclarée en français.
+    """Insertion offset of a passage at a frontier declared in French.
 
-    On cherche l'ancre d'AVAL — « la frontière entre la musique et le plat »
-    place le passage juste avant le paragraphe du plat. La position est ainsi
-    un lieu du RÉCIT, pas un offset : le retour au matériel qui clôt le passage
-    EST la découverte suivante, et le geste devient la charnière au lieu d'être
-    une pièce rapportée.
+    Looks for the DOWNSTREAM anchor — « la frontière entre la musique et le plat »
+    places the passage just before the « plat » paragraph. The position is
+    thus a place in the NARRATIVE, not an offset: the return to the material
+    that closes the passage IS the next discovery, and the gesture becomes the
+    hinge instead of an added part.
 
-    Rend None si l'ancre est introuvable — un geste placé au hasard est pire
-    qu'un geste absent, et l'appelant doit pouvoir le dire.
+    Returns None when the anchor cannot be found — a gesture placed at random
+    is worse than none, and the caller must be able to say so.
     """
     words = position.lower()
-    # L'AVAL est le dernier terme nommé DANS LA PHRASE, pas dans le
-    # dictionnaire. « entre la découverte de la musique et celle du plat » :
-    # l'aval est le plat. La première version itérait sur les clés et retenait
-    # « musique » — le passage atterrissait un paragraphe trop tôt, à une
-    # frontière qui n'était pas la bonne.
+    # DOWNSTREAM is the last term named IN THE SENTENCE, not in the dict.
+    # « entre la découverte de la musique et celle du plat »: downstream is
+    # « plat ». The first version iterated over the keys and kept « musique »
+    # — the passage landed one paragraph too early, at the wrong frontier.
     named = [(words.rindex(key), pattern)
               for key, pattern in _FRONTIER_ANCHORS.items() if key in words]
     if not named:
@@ -441,8 +437,8 @@ def frontier_position(text: str, position: str) -> int | None:
 def assemble(text: str, accumulation: str, drift: str, verdict: str,
               reconstruction_bounds: tuple[int, int] | None = None,
               frontier: int | None = None) -> tuple[str, list[str]]:
-    """Insère les deux gestes. RÈGLE 2 : positions sur l'original, de la fin
-    vers le début."""
+    """Insert both gestures. RULE 2: positions against the original, from the
+    end to the start (ADR-0018)."""
     notes: list[str] = []
     pos_acc = accumulation_position(text, verdict) if accumulation else -1
     pos_gli = (frontier if frontier is not None else
@@ -453,12 +449,12 @@ def assemble(text: str, accumulation: str, drift: str, verdict: str,
     if accumulation:
         inserts.append((pos_acc, accumulation.strip() + "\n\n"))
     if drift:
-        # LA FORME DU FRAGMENT DÉPEND DU REPÈRE, et c'est facile à rater :
-        # `position_glissement` rend une FIN de paragraphe (le geste se colle
-        # après, donc « \n\n » devant), `position_frontiere` rend un DÉBUT (le
-        # geste se pose avant, donc « \n\n » derrière). Confondre les deux
-        # produit une ligne vide en trop d'un côté et un collage de l'autre —
-        # exactement ce qu'a rendu le premier essai.
+        # THE FRAGMENT'S SHAPE DEPENDS UPON THE LANDMARK, and it is easy to
+        # miss: `drift_position` returns a paragraph END (the gesture goes
+        # after, hence « \n\n » in front), `frontier_position` a START (the
+        # gesture goes before, hence « \n\n » behind). Mixing them up yields
+        # one blank line too many at one side and a collage at the other —
+        # exactly what the first attempt produced.
         inserts.append((pos_gli, drift.strip() + "\n\n"
                         if frontier is not None
                         else "\n\n" + drift.strip()))
@@ -466,8 +462,8 @@ def assemble(text: str, accumulation: str, drift: str, verdict: str,
         notes.append("les deux gestes visaient le même point — glissement "
                      "reculé (règle d'assemblage 1)")
 
-    # De la FIN vers le DÉBUT : les offsets calculés sur l'original restent
-    # valides pour les insertions qui les précèdent.
+    # From the END to the START: offsets computed against the original stay
+    # valid for the insertions that precede them.
     for position, fragment in sorted(inserts, key=lambda x: -x[0]):
         text = text[:position] + fragment + text[position:]
     return text, notes

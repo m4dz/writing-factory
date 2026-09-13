@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Rôle QA/lint — modèle distinct du modèle auteur (LOCAL).
+"""QA/lint role — a model distinct from the author model (LOCAL).
 
-Tranché au benchmark : Qwen 2.5 7B pour les tâches où nemo échoue en
-génération créative — réécrire les fuites d'anglais, et vérifier la cohérence
-au format strict. Qwen est d'un autre lignage (pas la tendance au leak de
-nemo), rapide (~28 tok/s), et discipliné sur le format.
+Settled at the benchmark (ADR-0008): Qwen 2.5 7B for the tasks where nemo
+fails in creative generation — rewriting English leaks, checking coherence
+in a strict format. Qwen is of another lineage (no leak tendency), fast
+(~28 tok/s), disciplined in format.
 
-Cette phase tourne APRÈS toute la génération : Ollama swappe nemo → Qwen une
-seule fois. On évite tout embedding ici (la dérivation de faits lit les fiches
-par id déterministe, pas par similarité) pour ne pas rappeler nomic-embed.
+This phase runs AFTER all generation: Ollama swaps nemo → Qwen once. No
+embedding here (fact derivation reads the sheets by deterministic id, not by
+similarity), so nomic-embed is never recalled.
 """
 
 import re
@@ -17,13 +17,13 @@ from factory.infra.ollama import chat
 from factory.retrieval.context import world_context
 from factory.settings import settings
 
-# Vocabulaire de PRODUCTION, interdit dans les faits dérivés (item 3).
+# PRODUCTION vocabulary, forbidden in derived facts (item 3).
 PILOT_VOCAB = re.compile(
     r"\b(verdict impos[ée]|relecture blanche|grade|ratio|chapitre\s*\d|"
     r"r[ée]gime\s*\d|marche des explications|objets actifs|chaleur|"
     r"table de pilotage|s[ée]ances)\b", re.IGNORECASE)
 
-# --- Réparation linguistique -------------------------------------------------
+# --- Language repair ---------------------------------------------------------
 
 _REPAIR_SYS = (
     "Tu es correcteur linguistique. Tu réécris le texte en français en "
@@ -34,34 +34,26 @@ _REPAIR_SYS = (
 
 
 def repair(text: str) -> tuple[str, dict]:
-    """Réécrit un passage en corrigeant les fuites de langue (texte→texte)."""
-    # Marge : la version FR peut être un peu plus longue que l'original.
+    """Rewrite a passage, fixing language leaks (text→text)."""
+    # Margin: the FR version may be slightly longer than the original.
     budget = min(2000, max(600, int(len(text) / 3) + 200))
     return chat(_REPAIR_SYS, text, model=settings.qa_model, temperature=0.2,
                 num_predict=budget)
 
 
-# --- Cohérence : faits → questions de violation → réponses par scène ---------
+# --- Coherence: facts → violation questions → per-scene answers --------------
 #
-# Trois échecs successifs ont dessiné le protocole qui suit :
+# Protocol recorded in ADR-0010. Three failures shaped it: checking the whole
+# chapter (~2000 words) turns Qwen into a workshop critic; a YES/NO per fact
+# files « non mentionné » under NON; classifying an abstract, negative fact
+# (« X ignore Y ») is entailment, beyond a 7B — it read Kael's full confession
+# and classed it CONFORME to « Élara ignore ».
 #
-#   1. Vérifier les faits sur le CHAPITRE entier (~2000 mots) fait basculer
-#      Qwen en critique d'atelier : il suggère des réécritures au lieu de
-#      rendre des verdicts. → découper par SCÈNE (entrée courte).
-#   2. Demander OUI/NON sur un fait range le « non mentionné » dans NON :
-#      faux positifs sur presque tous les faits. → une étiquette ABSENT aide,
-#      mais ne suffit pas.
-#   3. Classer un fait ABSTRAIT (surtout négatif : « X ignore Y », « X n'avoue
-#      jamais ») reste hors de portée d'un 7B : il a lu l'aveu complet de Kael
-#      et l'a classé CONFORME au fait « Élara ignore ». C'est une tâche
-#      d'inférence (entailment), pas de lecture.
-#
-# D'où le protocole retenu : on convertit d'abord chaque fait en QUESTION
-# D'ÉVÉNEMENT dont la réponse OUI signale la violation (« Le texte montre-t-il
-# Élara découvrant que… ? »). Répondre « ce texte montre-t-il X ? » est de la
-# lecture, pas de l'inférence — un 7B y arrive. Chaque OUI doit être appuyé par
-# une citation, vérifiée ensuite dans le texte par le code (garde-fou contre
-# les citations paraphrasées ou recopiées depuis le fait lui-même).
+# Hence: each fact becomes an EVENT question whose OUI signals the violation
+# (« Le texte montre-t-il Élara découvrant que… ? »). Answering « does this
+# text show X? » is reading, not inference — a 7B manages it. Each OUI must
+# carry a citation, then verified in the text by the code (guard against
+# paraphrased citations or ones copied from the fact itself).
 
 _FACTS_SYS = (
     "Tu extrais des FAITS VÉRIFIABLES de fiches de personnages : ce que chaque "
@@ -117,22 +109,21 @@ _CONFIRM_SYS = (
 )
 
 _ANSWER_RE = re.compile(r"Q\s*(\d+)\s*[:.\-–—]?\s*(OUI|NON)\b[\s:.\-–—]*(.*)", re.I)
-# Citation exigée pour un OUI : « … », " … " ou “ … ”.
+# Citation required with a OUI: « … », " … " or “ … ”.
 _QUOTE_RE = re.compile(r"[«\"“]\s*(.+?)\s*[»\"”]")
 
 
 
-# FAITS DE MONDE NÉGATIFS (bloc D, étage C). La 5e configuration M4 de B′3 — la
-# mémoire qui se RÉÉCRIT pour rejoindre le texte : un dîner fabriqué avec
-# « elle », des rires, une présence — a traversé toute la chaîne sans détection.
-# `coherence` a déclaré le fait « séparation définitive » TENU en face de « nous
-# avons ri hier soir ».
+# NEGATIVE WORLD FACTS (block D, stage C). The 5th M4 configuration of B′3 —
+# memory REWRITING itself to join the text: a fabricated dinner with « elle »,
+# laughter, a presence — crossed the whole chain undetected. `coherence`
+# declared the fact « séparation définitive » HELD against
+# « nous avons ri hier soir ».
 #
-# La raison est structurelle : les faits dérivés sont POSITIFS (ce qui est), et
-# une question de violation bâtie sur un fait positif ne sait pas voir ce qui ne
-# devrait pas être. Un fait négatif explicite se convertit, lui, en question
-# d'événement dont le OUI vaut violation — exactement le protocole qui marche
-# depuis la session 1.
+# The reason is structural: derived facts are POSITIVE (what is), and a
+# violation question built from a positive fact cannot see what should not
+# be. An explicit negative fact converts into an event question whose OUI is
+# a violation — the protocol that has worked since session 1 (ADR-0010).
 NEGATIVE_FACTS = [
     "Personne d'autre n'entre dans la maison.",
     "Aucun repas n'est partagé, aucune conversation n'a lieu.",
@@ -140,7 +131,7 @@ NEGATIVE_FACTS = [
 ]
 
 def derive_facts(characters: list[str]) -> tuple[list[str], dict]:
-    """Dérive les faits structurants depuis les fiches (fetch par id, no embed)."""
+    """Derive the structuring facts from the sheets (fetch by id, no embed)."""
     ctx = "\n\n".join(world_context(c) for c in characters if world_context(c))
     text, m = chat(_FACTS_SYS, ctx, model=settings.qa_model, temperature=0.1,
                    num_predict=400)
@@ -149,18 +140,18 @@ def derive_facts(characters: list[str]) -> tuple[list[str], dict]:
         for line in text.splitlines()
         if line.strip().startswith(("-", "*"))
     ]
-    # Filtre de PILOTAGE : un fait qui parle de la fabrication du chapitre
-    # n'est pas un fait du monde. Servis au planificateur, ces pseudo-faits
-    # l'ont fait raisonner en formulaire (mode constaté sur tout l'étage B).
+    # PILOT filter: a fact about the chapter's manufacture is not a world fact.
+    # Served to the planner, these pseudo-facts made it reason as a form
+    # (mode observed across stage B).
     facts = [f for f in facts if f and not PILOT_VOCAB.search(f)]
-    # Les faits négatifs sont AJOUTÉS, jamais dérivés : un modèle qui résume des
-    # fiches énonce ce qui est, pas ce qui est exclu.
+    # Negative facts are ADDED, never derived: a model summarising sheets
+    # states what is, not what is excluded (ADR-0010).
     return facts + NEGATIVE_FACTS, m
 
 
 def _parse_questions(text: str, questions: list[str], indices: list[int]) -> None:
-    """Range les lignes « n. question » dans `questions` (numérotation locale
-    du prompt → indices réels passés dans `indices`). Modifie en place."""
+    """Store the « n. question » lines into `questions` (local prompt numbering
+    → real indices passed in `indices`). Mutates in place."""
     for line in text.splitlines():
         hit = re.match(r"\s*(\d+)\s*[.)]\s*(.+)", line)
         if not hit:
@@ -171,11 +162,11 @@ def _parse_questions(text: str, questions: list[str], indices: list[int]) -> Non
 
 
 def derive_questions(facts: list[str]) -> tuple[list[str], list[dict]]:
-    """Convertit chaque fait en question dont le OUI vaut violation.
+    """Convert each fact into a question whose OUI means violation.
 
-    Retourne une liste alignée sur `facts`. Le modèle saute parfois un fait en
-    fin de liste : on repasse une fois sur les manquants (appel court) plutôt
-    que de laisser un fait sans vérification.
+    Returns a list aligned with `facts`. The model sometimes skips a fact at
+    the end of the list: one more pass over the missing ones (short call)
+    rather than leaving a fact unchecked.
     """
     metrics: list[dict] = []
     questions = [""] * len(facts)
@@ -197,31 +188,31 @@ def derive_questions(facts: list[str]) -> tuple[list[str], list[dict]]:
 
 
 def _norm(s: str) -> str:
-    """Normalise pour comparer une citation au texte source."""
+    """Normalise to compare a citation with the source text."""
     return re.sub(r"\s+", " ", s.replace("’", "'""'")).strip().lower()
 
 
 def _sourced(detail: str, scene: str) -> str | None:
-    """Retourne la citation SI elle figure vraiment dans la scène, sinon None.
+    """Return the citation IF it really appears in the scene, else None.
 
-    Garde-fou programmatique : le modèle recopie parfois le fait au lieu du
-    texte, ou paraphrase. Un signalement non sourcé n'est pas une violation.
+    Programmatic guard: the model sometimes copies the fact instead of the
+    text, or paraphrases. An unsourced finding is not a violation (ADR-0010).
     """
     q = _QUOTE_RE.search(detail)
     if not q:
         return None
     frag = q.group(1).strip()
-    if len(frag) < 12:          # citation trop courte = non discriminante
+    if len(frag) < 12:          # too short a citation discriminates nothing
         return None
     return frag if _norm(frag)[:60] in _norm(scene) else None
 
 
 def _ask(questions: list[str], excerpt: str, system: str, label: str) -> tuple[dict[int, str], dict]:
-    """Pose le questionnaire de violation contre UN texte court.
+    """Ask the violation questionnaire against ONE short text.
 
-    Retourne {n° de question: citation brute} pour les seuls OUI — dict vide
-    si le texte est propre OU si le vérificateur a dérivé (distingué par
-    l'appelant via la métrique `repondues`).
+    Returns {question number: raw citation} for the OUI answers only — empty
+    dict when the text is clean OR the checker drifted (the caller tells them
+    apart through the `repondues` metric).
     """
     asked = [(i + 1, q) for i, q in enumerate(questions) if q]
     qblock = "\n".join(f"Q{n} : {q}" for n, q in asked)
@@ -245,18 +236,18 @@ def _ask(questions: list[str], excerpt: str, system: str, label: str) -> tuple[d
 
 
 def check_scene(questions: list[str], scene: str) -> tuple[dict[int, str], dict]:
-    """Répond aux questions de violation contre UNE scène de prose."""
+    """Answer the violation questions against ONE prose scene."""
     return _ask(questions, scene, _ANSWER_SYS, "EXTRAIT")
 
 
 def _confirm(question: str, excerpt: str,
              system: str = _CONFIRM_SYS) -> tuple[bool, dict]:
-    """Contre-appel sur un OUI : une seule question, réponse en un mot.
+    """Counter-call upon a OUI: a single question, one-word answer.
 
-    Le questionnaire groupé dilue l'attention et produit des OUI complaisants
-    (« comptant mentalement les pierres » lu comme une délégation de tâche).
-    Reposée seule et en mode sévère, la même question est tranchée nettement.
-    Un OUI non confirmé n'est pas une violation.
+    The grouped questionnaire dilutes attention and yields complacent OUIs
+    (« comptant mentalement les pierres » read as delegating a task). Asked
+    alone in severe mode, the same question is settled cleanly. An unconfirmed
+    OUI is not a violation (ADR-0010).
     """
     user = f"QUESTION : {question}\n\n--- EXTRAIT ---\n{excerpt}"
     text, m = chat(system, user, model=settings.qa_model, temperature=0.0,
@@ -265,12 +256,12 @@ def _confirm(question: str, excerpt: str,
 
 
 def check_facts(facts: list[str], scenes: list[str]) -> tuple[str, list[dict]]:
-    """Vérifie les faits scène par scène et agrège en un rapport de chapitre.
+    """Check the facts scene by scene and aggregate into a chapter report.
 
-    Un fait est CONTREDIT dès qu'une scène montre l'événement de violation AVEC
-    une citation retrouvée dans le texte. Les OUI non sourcés sont relégués en
-    signalements à vérifier à la main ; les scènes où le vérificateur n'a rien
-    rendu d'exploitable sont listées plutôt que comptées comme propres.
+    A fact is CONTRADICTED as soon as a scene shows the violation event WITH
+    a citation found in the text. Unsourced OUIs are demoted to findings to
+    check by hand; scenes where the checker returned nothing usable are
+    listed rather than counted as clean.
     """
     metrics: list[dict] = []
     questions, mq = derive_questions(facts)
@@ -326,23 +317,22 @@ def check_facts(facts: list[str], scenes: list[str]) -> tuple[str, list[dict]]:
     return "\n".join(lines), metrics
 
 
-# --- Vérification du PLAN, AVANT d'écrire -------------------------------------
+# --- Checking the PLAN, BEFORE writing ---------------------------------------
 #
-# La cohérence par faits arrive après la rédaction : elle CONSTATE, elle ne
-# prévient pas. Or un plan qui contredit la bible condamne d'avance les quatorze
-# minutes d'écriture qui suivent — et sur scène, on ne réécrit pas.
+# Fact coherence comes after writing: it OBSERVES, it does not prevent. A
+# plan contradicting the bible condemns in advance the fourteen minutes of
+# writing that follow — and onstage nothing gets rewritten.
 #
-# Constaté au run du 2026-08-06 : le plan a programmé « Élara découvre les
-# détournements de Kael » alors qu'un fait de la bible dit « Kael redoute
-# qu'Élara découvre les registres ». Formulé comme une crainte de Kael, le fait
-# n'était pas techniquement violé et le rapport final a validé — un coup de
-# chance de formulation, pas un filet.
+# Seen at the 2026-08-06 run: the plan scheduled
+# « Élara découvre les détournements de Kael » while a bible fact says
+# « Kael redoute qu'Élara découvre les registres ». Phrased as Kael's fear,
+# the fact was not technically violated and the final report passed — luck of
+# wording, not a net.
 #
-# Le protocole est le même que pour les scènes (faits → questions de violation
-# → LECTURE), appliqué à un texte de quatre lignes : deux appels Qwen, quelques
-# secondes. La différence tient au régime du texte lu : un plan ANNONCE des
-# événements, il ne les met pas en scène. « Le texte montre-t-il… » devient
-# « le plan prévoit-il… ».
+# Same protocol as for scenes (facts → violation questions → READING), applied
+# to a four-line text: two Qwen calls, a few seconds. The difference is the
+# regime of the text read: a plan ANNOUNCES events, it does not stage them.
+# « Le texte montre-t-il… » becomes « le plan prévoit-il… » (ADR-0010).
 
 _PLAN_ANSWER_SYS = (
     "Tu lis un PLAN DE CHAPITRE : une ligne par scène, chacune résumant les "
@@ -369,13 +359,13 @@ _CONFIRM_PLAN_SYS = (
 
 def check_plan(facts: list[str],
                beats: list[str]) -> tuple[list[tuple[int, str, str]], str, list[dict]]:
-    """Confronte un plan de scènes aux faits de la bible AVANT rédaction.
+    """Confront a scene plan with the bible facts BEFORE writing.
 
-    Retourne (violations, rapport, métriques) où chaque violation est
-    (n° de fait, fait, ligne du plan fautive). Les mêmes garde-fous que sur la
-    prose s'appliquent — citation retrouvée dans le plan, puis contre-appel
-    sévère : un plan légitime qui « ressemble » à une violation ne doit pas
-    déclencher une replanification, elle coûte un rechargement de nemo.
+    Returns (violations, report, metrics), each violation being (fact number,
+    fact, offending plan line). The same guards as for prose apply — citation
+    found in the plan, then severe counter-call: a legitimate plan that merely
+    resembles a violation must not trigger a replan, which costs a reload of
+    nemo.
     """
     metrics: list[dict] = []
     if not facts or not beats:

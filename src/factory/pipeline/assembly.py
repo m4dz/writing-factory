@@ -1,23 +1,22 @@
 #!/usr/bin/env python3
-"""Assemblage du chapitre livré : marqueur de bascule et extrait à lire.
+"""Assembly of the delivered chapter: switch marker and excerpt to read.
 
-Ce module ne génère rien. Il décide OÙ la voix humaine s'arrête et où la voix
-clonée reprend — c'est la charnière du tour de magie de la keynote, et elle est
-posée par du CODE, jamais par le modèle : un marqueur placé par nemo tomberait
-ailleurs à chaque tirage, et le speaker ne saurait pas quoi lire à voix haute.
+This module generates nothing. It decides WHERE the human voice stops and the
+cloned voice takes over — the hinge of the keynote's magic trick, set by
+CODE, never by the model: a marker placed by nemo would land elsewhere at
+every draw, and the speaker would not know what to read aloud.
 
-Deux décisions du propriétaire (2026-08-07) :
+Two owner decisions (2026-08-07), recorded in ADR-0013:
 
-1. **La bascule tombe après la DEUXIÈME PHRASE.** Repère strictement
-   reproductible : sur scène, il lit deux phrases, puis lance l'audio. Ma
-   proposition initiale (« frontière de paragraphe ») dépendait du découpage de
-   nemo, donc variait d'un run à l'autre — inutilisable comme repère de scène.
+1. **The switch falls after the SECOND SENTENCE.** A strictly reproducible
+   landmark: onstage he reads two sentences, then starts the audio. A
+   paragraph boundary depended upon nemo's paragraphing, so varied from run
+   to run — unusable as a stage cue.
 
-2. **L'extrait lu par le clone est BORNÉ** (~550 mots, ≈ 3-4 min). Le TTS tourne
-   à ~1× temps réel : lire tout un chapitre de quatre scènes (~2400 mots)
-   demanderait un quart d'heure d'audio ET un quart d'heure de calcul, soit
-   32 min contre 28' au compteur du deck — sans parler d'une lecture de quinze
-   minutes dans une keynote de cinquante.
+2. **The excerpt read by the clone is BOUNDED** (~550 words, ≈ 3-4 min). TTS
+   runs at ~1× real time: a whole four-scene chapter (~2400 words) would need
+   a quarter hour of audio AND a quarter hour of compute, 32 min against the
+   deck's 28' — and a fifteen-minute reading in a fifty-minute keynote.
 """
 
 import re
@@ -28,66 +27,62 @@ from factory.text import sentence_ends
 SWITCH = "<!-- BASCULE -->"
 AUDIO_END = "<!-- FIN AUDIO -->"
 
-# Phrases lues à voix nue avant la bascule : `settings.switch_after_sentences`.
+# Sentences read aloud before the switch: `settings.switch_after_sentences`.
 
-# La borne se règle en SECONDES, pas en mots — parce que c'est une durée que le
-# deck demande (« 2'30 à 3 min, extrait joué EN ENTIER », session frontend du
-# 2026-08-08), et qu'une consigne exprimée dans l'unité du besoin ne se traduit
-# pas de travers.
+# The bound is set in SECONDS, not words — the deck asks for a duration
+# (« 2'30 à 3 min, extrait joué EN ENTIER », frontend session of 2026-08-08),
+# and an instruction expressed in the unit of the need does not get
+# mistranslated.
 #
-# La traduction en mots passe par le débit MESURÉ du clone. Attention : le deck
-# raisonnait à ~150 mots/min (d'où leur estimation de 375-450 mots), alors que
-# le rendu mesuré parle à 190. Leurs 450 mots auraient donné 2'22, soit SOUS
-# leur propre plancher — un trou là où ils attendent du son.
+# Conversion to words uses the clone's MEASURED rate: 177 words/min, measured
+# over a real 540-word excerpt (183 s of audio) at the full run of 2026-08-09.
+# The first figure (190) came from a 117-word sample and overestimated by 7 %
+# — an excerpt rendered at 3'03 instead of the 2'45 aimed for. A long text
+# carries proportionally more pauses: sentence ends, and 0.6 s between
+# segments (13 segments = 7.8 s of silence). The deck reasoned at ~150
+# words/min (hence its 375-450 words estimate): its 450 words would have given
+# 2'22, UNDER its own floor — a hole where sound is expected.
 #
-# ⚠ Ce débit vient d'UN échantillon de 117 mots. Le premier run complet doit le
-# confirmer : `tts.rendre` compare la durée obtenue à la cible et le signale.
-# 177 mots/min : MESURÉ sur un vrai extrait de 540 mots (183 s d'audio) au run
-# complet du 2026-08-09. Le premier chiffre (190) venait d'un échantillon de
-# 117 mots et surestimait de 7 % — d'où un extrait rendu à 3'03 au lieu des 2'45
-# visées. Un texte long porte proportionnellement plus de pauses : fins de
-# phrase, plus 0,6 s entre chaque segment (13 segments = 7,8 s de silence).
+# Acceptance margin around the target: 15 s, not 20. At the 2026-08-09 run the
+# gap was 18 s — under the old threshold, hence silent, yet enough to leave
+# the window the deck asks for (2'30-3'00).
 #
-# Marge d'acceptation autour de la cible. 15 s et non 20 : au run du 2026-08-09
-# l'écart était de 18 s — donc sous l'ancien seuil, donc silencieux, alors qu'il
-# suffisait à sortir de la fenêtre demandée par le deck (2'30-3'00).
-#
-# Les quatre réglages (`audio_words_per_minute`, `audio_seconds`,
-# `audio_tolerance_s`, `audio_max_words`) vivent dans `factory.settings` ; la
-# borne en mots est `settings.effective_audio_max_words`.
+# The four knobs (`audio_words_per_minute`, `audio_seconds`,
+# `audio_tolerance_s`, `audio_max_words`) live in `factory.settings`; the
+# bound in words is `settings.effective_audio_max_words`.
 
 
-# L'en-tête normalisé en DÉBUT DE LIGNE — le repère de bascule du chapitre 7.
-# Même format que `lint_style.ENTETE_ENTREE`, réécrit ici plutôt qu'importé :
-# `chapitre.py` est servi par l'API et ne doit pas dépendre de l'outillage de
-# calibration. Si le format bouge, il bouge aux deux endroits — c'est le prix,
-# et il est explicite.
+# The normalised header at LINE START — chapter 7's switch landmark. Same
+# format as `ENTRY_HEADER` in `factory.eval.lint`, rewritten here rather than
+# imported: this module is served by the API and must not depend upon the
+# evaluation tooling. If the format moves, it moves in both places — the
+# price, and it is explicit.
 HEADER_LINE = re.compile(
     r"^(?:Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)\s+\d{1,2}\.\s+"
     r"\S[^\n]{0,40}\.\s*$", re.MULTILINE | re.IGNORECASE)
 
 
 def _nth_sentence_end(text: str, n: int) -> int | None:
-    """Position de fin de la n-ième phrase, ou None s'il n'y en a pas tant."""
+    """End position of the n-th sentence, or None if there are not that many."""
     ends = sentence_ends(text)
     return ends[n - 1] if len(ends) >= n else None
 
 
 def insert_switch(text: str, *, sentences: int | None = None,
                     on_second_header: bool = False) -> str:
-    """Insère le marqueur de bascule après les `phrases` premières phrases.
+    """Insert the switch marker after the first `sentences` sentences.
 
-    Si le texte compte moins de phrases que demandé (scène très courte, ou
-    découpage inattendu), le marqueur est posé en TÊTE plutôt qu'omis : mieux
-    vaut que le clone lise tout que pas de marqueur du tout, car son absence
-    ferait échouer le rendu et priverait la scène de son audio.
+    If the text has fewer sentences than asked (very short scene, unexpected
+    segmentation), the marker goes at the HEAD rather than being omitted:
+    better the clone reads everything than no marker at all, since its
+    absence would fail the render and deprive the scene of its audio.
 
-    `sur_second_entete` — LE MODE DU CHAPITRE 7. Là, le repère n'est pas un
-    compte de phrases mais la structure : deux entrées du même jour, le speaker
-    lit celle où elle résiste, la voix clonée celle où la journée a gagné. La
-    bascule se pose donc juste AVANT le second en-tête, et la coïncidence
-    scénique est exacte au lieu d'être approchée. C'est ce que décrit le §7 du
-    brief 7 : « détection déterministe, plus d'heuristique ».
+    `on_second_header` — CHAPTER 7 MODE. There the landmark is not a sentence
+    count but the structure: two entries of the same day, the speaker reads
+    the one where she resists, the cloned voice the one where the day has won.
+    The switch goes just BEFORE the second header, and the stage coincidence
+    is exact instead of approximate (ADR-0013). Brief 7 §7:
+    « détection déterministe, plus d'heuristique ».
     """
     if sentences is None:
         sentences = settings.switch_after_sentences
@@ -97,10 +92,10 @@ def insert_switch(text: str, *, sentences: int | None = None,
             cut = heads[1].start()
             return (f"{text[:cut].rstrip()}\n\n{SWITCH}\n\n"
                     f"{text[cut:].lstrip()}")
-        # Un seul en-tête : le chapitre n'a pas la structure attendue. On
-        # retombe sur le compte de phrases plutôt que d'omettre le marqueur —
-        # un chapitre sans bascule est traité comme non prêt par le deck, donc
-        # une structure ratée ferait disparaître la démo au lieu de la dégrader.
+        # A single header: the chapter lacks the expected structure. Fall back
+        # to the sentence count rather than omit the marker — the deck treats
+        # a chapter without a switch as not ready, so a failed structure would
+        # make the demo vanish instead of degrading it.
         pass
     cut = _nth_sentence_end(text, sentences)
     if cut is None:
@@ -111,12 +106,12 @@ def insert_switch(text: str, *, sentences: int | None = None,
 
 def audio_excerpt(text: str, *, max_words: int | None = None,
                   until: str = "") -> str:
-    """Texte que la voix clonée doit lire : après la bascule, borné en mots.
+    """Text the cloned voice must read: after the switch, bounded in words.
 
-    La coupe tombe toujours sur une FIN DE PHRASE : un WAV qui s'arrête au
-    milieu d'une phrase s'entend immédiatement, là où une phrase complète passe
-    pour une fin voulue. On dépasse donc légèrement le budget plutôt que de
-    couper net — la phrase en cours est toujours incluse.
+    The cut always falls at a SENTENCE END: a WAV stopping mid-sentence is
+    heard at once, where a complete sentence passes for an intended ending.
+    So the budget is slightly exceeded rather than cut short — the sentence in
+    progress is always included.
     """
     if max_words is None:
         max_words = settings.effective_audio_max_words
@@ -127,13 +122,13 @@ def audio_excerpt(text: str, *, max_words: int | None = None,
     if not ends:
         return after
 
-    # LA CHUTE EST TOUJOURS LUE. La borne en mots existe contre un audio trop
-    # long ; elle ne doit pas amputer la LIGNE QUI FAIT LA SCÈNE. Au premier
-    # rendu du chapitre 7, la coupe est tombée à 268 mots, six lignes avant
-    # « Constat : anniversaire. » — la voix clonée disait tout sauf la phrase
-    # pour laquelle elle parle. La coïncidence scénique veut que le locuteur
-    # lise l'entrée où elle résiste et le clone celle où la journée a gagné :
-    # sans la chute, le clone ne gagne rien.
+    # THE FALL IS ALWAYS READ. The word bound exists against over-long audio;
+    # it must not amputate THE LINE THAT MAKES THE SCENE. At chapter 7's first
+    # render the cut fell at 268 words, six lines before
+    # « Constat : anniversaire. » — the cloned voice said everything except
+    # the sentence it speaks for. The stage coincidence wants the speaker to
+    # read the entry where she resists and the clone the one where the day has
+    # won: without the fall, the clone wins nothing (ADR-0013).
     if until and until in after:
         bound = after.index(until) + len(until)
         return after[:bound].strip()
@@ -147,18 +142,18 @@ def audio_excerpt(text: str, *, max_words: int | None = None,
 def assemble(scenes: list[str], *, max_words: int | None = None,
               sentences: int | None = None,
               on_second_header: bool = False, fall: str = "") -> str:
-    """Chapitre complet en Markdown, avec bascule et fin de lecture marquées.
+    """Whole chapter in Markdown, with switch and end of reading marked.
 
-    LES DEUX MARQUEURS SONT GARANTIS PRÉSENTS. Exigence du deck (message de la
-    session frontend, 2026-08-08) : « un chapitre sans les deux marqueurs est
-    traité comme non prêt et bascule sur l'embarqué ». Un marqueur manquant ne
-    dégraderait donc pas l'affichage, il ferait disparaître le chapitre live —
-    en silence. D'où le repli en fin de texte plutôt qu'une omission quand la
-    borne d'extrait ne peut pas être calculée (chapitre très court, texte sans
-    ponctuation finale).
+    BOTH MARKERS ARE GUARANTEED PRESENT. Deck requirement (frontend session
+    message, 2026-08-08): a chapter missing either marker is treated as not
+    ready and falls back to the embedded one. A missing marker would not
+    degrade the display, it would make the live chapter vanish — silently.
+    Hence the fallback at the end of the text rather than an omission when the
+    excerpt bound cannot be computed (very short chapter, text without final
+    punctuation).
 
-    Le chapitre servi reste ENTIER : c'est la pièce à conviction de la démo, on
-    ne la tronque pas parce que l'audio, lui, est borné.
+    The served chapter stays WHOLE: it is the demo's exhibit, not truncated
+    because the audio is bounded.
     """
     body = insert_switch("\n\n".join(s.strip() for s in scenes if s.strip()),
                             sentences=sentences,

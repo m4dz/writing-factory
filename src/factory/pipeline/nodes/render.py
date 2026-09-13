@@ -3,14 +3,15 @@ render the read excerpt in the cloned voice.
 
 Assembly (both stage markers) is deterministic and always runs: the chapter
 text is the run's deliverable and lives in the state as ``chapter_md``. The
-kwargs come from the state field ``assembly`` (chapter knowledge: switch on
-the second header, imposed fall) — empty means the sentence rule.
+kwargs come from the state field ``assembly`` (chapter knowledge: switch at
+the second header, imposed fall) — empty means the sentence rule (ADR-0013).
 
 Writing and voice rendering run only when the state field ``render`` is true.
 The chapter is written first; the TTS then runs after the QA model is
-unloaded (nothing left for Qwen, 4.8 GB better spent on the voice model). A
-TTS failure is ordinary: the chapter stays valid on disk, ``audio`` is None
-and the operator gets a note — the per-resource fallback the deck relies on.
+unloaded (nothing left for Qwen, 4.8 GB better given to the voice model). A
+TTS failure is ordinary: the chapter stays valid in its file, ``audio`` is
+None and the operator gets a note — the per-resource fallback the deck
+depends upon (ADR-0012).
 """
 
 from __future__ import annotations
