@@ -1,0 +1,17 @@
+id: 20260914-xp-abliterated-nemo
+kind: experiment
+status: planned
+description: 'Experiment A: the author model swapped for an abliteration-only build of
+  Mistral-Nemo-Instruct-2407 (Q8_0), nothing else moved. Falsifies the "uncensored unleashes
+  the writer" hypothesis before any fine-tuning. Two legs: bare model (C5 recipe, positive
+  control added) and production pipeline (chapter 7, best-of draws on record).'
+date: '2026-09-14'
+variable: author model tag (stock vs abliterated, same base, same quantization)
+openspec: openspec/changes/xp-abliterated-nemo
+driver: factory-xp-resolution (leg 1), factory generate --chapter 7 (leg 2)
+arms:
+  S: mistral-nemo:12b-instruct-2407-q8_0
+  U: 'TBD by the owner: hf.co/<org>/<repo>:Q8_0, abliteration only, no SFT or merge'
+seeds: [424242, 7, 20260914]
+series: []
+runs: []

@@ -108,6 +108,8 @@ class ChapterState(TypedDict):
     imposed_plan: list     # one beat per entry, cut from the brief: the plan is not asked
     placed_fall: str      # last line imposed word for word — posed by the code
     served_prompts: list  # (segment, prompt) — deliverable, and the copy measurement
+    best_of: list         # one record per drawn variant (kept or rejected), with its
+                          # score and named defects — the manifest's `best_of`
     placed_header: str      # the header composed for the current entry — re-stamped
     placed_anchor: str      # the quotation anchor posed — re-stamped after repair
     seed: int           # drift draw, recorded in the run frontmatter
@@ -586,6 +588,22 @@ def plan_node(state: ChapterState) -> dict:
     }
 
 
+def _best_of_records(idx: int, beat: str | None, variants: list[dict], kept: int,
+                     defects_key: str) -> list[dict]:
+    """One record per drawn variant, in draw order, without its text.
+
+    The rejected variants are discarded today and stay so; what is kept is the
+    READING the code made of each of them (score, named defects) and which one
+    won. Written to the manifest as `best_of`: the count of defects per cause
+    across every draw is the measure of a model's own tendency, before the
+    selection masks it (doctrine 5: a figure computed and thrown away is a
+    phantom).
+    """
+    return [{"entry": idx + 1, "beat": beat, "k": v["k"], "score": v["score"],
+             "defects": list(v[defects_key]), "kept": v["k"] == kept}
+            for v in sorted(variants, key=lambda v: v["k"])]
+
+
 def write_node(state: ChapterState) -> dict:
     """Write the current scene (state['idx']) with a re-assembled context.
 
@@ -597,6 +615,7 @@ def write_node(state: ChapterState) -> dict:
     """
     idx = state["idx"]
     beat = state["plan"][idx]
+    best_of_records: list[dict] = []
     # THIS entry's sheet, read at the top of the node: it commands the header,
     # the quotation, the word target and the cut. Empty outside chapter 7 —
     # the rest of the pipeline is then unchanged.
@@ -757,6 +776,7 @@ def write_node(state: ChapterState) -> dict:
             # Best score; ties go to the first drawn (stable, replayable).
             variants.sort(key=lambda v: (-v["score"], v["k"]))
             winner = variants[0]
+            best_of_records += _best_of_records(idx, name, variants, winner["k"], "defauts")
             seg = winner["seg"]
             wg += winner["w"]
             wg.append(
@@ -881,6 +901,7 @@ def write_node(state: ChapterState) -> dict:
                               "def": defects})
             cands.sort(key=lambda c: (-c["score"], c["k"]))
             g = cands[0]
+            best_of_records += _best_of_records(idx, None, cands, g["k"], "def")
             text, wg = g["t"], list(g["w"])
             wg.append(
                 f"entrée {idx + 1} : best-of-{best_of} — variant {g['k'] + 1} "
@@ -952,6 +973,7 @@ def write_node(state: ChapterState) -> dict:
         "placed_anchor": anchor,
         "placed_fall": sheet.fall,
         "served_prompts": (state.get("served_prompts") or []) + served_prompts,
+        "best_of": (state.get("best_of") or []) + best_of_records,
         "metrics": state["metrics"] + _tag(ms, f"write/{idx + 1}"),
         "warnings": state["warnings"] + wg
         + [f"entrée {idx + 1}: {x}" for x in w],

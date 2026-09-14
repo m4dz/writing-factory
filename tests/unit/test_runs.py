@@ -65,3 +65,20 @@ def test_record_result_closes_the_manifest_and_writes_prompts_and_lint(tmp_path)
     runs.record_result(run, None, clocks={}, calls=None, collections=[], status="error",
                        error="boom")
     assert runs.load_run(run.dir).manifest["error"] == "boom"
+
+
+def test_record_result_keeps_every_best_of_draw_and_counts_defects(tmp_path):
+    run = runs.create_run(7, "anniversaire", seed=5, root=tmp_path)
+    records = [
+        {"entry": 2, "beat": "constat", "k": 0, "score": -2, "defects": ["résout"], "kept": False},
+        {"entry": 2, "beat": "constat", "k": 1, "score": 3, "defects": [], "kept": True},
+        {"entry": 2, "beat": "constat", "k": 2, "score": 0,
+         "defects": ["résout", "présence perçue"], "kept": False},
+    ]
+    runs.record_result(run, {"metrics": [], "best_of": records}, clocks={}, calls=None,
+                       collections=[], status="ready")
+    m = runs.load_run(run.dir).manifest
+    assert m["best_of"] == records
+    assert m["best_of_summary"] == {"drawn": 3, "kept": 1,
+                                    "defects": {"présence perçue": 1, "résout": 2}}
+    assert runs.best_of_summary([]) == {"drawn": 0, "kept": 0, "defects": {}}

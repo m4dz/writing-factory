@@ -59,6 +59,20 @@ class OllamaClient:
         except (urllib.error.URLError, OSError, json.JSONDecodeError):
             return False
 
+    def tags(self, timeout: float = 10.0) -> list[dict]:
+        """The models Ollama has on disk: `{name, digest}` per entry.
+
+        Used before a measured series to refuse a tag Ollama does not have:
+        the daemon would answer 404 at the first call, but an experiment that
+        records the tag it ASKED for, not the one that answered, is a
+        measurement of nothing (doctrine 5).
+        """
+        req = urllib.request.Request(f"{self.settings.ollama_url}/api/tags")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read())
+        return [{"name": m.get("name", ""), "digest": m.get("digest", "")}
+                for m in data.get("models", [])]
+
     # --- generation -----------------------------------------------------------
 
     @staticmethod
@@ -239,3 +253,7 @@ def chat_turns(*args, **kwargs) -> tuple[str, dict]:
 
 def unload(*args, **kwargs) -> bool:
     return client.unload(*args, **kwargs)
+
+
+def tags(*args, **kwargs) -> list[dict]:
+    return client.tags(*args, **kwargs)

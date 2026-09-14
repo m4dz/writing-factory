@@ -77,3 +77,13 @@ def test_ch7_structure_is_the_stage_structure(fake_model, fake_chroma, quiet_pro
     before, after = chapter.split(assembly.SWITCH)
     assert before.count("Samedi 14.") == 1 and after.count("Samedi 14.") == 1
     assert after.split(assembly.AUDIO_END)[0].rstrip().endswith("Constat : anniversaire.")
+    # Every best-of draw is on record, without its text: entry 1 as a whole,
+    # entry 2 beat by beat, exactly one winner per group (`xp-abliterated-nemo`).
+    spec = scenarios.load_chapter(7)
+    records = final["best_of"]
+    groups = {(r["entry"], r["beat"]) for r in records}
+    beats = [b for b in (spec.entries[1].beats or [])]
+    assert (1, None) in groups and len(groups) == 1 + len(beats)
+    assert len(records) == spec.entries[0].best_of.n + len(beats) * fake_model.beats_n
+    assert sum(r["kept"] for r in records) == len(groups)
+    assert all(set(r) == {"entry", "beat", "k", "score", "defects", "kept"} for r in records)

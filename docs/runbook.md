@@ -283,6 +283,44 @@ Runs land under `experiments/runs/<date>-<stage>/` with a French frontmatter
 (ADR-0003). Preflight runs before each run, blocking on the timed stages
 (S6, S7, CH7) and warning on the others.
 
+### Swapping the author model for an experiment
+
+The author model is configuration (`AUTHOR_MODEL`), never a spec field: a
+model comparison changes that one variable and nothing served. Any GGUF on
+Hugging Face pulls straight into Ollama; keep the SAME quantization as the
+stock tag (Q8_0, ADR-0008) or the comparison carries two variables.
+
+```bash
+ollama pull hf.co/<org>/<repo>:Q8_0                    # ~13 GB on disk, one warm at a time
+ollama show hf.co/<org>/<repo>:Q8_0                     # template and context: must be Mistral's
+AUTHOR_MODEL=hf.co/<org>/<repo>:Q8_0 factory doctor     # the three models seen, preflight accepted
+```
+
+Leg 1, the bare model (recipe `factory-xp-resolution`): five conditions,
+three draws each, one call per draw, the tag checked against Ollama before
+the first call and recorded with its digest. The fifth condition serves the
+production voice chunk as the positive control: an arm that does not resolve
+there is not read by a trusted detector, and the series says so in `raw.md`.
+
+```bash
+factory-xp-resolution --out experiments/runs/<date>-xp-<slug>/leg1-S          # stock
+factory-xp-resolution --out experiments/runs/<date>-xp-<slug>/leg1-U --model hf.co/<org>/<repo>:Q8_0
+```
+
+Leg 2, the production pipeline, same seeds on both arms:
+
+```bash
+factory generate --chapter 7 --no-render --seed 424242
+AUTHOR_MODEL=hf.co/<org>/<repo>:Q8_0 factory generate --chapter 7 --no-render --seed 424242
+```
+
+The run manifest carries `best_of`: every drawn variant with its score and
+named defects, kept or rejected, and `best_of_summary` with the defects
+counted by cause across all draws. That count, not the winner, is the measure
+of a model's own tendency. Both arms in the same sitting, same commit, machine
+plugged in; the series and the runs are listed in the experiment's
+`report.md` under `experiments/runs/<date>-xp-<slug>/`.
+
 ### Through the API (what the deck does)
 
 ```bash

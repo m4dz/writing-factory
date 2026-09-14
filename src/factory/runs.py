@@ -200,6 +200,19 @@ def render_prompts(calls: list[dict]) -> str:
     return "\n".join(out).rstrip() + "\n"
 
 
+def best_of_summary(records: list[dict]) -> dict:
+    """Variants drawn and kept, and the defects named across ALL of them,
+    counted by label. Rejected draws are the material of the model comparison
+    (an abliterated model versus stock, a tuned one versus its base): the
+    winner alone says nothing about the tendency the selection corrected."""
+    defects: dict[str, int] = {}
+    for r in records:
+        for d in r.get("defects") or []:
+            defects[d] = defects.get(d, 0) + 1
+    return {"drawn": len(records), "kept": sum(1 for r in records if r.get("kept")),
+            "defects": dict(sorted(defects.items()))}
+
+
 def record_result(run: Run, final: dict | None, *, clocks: dict, calls: list[dict] | None,
                   collections: list[str], status: str, error: str | None = None) -> None:
     """Close the manifest and write the run's deliverables."""
@@ -216,6 +229,9 @@ def record_result(run: Run, final: dict | None, *, clocks: dict, calls: list[dic
             "ctx_truncated": sum(1 for m in metrics if m.get("ctx_truncated")),
         }
         fields["scenes"] = len(final.get("repaired") or [])
+        records = [dict(r) for r in final.get("best_of") or []]
+        fields["best_of"] = records
+        fields["best_of_summary"] = best_of_summary(records)
         fields["warnings"] = list(final.get("warnings") or [])
         fields["plan_report"] = final.get("plan_report") or ""
         fields["coherence"] = final.get("coherence") or ""

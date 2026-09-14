@@ -14,6 +14,7 @@ dependencies = [
 
 [project.scripts]
 factory = "factory.cli:main"
+factory-xp-resolution = "factory.tooling.resolution_xp:main"
 
 [build-system]
 requires = ["setuptools>=64"]

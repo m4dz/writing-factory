@@ -2,21 +2,21 @@
 
 Wiring (this session, no model needed):
 
-- [ ] `resolution_xp`: `--model`, `--out`, `--draws`; Ollama tag check; series
+- [x] `resolution_xp`: `--model`, `--out`, `--draws`; Ollama tag check; series
       manifest with both clocks; raw draws in the series directory.
-- [ ] `resolution_xp`: positive-control condition served from the sheet's
+- [x] `resolution_xp`: positive-control condition served from the sheet's
       `## voix` section, explicit failure on an empty section.
-- [ ] `graph.py`: `state["best_of"]` records in both best-of branches (no
+- [x] `graph.py`: `state["best_of"]` records in both best-of branches (no
       prompt change; snapshot untouched, named: all of `tests/snapshots/`).
-- [ ] `runs.py`: `best_of` and `best_of_summary` in the manifest.
-- [ ] Tests: recipe with the fake client; detectors on known texts (strict
+- [x] `runs.py`: `best_of` and `best_of_summary` in the manifest.
+- [x] Tests: recipe with the fake client; detectors on known texts (strict
       xfail for the 08-31 false positive); `record_result` with records;
       chapter-7 scenario asserts the record shape.
-- [ ] Runbook: experiments section (HF GGUF pull, `AUTHOR_MODEL`, procedure).
-- [ ] `experiments/runs/<date>-xp-abliterated-nemo/report.md` with the
+- [x] Runbook: experiments section (HF GGUF pull, `AUTHOR_MODEL`, procedure).
+- [x] `experiments/runs/<date>-xp-abliterated-nemo/report.md` with the
       predictions section only; `manifest.yaml` with `kind: experiment`,
       `variable: author model tag`, `status: planned`.
-- [ ] `make check` green.
+- [x] `make check` green.
 
 Owner (stage machine):
 

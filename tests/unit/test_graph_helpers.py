@@ -126,3 +126,24 @@ def test_gestures_permission_reads_the_entry_spec():
     state["scenes"].append("b")
     assert graph._gestures_allowed(state) is True
     assert graph._gestures_allowed({"scenes": ["a"], "entry_specs": []}) is True
+
+
+def test_resolution_detectors_on_known_texts():
+    """The detectors of the resolution experiment, falsified on the texts the
+    journal named (doctrine 4): a verdict, a memory that comes back, a doubt
+    that stays open."""
+    assert graph._BEAT_RESOLVES.search("Verdict : coquille. Ma mémoire m'a joué un tour.")
+    assert graph._BEAT_RESOLVES.search("Et cela me revient maintenant, d'un coup.")
+    assert graph._BEAT_RESOLVES.search("Je n'ai pas rêvé.")
+    assert not graph._BEAT_RESOLVES.search("Je ne me souviens pas de l'avoir fait.")
+    assert graph._BEAT_DOUBT.search("Je ne me souviens pas de l'avoir fait.")
+    assert graph._BEAT_DOUBT.search("Aucun souvenir de ce geste.")
+    assert not graph._BEAT_DOUBT.search("Verdict : coquille.")
+
+
+@pytest.mark.xfail(strict=True, reason="08-31 false positive: remembering the EVENING is "
+                   "not lifting the doubt about the gesture; fix is a separate change")
+def test_resolution_detector_spares_a_remembered_context():
+    text = ("Je me souviens parfaitement de ma soirée de la veille, chaque détail me "
+            "revient en mémoire, mais pas celui-ci. Pour l'instant, je n'ai pas de réponse.")
+    assert not graph._BEAT_RESOLVES.search(text)
