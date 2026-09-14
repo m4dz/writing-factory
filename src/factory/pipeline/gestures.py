@@ -392,21 +392,15 @@ def validate_accumulation(sentence: str, last_attempt: bool = False,
 # (« à la frontière entre la découverte de la musique et celle du plat »).
 # The composer derives the DOWNSTREAM anchor from it: the passage goes just
 # before what follows the frontier.
-_FRONTIER_ANCHORS = {
-    "plat": re.compile(r"\b(le plat|le four|au four)\b", re.IGNORECASE),
-    "musique": re.compile(r"\b(la musique|la playlist|l'enceinte)\b", re.IGNORECASE),
-    "photos": re.compile(r"\b(les photos|la boîte)\b", re.IGNORECASE),
-    "couverts": re.compile(r"\b(les? (?:deux )?couverts?)\b", re.IGNORECASE),
-    # CH7 e2 v3: the uncanny engine (objects discovering themselves) is gone,
-    # its downstream anchors with it. The lexical drift returns to the
-    # correction gesture — « la marge » is served matter, hence reliably
-    # present; verdict/constat as backup when the margin is not named.
-    "marge": re.compile(r"\b(la marge|dans la marge|en marge)\b", re.IGNORECASE),
-    "verdict": re.compile(r"\b(le verdict|un verdict|le constat)\b", re.IGNORECASE),
-}
+# The lexical anchors of a frontier are chapter knowledge: `drift_anchors` in
+# the chapter spec, `{key: [phrases]}`, compiled here (ADR-0025).
+def compile_anchors(anchors: dict) -> dict[str, re.Pattern]:
+    return {key: re.compile(r"\b(?:" + "|".join(re.escape(p) for p in phrases) + r")\b",
+                            re.IGNORECASE)
+            for key, phrases in (anchors or {}).items() if phrases}
 
 
-def frontier_position(text: str, position: str) -> int | None:
+def frontier_position(text: str, position: str, anchors: dict | None = None) -> int | None:
     """Insertion offset of a passage at a frontier declared in French.
 
     Looks for the DOWNSTREAM anchor — « la frontière entre la musique et le plat »
@@ -416,15 +410,17 @@ def frontier_position(text: str, position: str) -> int | None:
     hinge instead of an added part.
 
     Returns None when the anchor cannot be found — a gesture placed at random
-    is worse than none, and the caller must be able to say so.
+    is worse than none, and the caller must be able to say so. `anchors` is
+    the chapter spec's `drift_anchors`; without it nothing can be placed.
     """
     words = position.lower()
+    patterns = compile_anchors(anchors)
     # DOWNSTREAM is the last term named IN THE SENTENCE, not in the dict.
     # « entre la découverte de la musique et celle du plat »: downstream is
     # « plat ». The first version iterated over the keys and kept « musique »
     # — the passage landed one paragraph too early, at the wrong frontier.
     named = [(words.rindex(key), pattern)
-              for key, pattern in _FRONTIER_ANCHORS.items() if key in words]
+              for key, pattern in patterns.items() if key in words]
     if not named:
         return None
     downstream = max(named)[1]

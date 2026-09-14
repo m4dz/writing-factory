@@ -101,6 +101,7 @@ class ChapterSpec:
     stations: tuple[str, ...] = ()
     accumulation_fall: str = ""
     drift_bank: DriftBank = DriftBank()
+    drift_anchors: dict = field(default_factory=dict)   # {key: [phrases]}, see gestures
     assembly: dict = field(default_factory=dict)
     defaults: Defaults = Defaults()
     entries: tuple[EntrySpec, ...] = ()
@@ -145,4 +146,5 @@ class ChapterSpec:
             "accumulation_fall": self.accumulation_fall,
             "drift_bank": {"approaches": list(self.drift_bank.approaches),
                            "facts": list(self.drift_bank.facts)},
+            "drift_anchors": {k: list(v) for k, v in self.drift_anchors.items()},
         }

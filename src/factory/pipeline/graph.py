@@ -117,6 +117,7 @@ class ChapterState(TypedDict):
     stations: list[str]   # stations of the reconstruction segment
     accumulation_fall: str  # the object the accumulation ends upon
     drift_bank: dict      # {approaches: [...], facts: [...]} for the drift draw
+    drift_anchors: dict   # {key: [phrases]} placing a written drift at its frontier
     # --- machine nodes (ADR-0002, item 5) ------------------------------------
     preflight: object     # None/False: skipped; True or {strict, timer}: checked first
     narrative_state: bool  # generate and index the chapter's narrative state chunk
@@ -1725,7 +1726,8 @@ def place_gestures_node(state: ChapterState) -> dict:
         # is worse still.
         frontier = None
         if g.get("frontiere") and g.get("glissement"):
-            frontier = frontier_position(entry, g["frontiere"])
+            frontier = frontier_position(entry, g["frontiere"],
+                                         state.get("drift_anchors") or {})
             if frontier is None:
                 warns.append(f"assemblage entrée {i + 1} : frontière « "
                              f"{g['frontiere'][:60]} » introuvable dans le "
@@ -1961,8 +1963,8 @@ _PRUNE_PATTERNS = {
 }
 
 
-def _assemble_qwen(entry: str) -> tuple[str, list[str]]:
-    """Code pruning of the diffuse residue. Name kept for the caller.
+def _prune_residue(entry: str) -> tuple[str, list[str]]:
+    """Code pruning of the diffuse residue (ADR-0020: the code, not Qwen).
 
     Removes the sentences touching a named motif (outing / presence /
     recursion / resolution), protects header/quotation/drift/fall, and
@@ -2011,8 +2013,8 @@ def assemble_node(state: ChapterState) -> dict:
         sheet = spec[i] if i < len(spec) else EMPTY_ENTRY
         if sheet.strategy != "beats":     # only the beat entry is cleaned
             continue
-        progress.phase("Assemblage", f"entrée {i + 1} (Qwen)")
-        outputs[i], w = _assemble_qwen(entry)
+        progress.phase("Assemblage", f"entrée {i + 1}")
+        outputs[i], w = _prune_residue(entry)
         warns += w
     return {"repaired": outputs, "warnings": state["warnings"] + warns}
 

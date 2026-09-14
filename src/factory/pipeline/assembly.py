@@ -19,8 +19,8 @@ Two owner decisions (2026-08-07), recorded in ADR-0013:
    deck's 28' — and a fifteen-minute reading in a fifty-minute keynote.
 """
 
-import re
 
+from factory.eval.lint import ENTRY_HEADER
 from factory.settings import settings
 from factory.text import sentence_ends
 
@@ -52,14 +52,9 @@ AUDIO_END = "<!-- FIN AUDIO -->"
 # bound in words is `settings.effective_audio_max_words`.
 
 
-# The normalised header at LINE START — chapter 7's switch landmark. Same
-# format as `ENTRY_HEADER` in `factory.eval.lint`, rewritten here rather than
-# imported: this module is served by the API and must not depend upon the
-# evaluation tooling. If the format moves, it moves in both places — the
-# price, and it is explicit.
-HEADER_LINE = re.compile(
-    r"^(?:Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)\s+\d{1,2}\.\s+"
-    r"\S[^\n]{0,40}\.\s*$", re.MULTILINE | re.IGNORECASE)
+# The normalised header at line start — chapter 7's switch landmark — is the
+# lint's `ENTRY_HEADER`: one definition of the project's header (ADR-0025).
+HEADER_LINE = ENTRY_HEADER
 
 
 def _nth_sentence_end(text: str, n: int) -> int | None:

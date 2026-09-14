@@ -39,3 +39,7 @@ they are spec fields:
 
 - The seal control on `chapters/` (step 5) and the prompt snapshots are the
   guards: a served constant cannot change silently.
+
+## Note, 2026-09-14
+
+Items 2 and 3 done: `drift_anchors` is a chapter spec field (chapters/07-anniversaire/spec.yaml), `factory.pipeline.gestures.frontier_position` takes it from the state; `HEADER_LINE` is the lint's `ENTRY_HEADER` (case-sensitive weekday, optional bold markers — the two regexes differed in those edge cases; headers are composed by code, so neither case arises in served text). The pruning pass is `_prune_residue`, its progress label no longer says Qwen.

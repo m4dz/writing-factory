@@ -285,6 +285,8 @@ def load_spec(path: Path) -> ChapterSpec:
         verdict=str(raw.get("verdict") or ""), active_objects=str(raw.get("active_objects") or ""),
         prefix=str(raw.get("prefix") or ""), stations=tuple(raw.get("stations") or ()),
         accumulation_fall=str(raw.get("accumulation_fall") or ""), drift_bank=drift_bank,
+        drift_anchors={str(k): tuple(str(p) for p in (v or ()))
+                       for k, v in (raw.get("drift_anchors") or {}).items()},
         assembly=dict(raw.get("assembly") or {}),
         defaults=Defaults(bool(dflt.get("rag", True)), bool(dflt.get("micro_nodes", True)),
                           bool(dflt.get("segments", True))),

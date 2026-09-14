@@ -65,10 +65,12 @@ def test_drift_never_lands_in_the_accumulation_paragraph_or_last_third():
 
 def test_frontier_uses_the_downstream_anchor():
     text = "La boîte, les photos.\n\nLa musique tourne.\n\nLe plat est au four.\n\nFin."
-    pos = gestures.frontier_position(text, "à la frontière entre la musique et le plat")
+    anchors = load_chapter(7).drift_anchors
+    pos = gestures.frontier_position(text, "à la frontière entre la musique et le plat", anchors)
     assert text[pos:].startswith("Le plat")
-    assert gestures.frontier_position(text, "à la frontière des couverts") is None
-    assert gestures.frontier_position(text, "nulle part") is None
+    assert gestures.frontier_position(text, "à la frontière des couverts", anchors) is None
+    assert gestures.frontier_position(text, "nulle part", anchors) is None
+    assert gestures.frontier_position(text, "à la frontière du plat") is None   # no anchors
 
 
 def test_assembler_inserts_from_the_end_and_notes_collisions():

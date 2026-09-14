@@ -109,14 +109,14 @@ def test_pruning_removes_marked_sentences_and_protects_owned_lines():
     entry = ("Samedi 14. Beau temps.\n\n« Une citation posée par le code, assez longue. »\n\n"
              "Je pose le manteau. Un bruit dans le salon me fait sursauter. "
              "Je n'ai pas rêvé, tout est normal. Je ne sais pas.\n\nConstat : anniversaire.")
-    out, notes = graph._assemble_qwen(entry)
+    out, notes = graph._prune_residue(entry)
     assert "Un bruit" not in out and "pas rêvé" not in out
     assert "« Une citation" in out and out.endswith("Constat : anniversaire.")
     assert notes and "2 phrase(s)" in notes[0]
     clean = "Je pose le manteau. Je ne sais pas."
-    assert graph._assemble_qwen(clean) == (clean, ["pruning : rien à retirer"])
+    assert graph._prune_residue(clean) == (clean, ["pruning : rien à retirer"])
     mostly_bad = "Un bruit. Une voix. Des pas. Je reste."
-    out, notes = graph._assemble_qwen(mostly_bad)
+    out, notes = graph._prune_residue(mostly_bad)
     assert out == mostly_bad and "REJETÉ" in notes[0]
 
 

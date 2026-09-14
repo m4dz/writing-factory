@@ -43,6 +43,17 @@ drift_bank:
     - Le plat est au four.
     - Les deux couverts sont mis.
 
+# Ancres lexicales des frontières : le glissement rédigé se pose juste avant le
+# paragraphe qui nomme l'objet d'AVAL de sa position (« … — les couverts »).
+# « la marge » et le verdict servent de secours quand l'objet n'est pas nommé.
+drift_anchors:
+  plat: [le plat, le four, au four]
+  musique: [la musique, la playlist, l'enceinte]
+  photos: [les photos, la boîte]
+  couverts: [les couverts, les deux couverts, le couvert, le deux couverts]
+  marge: [la marge, dans la marge, en marge]
+  verdict: [le verdict, un verdict, le constat]
+
 # Assemblage pour la scène : bascule sur le SECOND en-tête daté (les deux
 # entrées portent le même jour), audio borné sur la chute.
 assembly: {on_second_header: true, fall: "Constat : anniversaire."}
