@@ -59,7 +59,7 @@ This is their only home. `CLAUDE.md` points here; the ADRs cite them by number.
    our instruction.
 
 9. **The exception is declared in data, never as a loosened rule.**
-   `entrees_spec` carries chapter 7's two same-day entries. Corollary: every
+   `entry_specs` carries chapter 7's two same-day entries. Corollary: every
    validator written before a structure existed reads that structure as an
    anomaly (three occurrences: drift, review guard, chapter-7 headers).
 
