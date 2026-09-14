@@ -48,9 +48,11 @@ src/factory/
   roleplay/          session.py (memory, out-of-role guard), cli.py
   api/               server.py (one-worker queue, per-run routes, actor mode),
                      static/acteur.html
-  eval/              lint.py, grid.py, seal.py, journal.py, data/
+  eval/              lint.py, grid.py, seal.py, journal.py, style.py (countable
+                     register marks, best-of tie-break), data/
   tooling/           stage_runner (calibration stages, `factory calibrate`;
-                     chapter 2 constants until step 5), interviews (demo
+                     chapter 2 constants until step 5), bench (the write node
+                     alone per model, `factory bench`), interviews (demo
                      sessions), resolution_xp (an experiment's recipe)
 docker/              indexer.Dockerfile (installs the package)
 bible/               canon, French, author-owned; surface/ and profond/ layers;
@@ -96,8 +98,12 @@ preflight ──▶ narrative_state ──▶ plan ──▶ write ──▶ acc
 - **write** (nemo): one entry per pass, header and anchor prefixed by code.
   Three strategies selected per entry: a single call, three segments
   (opening, reconstruction with stations, closing), or code-capped beats with
-  best-of-N selection by reading criteria. Continuation on a cut generation,
-  trim to the last sentence as a net, sentence bound when the brief sets one.
+  best-of-N selection by reading criteria, the countable style marks breaking
+  ties. A beat may carry the author's attack: posed as the head of the beat,
+  counted against its sentence cap, the model continues it. Continuation on a
+  cut generation, trim to the last sentence as a net, sentence bound when the
+  brief sets one. Sampling (temperature, min_p, top_p, repeat penalty) is
+  configuration (ADR-0026).
 - **accumulate** (nemo): one long enumerative sentence, validated by code
   (thresholds, language, person, abstraction, decor), set aside.
 - **drift** (no model): the drift passage, from the chapter bank or the

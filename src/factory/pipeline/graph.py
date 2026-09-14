@@ -33,6 +33,7 @@ from factory.text import delint, ends_mid_sentence, sentence_ends, trim_to_sente
 from factory.pipeline.qa import repair, derive_facts, check_facts, check_plan
 from factory.chapter_spec.model import EMPTY_ENTRY, EntrySpec
 from factory.pipeline import scorers
+from factory.eval import style
 from factory.pipeline.nodes.narrative_state import narrative_state_node
 from factory.pipeline.nodes.preflight import preflight_node
 from factory.pipeline.nodes.render import render_node
@@ -257,6 +258,39 @@ def _strip_approximate_restart(prefix: str, continuation: str) -> str:
         return continuation
     ratio = difflib.SequenceMatcher(None, m.group(0), anchor).ratio()
     return start[m.end():].lstrip() if ratio > 0.70 else continuation
+
+
+def _style_tiebreak_note(label: str, ranked: list[dict]) -> list[str]:
+    """One warning when the style marks, not the defects, chose the winner."""
+    if len(ranked) < 2 or ranked[0]["score"] != ranked[1]["score"]:
+        return []
+    if ranked[0]["style"] == ranked[1]["style"]:
+        return []
+    return [f"{label} : départage par les marques de style — variant {ranked[0]['k'] + 1} "
+            f"({ranked[0]['style']}) devant "
+            + ", ".join(f"#{v['k'] + 1} ({v['style']})" for v in ranked[1:]
+                        if v["score"] == ranked[0]["score"])]
+
+
+def _strip_attack_echo(attack: str, continuation: str) -> str:
+    """Remove from the start of `continuation` a repeat of the author's attack.
+
+    The doctrine says shown is recited: a beat that opens on the owner's
+    sentence may give it back, verbatim or recomposed, before going on. An
+    exact copy is caught by the character overlap; a paraphrase by comparing
+    the first sentence of the continuation with the attack (70 %, the ratio
+    `_strip_approximate_restart` uses for the anchor).
+    """
+    s = continuation.lstrip()
+    head = attack.strip()
+    if s.startswith(head):
+        return s[len(head):].lstrip()
+    ends = sentence_ends(s)
+    if not ends:
+        return s
+    first = s[:ends[0]]
+    ratio = difflib.SequenceMatcher(None, first.lower(), head.lower()).ratio()
+    return s[ends[0]:].lstrip() if ratio > 0.70 else s
 
 
 def _reattach(start: str, continuation: str) -> str:
@@ -727,6 +761,16 @@ def write_node(state: ChapterState) -> dict:
                 b.name, b.num_predict, b.sentences_max, b.instruction)
             is_first = (name == first_name)
             already = f"{prefix}\n\n{text}".strip() if prefix else text.strip()
+            # AUTHOR ATTACK (quality campaign, lever 1). The owner's first
+            # sentence(s) of the beat are POSED, not asked: they close the
+            # "already written" block, so the model continues in their
+            # register. The attack counts against the beat's sentence cap;
+            # what the model adds is bounded to the remainder.
+            attack = b.attack.strip()
+            model_cap = max_sentences
+            if attack:
+                already = f"{already}\n\n{attack}".strip() if already else attack
+                model_cap = max(1, max_sentences - len(sentence_ends(attack)))
             block = (
                 "L'entrée est DÉJÀ COMMENCÉE par ce texte, que tu ne réécris "
                 f"PAS :\n---\n{already}\n---\n"
@@ -746,18 +790,30 @@ def write_node(state: ChapterState) -> dict:
                                f"entrée {idx + 1} — {name} ({k + 1}/{beats_n})",
                                i=idx + 1, n=len(state["plan"]))
                 seg, m, w = _generate_whole(
-                    system, beat_user, num_predict=num_predict, temperature=0.7,
+                    system, beat_user, num_predict=num_predict,
+                    temperature=settings.write_temperature,
                     label=f"entrée {idx + 1}/{name}#{k + 1}", keep_going=False)
                 seg, wn = _clean_segment(seg, f"entrée {idx + 1}/{name}#{k + 1}")
-                seg, wb = _bound_sentences(seg, max_sentences, idx, "")
+                if attack:
+                    seg = _strip_attack_echo(attack, seg)
+                seg, wb = _bound_sentences(seg, model_cap, idx, "")
+                # The attack is the author's: scored is what the model added.
                 sc, defects = _score_beat(seg, is_first,
                                            state.get("chapter") or 0)
                 variants.append({"score": sc, "k": k, "seg": seg,
-                                  "defauts": defects, "m": m, "w": w + wn + wb})
-            # Best score; ties go to the first drawn (stable, replayable).
-            variants.sort(key=lambda v: (-v["score"], v["k"]))
+                                  "defauts": defects, "m": m, "w": w + wn + wb,
+                                  "style": style.score(seg)})
+            # Best defect score; among equals the countable style marks
+            # (quality campaign, lever 4); then the first drawn (stable).
+            variants.sort(key=lambda v: (-v["score"], -v["style"], v["k"]))
             winner = variants[0]
+            wg += _style_tiebreak_note(f"entrée {idx + 1}/{name}", variants)
             seg = winner["seg"]
+            if attack:
+                seg = f"{attack} {seg}".strip()
+                wg.append(f"entrée {idx + 1}/{name} : attaque d'auteur posée "
+                          f"({len(sentence_ends(attack))} phrase(s)), le modèle borné à "
+                          f"{model_cap}")
             wg += winner["w"]
             wg.append(
                 f"entrée {idx + 1}/{name} : best-of-{beats_n} — variant "
@@ -813,7 +869,8 @@ def write_node(state: ChapterState) -> dict:
                 )
             served_prompts.append((name, seg_user))
             seg, m, w = _generate_whole(
-                system, seg_user, num_predict=num_predict, temperature=0.7,
+                system, seg_user, num_predict=num_predict,
+                temperature=settings.write_temperature,
                 label=f"entrée {idx + 1}/{name}")
             # The code's proprietary filters apply TO THE SEGMENT, before it
             # becomes the next prefix: a header re-emitted at the top of the
@@ -866,7 +923,8 @@ def write_node(state: ChapterState) -> dict:
                                f"entrée {idx + 1} ({k + 1}/{best_of})",
                                i=idx + 1, n=len(state["plan"]))
                 t, m, w = _generate_whole(
-                    system, user, num_predict=budget, temperature=0.7,
+                    system, user, num_predict=budget,
+                    temperature=settings.write_temperature,
                     label=f"entrée {idx + 1}#{k + 1}", keep_going=cont)
                 # Strip the stray header BEFORE scoring: otherwise the
                 # two-sentence bound captures « Samedi 14. Beau temps. » (two
@@ -878,10 +936,11 @@ def write_node(state: ChapterState) -> dict:
                             if phr else t_clean)
                 sc, defects = scorers.score(to_score, sheet.best_of)
                 cands.append({"score": sc, "k": k, "t": t, "m": m, "w": w,
-                              "def": defects})
-            cands.sort(key=lambda c: (-c["score"], c["k"]))
+                              "def": defects, "style": style.score(to_score)})
+            cands.sort(key=lambda c: (-c["score"], -c["style"], c["k"]))
             g = cands[0]
             text, wg = g["t"], list(g["w"])
+            wg += _style_tiebreak_note(f"entrée {idx + 1}", cands)
             wg.append(
                 f"entrée {idx + 1} : best-of-{best_of} — variant {g['k'] + 1} "
                 f"retenu (score {g['score']}, "
@@ -892,7 +951,8 @@ def write_node(state: ChapterState) -> dict:
             ms = [dict(m2, variant=c["k"]) for c in cands for m2 in c["m"]]
         else:
             text, ms, wg = _generate_whole(
-                system, user, num_predict=budget, temperature=0.7,
+                system, user, num_predict=budget,
+                temperature=settings.write_temperature,
                 label=f"entrée {idx + 1}", keep_going=not sheet.words)
     # The concatenation itself. `_reattach` removes the overlap character by
     # character if the model repeated the header or the anchor despite the

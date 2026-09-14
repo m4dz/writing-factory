@@ -149,6 +149,8 @@ repository). Defaults are the values below.
 | `GESTURE_TEMPERATURE` | `gesture_temperature` | `0.3` |
 | `BEATS_N` | `beats_n` | `3` |
 | `PRUNING` | `pruning_enabled` | `1` (`0` disables the assemble pass) |
+| `WRITE_TEMPERATURE` | `write_temperature` | `0.7` (every writing call) |
+| `MIN_P` / `TOP_P` / `REPEAT_PENALTY` | `min_p` / `top_p` / `repeat_penalty` | unset: not sent to Ollama (ADR-0026) |
 | `CHROMA_HOST` / `CHROMA_PORT` | `chroma_host` / `chroma_port` | `localhost` / `8000` |
 | `CHROMA_COLLECTION` | `author_collection` | `auteur` |
 | `CHROMA_SESSIONS` | `sessions_collection` | `sessions` |
@@ -238,7 +240,8 @@ author's table into `bible/generated/narrative-state/ch-NN.md` and indexed),
 plan, writing, gestures, review, repair, coherence, then the render node
 writes the chapter and the WAV into the run directory. The profiling report
 at the end is the measure that counts: total time against the 25-minute
-budget, tokens per call, the context alarms (`ctx_need`, `ctx_truncated`).
+budget (stage regime; a book run has no budget, ADR-0026), tokens per call,
+the context alarms (`ctx_need`, `ctx_truncated`).
 
 `--skip-preflight` turns the gate into warnings (dev only, NEVER on stage);
 `--no-preflight` skips the probes (a non-macOS machine, tests);
@@ -282,6 +285,23 @@ factory eval lint --references                             # the lint's self-tes
 Runs land under `experiments/runs/<date>-<stage>/` with a French frontmatter
 (ADR-0003). Preflight runs before each run, blocking on the timed stages
 (S6, S7, CH7) and warning on the others.
+
+### The writer bench (quality campaign, one variable: the model)
+
+```bash
+factory bench --models mistral-small:24b,qwen3:14b --draws 3 --seed 424242   # tags as `ollama list` names them
+factory eval style experiments/runs/<stamp>-ch07-bench/*-1.md        # the register marks of a text
+```
+
+The bench runs the write node alone on chapter 7 entry 2 (the calibrated
+reference), N draws per model, everything else the pipeline as it is. It
+swaps models between series (book regime, ADR-0026: no time budget, no
+single-swap rule; the 18 GB ceiling still decides which models fit). One
+directory `experiments/runs/<stamp>-ch07-bench/` with `manifest.yaml`
+(`kind: bench`, ignored by `factory runs` and the API), one file per draw,
+`prompts.md`, and `report.md`: the comparison table (words, tok/s, wall,
+style score, context need, cuts, lint) and one empty line per draw for the
+reading aloud. The figures rank; the reading decides.
 
 ### Through the API (what the deck does)
 

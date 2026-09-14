@@ -8,7 +8,8 @@
     factory runs                        the runs, newest first
     factory promote <run>               a generated chapter becomes canon (bible/scenes/)
     factory calibrate --stage S7        calibration stages (run files)
-    factory eval lint|grid|seal|journal scoring
+    factory bench --models a,b          the write node alone, per model, N draws
+    factory eval lint|grid|seal|journal|style scoring
     factory serve                       the HTTP surface for the deck
     factory chat --character judith     actor mode in the terminal
 
@@ -425,6 +426,11 @@ def _query(argv: list[str]) -> int:
     return 0
 
 
+def _bench(argv: list[str]) -> int:
+    from factory.tooling.bench import main
+    return main(argv)
+
+
 def _calibrate(argv: list[str]) -> int:
     from factory.tooling.stage_runner import main
     return main(argv)
@@ -446,9 +452,10 @@ def _chat(argv: list[str]) -> int:
 
 def _eval(argv: list[str]) -> int:
     tools = {"lint": "factory.eval.lint", "grid": "factory.eval.grid",
-             "seal": "factory.eval.seal", "journal": "factory.eval.journal"}
+             "seal": "factory.eval.seal", "journal": "factory.eval.journal",
+             "style": "factory.eval.style"}
     if not argv or argv[0] not in tools:
-        print("usage : factory eval {lint|grid|seal|journal} [...]", file=sys.stderr)
+        print("usage : factory eval {lint|grid|seal|journal|style} [...]", file=sys.stderr)
         return 2
     import importlib
     return int(importlib.import_module(tools[argv[0]]).main(argv[1:]) or 0)
@@ -456,7 +463,7 @@ def _eval(argv: list[str]) -> int:
 
 COMMANDS = {
     "doctor": doctor, "index": _index, "query": _query, "generate": generate,
-    "calibrate": _calibrate, "eval": _eval, "serve": _serve, "chat": _chat,
+    "calibrate": _calibrate, "bench": _bench, "eval": _eval, "serve": _serve, "chat": _chat,
     "promote": promote, "runs": _runs,
 }
 

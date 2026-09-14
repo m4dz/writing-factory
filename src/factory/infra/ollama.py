@@ -160,6 +160,7 @@ class OllamaClient:
                     "temperature": temperature,
                     "num_predict": num_predict,
                     "num_ctx": num_ctx,
+                    **self.settings.sampling_options(),
                 },
             }
         ).encode()

@@ -28,7 +28,7 @@ RUN_ID = re.compile(r"^\d{8}-\d{6}-ch\d{2}-[a-z0-9-]{1,40}$")
 # never spec fields (ADR-0005). Applied for the run's duration only.
 OVERRIDABLE = ("author_model", "qa_model", "gesture_model", "num_ctx", "gesture_temperature",
                "beats_n", "pruning_enabled", "audio_seconds", "switch_after_sentences",
-               "stage_budget_min")
+               "stage_budget_min", "write_temperature", "min_p", "top_p", "repeat_penalty")
 
 TERMINAL = ("ready", "error", "cancelled")
 
@@ -73,7 +73,12 @@ def validate_overrides(overrides: dict | None) -> dict:
             raise RunError(f"override refusé : « {key} » (autorisés : {', '.join(OVERRIDABLE)})")
         current = getattr(settings, key)
         try:
-            out[key] = type(current)(value) if not isinstance(current, bool) else bool(value)
+            if isinstance(current, bool):
+                out[key] = bool(value)
+            elif current is None or value is None:      # optional float knobs (min_p, top_p…)
+                out[key] = None if value is None else float(value)
+            else:
+                out[key] = type(current)(value)
         except (TypeError, ValueError):
             raise RunError(f"override « {key} » : valeur invalide {value!r}") from None
     return out
@@ -91,7 +96,8 @@ def git_commit() -> str:
 def resolved_config(overrides: dict | None = None) -> dict:
     keys = ("author_model", "qa_model", "embed_model", "num_ctx", "gesture_model",
             "gesture_temperature", "beats_n", "pruning_enabled", "switch_after_sentences",
-            "audio_seconds", "audio_words_per_minute", "tts_model", "stage_budget_min")
+            "audio_seconds", "audio_words_per_minute", "tts_model", "stage_budget_min",
+            "write_temperature", "min_p", "top_p", "repeat_penalty")
     conf = {k: getattr(settings, k) for k in keys}
     conf.update(overrides or {})
     return conf

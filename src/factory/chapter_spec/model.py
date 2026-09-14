@@ -24,6 +24,7 @@ class BeatSpec:
     num_predict: int
     sentences_max: int
     instruction: str
+    attack: str = ""              # the author's first sentence(s); the model continues it
 
 
 @dataclass(frozen=True)

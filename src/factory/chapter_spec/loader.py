@@ -150,24 +150,31 @@ def read_entry_brief(path: Path) -> dict:
     position = next((l.split(":", 1)[1].strip() for l in drift.splitlines()
                      if l.startswith("Position")), "")
 
-    def beats() -> list[str]:
+    def beats() -> tuple[list[str], list[str]]:
+        """Per beat heading of §7: the instruction (plain lines) and the
+        author's ATTACK (the ``> `` blockquote lines, joined), if any."""
         if "## 7." not in txt:
-            return []
+            return [], []
         seg7 = txt.split("## 7.", 1)[1]
-        out = []
+        instructions, attacks = [], []
         heads = list(re.finditer(r"^### Beat \w+", seg7, re.MULTILINE))
         for i, h in enumerate(heads):
             end = heads[i + 1].start() if i + 1 < len(heads) else len(seg7)
-            lines = [l for l in seg7[h.start():end].strip().splitlines() if l.strip()]
-            out.append(" ".join(lines[1:]).strip() if len(lines) > 1 else "")
-        return out
+            lines = [l for l in seg7[h.start():end].strip().splitlines() if l.strip()][1:]
+            quoted = [l.lstrip("> ").strip() for l in lines if l.startswith(">")]
+            plain = [l for l in lines if not l.startswith(">")]
+            instructions.append(" ".join(plain).strip())
+            attacks.append(" ".join(quoted).strip())
+        return instructions, attacks
 
+    beat_instructions, beat_attacks = beats()
     return {
         "intention": section("## 1. Intention", "## 2."),
         "trajectory": bullets(section("## 2. Trajectoire", "## 3.")),
         "material": bullets(section("## 3. Matière disponible", "## 4.")),
         "drift": Drift(drift_text, position) if drift_text else None,
-        "beats": beats(),
+        "beats": beat_instructions,
+        "attacks": beat_attacks,
     }
 
 
@@ -193,10 +200,21 @@ def _entry(raw: dict, spec_dir: Path, chapter: int) -> EntrySpec:
     if caps and instructions and len(caps) != len(instructions):
         raise ChapterSpecError(f"{len(caps)} bornes de beats pour {len(instructions)} "
                                f"libellés dans {raw.get('source')}")
+    attacks = source.get("attacks") or []
     beats = tuple(
         BeatSpec(str(c["name"]), int(c["num_predict"]), int(c["sentences_max"]),
-                 str(c.get("instruction") or (instructions[i] if i < len(instructions) else "")))
+                 str(c.get("instruction") or (instructions[i] if i < len(instructions) else "")),
+                 str(c.get("attack") or (attacks[i] if i < len(attacks) else "")).strip())
         for i, c in enumerate(caps))
+    for b in beats:
+        if b.attack:
+            # The attack is SERVED (prefix of the beat) and then stands in the
+            # chapter: same guards as any served text.
+            assert_no_file_names(b.attack, f"l'attaque du beat « {b.name} »")
+            leaks = workshop_terms(b.attack)
+            if leaks:
+                raise ChapterSpecError(f"l'attaque du beat « {b.name} » porte des termes "
+                                       f"d'atelier : {leaks}")
     strategy = raw.get("strategy")
     if strategy not in (None, "single", "segments", "beats"):
         raise ChapterSpecError(f"stratégie inconnue : {strategy!r}")
