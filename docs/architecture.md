@@ -51,7 +51,8 @@ src/factory/
   eval/              lint.py, grid.py, seal.py, journal.py, data/
   tooling/           stage_runner (calibration stages, `factory calibrate`;
                      chapter 2 constants until step 5), interviews (demo
-                     sessions), resolution_xp (an experiment's recipe)
+                     sessions), resolution_xp (the bare-model resolution series,
+                     `factory-xp-resolution`, one model tag per series)
 docker/              indexer.Dockerfile (installs the package)
 bible/               canon, French, author-owned; surface/ and profond/ layers;
                      generated/ (narrative state per chapter, derived, not
@@ -141,7 +142,8 @@ preflight ──▶ narrative_state ──▶ plan ──▶ write ──▶ acc
 - **Runs.** `factory generate` and `POST /generate` create a run directory
   (`factory.runs`: `experiments/runs/<stamp>-chNN-<slug>/`, whitelisted id)
   with its manifest (chapter, seed, commit, resolved configuration, status,
-  both clocks, metrics, warnings, collections queried), then invoke the graph
+  both clocks, metrics, warnings, collections queried, every best-of draw with
+  its score and named defects under `best_of`), then invoke the graph
   with `preflight`, `narrative_state`, `render` and `artifacts_dir` set. The
   render node writes `chapitre.md` and `chapitre.wav` there; the run closes
   with `prompts.md` (every prompt served, recorded by the model client) and
