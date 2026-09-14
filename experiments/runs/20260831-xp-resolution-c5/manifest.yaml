@@ -1,0 +1,11 @@
+id: 20260831-xp-resolution-c5
+kind: experiment
+description: 'Falsification of the ''resolution'' hypothesis: chapter 7 entry 2 beats on bare
+  nemo (BEATS_N=1) with the verdict machinery removed (C5). 12/12 draws hold the doubt: the
+  resolution came from the served voice skeleton, not from the model.'
+date: '2026-08-31'
+reconstructed: true
+added_in_commit: aba7cb7
+raw_runs: ../../journal/20260831T162633-xp-resolution-C5.md
+driver: outillage/xp_resolution.py
+variable: verdict indices served in the beat prompt (present vs absent)

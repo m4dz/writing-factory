@@ -1,82 +1,64 @@
-# fiction-assistant
+# writing-factory
 
-Stack locale de rédaction littéraire assistée. Règle d'or : la fabrique reste à notre main — tout tourne en local.
+A local-only pipeline that writes the chapters of *L'Involontaire*, a French
+novel in the form of a proofreader's reading notebook, from an author-owned
+bible and per-chapter briefs, on one Apple Silicon laptop. It renders an
+excerpt in a cloned voice and serves an "actor mode" (in-character chat). It
+was the live demonstration of the keynote *L'IA devant soi*; a second run is
+scheduled and the codebase is being restructured for it.
 
-## Architecture
+**Golden rule:** everything runs locally. Ollama on the host, ChromaDB in a
+container, no cloud API, no external logging. The one accepted exception is
+the operator's Telegram pager, which can never carry text of the work
+(ADR-0015).
 
-- **Ollama** (hors conteneur, GPU Apple Silicon) : serving des modèles + embeddings `nomic-embed-text`
-- **ChromaDB** (conteneur, mode serveur HTTP) : base vectorielle de la bible monde
-- **Indexeur** (conteneur à la demande) : Markdown → chunks → embeddings → ChromaDB
-- **OpenWebUI** (conteneur) : frontend
-- **LangGraph** (à venir) : orchestration RAG dynamique
+## Where things are
 
-La source canonique est `bible/` (Markdown, édité à la main). ChromaDB est
-toujours généré *depuis* cette source, jamais l'inverse.
+| You want | Go to |
+|---|---|
+| How it is built, one map | `docs/architecture.md` |
+| Run it, prepare the stage, fix the machine | `docs/runbook.md` |
+| Why it is built this way | `docs/adr/` |
+| The working rules every change is checked against | `docs/doctrines.md` |
+| What the system must do (current behaviour) | `openspec/specs/` |
+| The revamp in progress, step by step | `docs/plans/2026-09-revamp.md` |
+| The evidence: runs, failed draws, grids, reports | `experiments/` |
+| The novel's canon (French, author-owned) | `bible/` |
+| Chapter briefs (French, author-owned) | `chapters/` |
 
-## Prérequis
+## Quick start (development)
 
-```sh
-ollama pull nomic-embed-text
+```bash
+make venv     # python3 -m venv .venv && pip install -e ".[pipeline,test]"
+make check    # ruff + pytest; needs no model, no Chroma, no macOS
 ```
 
-Vérifier qu'Ollama écoute bien sur `11434` :
+Running the pipeline for real needs Ollama, ChromaDB and the models; see the
+runbook. The entry point is one command:
 
-```sh
-curl -s http://localhost:11434/api/tags | head -c 200
+```bash
+.venv/bin/factory doctor              # machine, backends, models, voice
+.venv/bin/factory index               # bible → ChromaDB
+.venv/bin/factory generate --chapter 7   # one run under experiments/runs/
+.venv/bin/factory promote <run_id>    # a read chapter becomes canon (bible/scenes/)
+.venv/bin/factory serve               # the API the deck talks to
 ```
 
-## Démarrage
+## Layout
 
-```sh
-# 1. Lancer les services persistants (OpenWebUI + ChromaDB)
-podman-compose up -d
-
-# 2. Vérifier que ChromaDB répond
-curl -s http://localhost:8000/api/v2/heartbeat
-
-# 3. Créer une fiche : copier le template, le remplir, retirer le _ du nom
-cp bible/characters/principals/_template.md bible/characters/principals/mon-personnage.md
-
-# 4. Indexer la bible
-podman-compose --profile tools run --rm indexer
-
-# 5. Valider le retrieval
-podman-compose --profile tools run --rm indexer python query_test.py "que relit la narratrice le soir ?"
-podman-compose --profile tools run --rm indexer python query_test.py "sa voix" --doc judith
-podman-compose --profile tools run --rm indexer python query_test.py "les deux couverts" --type prop
+```
+src/factory/    the package: cli (the `factory` command), pipeline, API,
+                actor mode, retrieval and indexer, eval (lint, grid, seal),
+                infra, settings
+docker/         the indexer image (installs the package)
+bible/          canon; surface/ is indexed, profond/ never is; generated/ (derived
+                narrative state) and scenes/ (promoted chapters)
+chapters/       per-chapter spec.yaml and briefs, author-owned, never indexed
+experiments/    runs with manifests, journal of failed draws, grids, reports
+openspec/       project context, specs, change proposals
+docs/           architecture, runbook, doctrines, ADRs, plans
+tests/          fakes, unit, stage and snapshot tests
 ```
 
-## Cycle de travail
-
-1. Éditer une fiche dans `bible/` (le plus souvent : le chunk *État narratif
-   courant*, seul chunk mis à jour régulièrement)
-2. Incrémenter `version` dans le frontmatter
-3. `podman-compose --profile tools run --rm indexer`
-
-L'indexation est idempotente : chunks mis à jour, chunks orphelins purgés.
-
-## Conventions
-
-- Les fichiers préfixés `_` (templates) ne sont jamais indexés
-- Un chunk = une section `## ` d'une fiche ; ID déterministe `{id}::{section}`
-- Les commentaires HTML `<!-- -->` sont des instructions pour l'humain,
-  purgés avant embedding
-- Métadonnées de filtre : `type` (character, lieu, prop, scene), `rank`,
-  `doc_id`, `section`, `tags`
-
-## Dépannage
-
-- **L'indexeur ne joint pas Ollama** : vérifier que
-  `host.containers.internal` résout depuis un conteneur
-  (`podman run --rm alpine getent hosts host.containers.internal`). Selon la
-  version de Podman, il faut parfois ajouter
-  `--add-host=host.containers.internal:host-gateway`.
-  En revanche, **ne pas** binder Ollama sur `0.0.0.0` pour régler ça : avec
-  podman 5 (gvproxy), le nom résout vers `192.168.127.254` et gvproxy compose
-  la connexion depuis l'hôte, donc un Ollama sur `127.0.0.1` est parfaitement
-  joignable. Ouvrir sur toutes les interfaces exposerait l'API sans
-  authentification au réseau local.
-- **ChromaDB ne persiste pas** : selon la version de l'image, le répertoire
-  de persistance peut être `/data` ou `/chroma/chroma`. Le compose fixe
-  `PERSIST_DIRECTORY=/data` ; si les données disparaissent au redémarrage,
-  vérifier les logs (`podman-compose logs chromadb`).
+Code, comments and engineering documents are in English; prompts, bible,
+briefs and the journal are in French (ADR-0001).

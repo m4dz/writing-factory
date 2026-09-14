@@ -21,7 +21,21 @@ output/
 # Rendus vocaux des runs : dérivés, lourds, et regénérables depuis le texte.
 # Le WAV qui compte — le chapitre de secours pré-rendu — est archivé
 # délibérément selon le RUNBOOK, pas ramassé au fil des tirages.
-runs-*/*.wav
+experiments/runs/**/*.wav
 
-# Worktrees git créés par le harness (Claude Code) — locaux, jamais versionnés.
-.claude/
+# Claude Code: harness worktrees and local settings are never versioned; the
+# openspec skills and commands are.
+.claude/*
+!.claude/skills/
+!.claude/commands/
+
+# Local tooling
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+*.egg-info/
+
+# Generated narrative state (derived from the pilot table by the narrative_state
+# node, regenerated at every run): never versioned, always reindexable.
+bible/generated/

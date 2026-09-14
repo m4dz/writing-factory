@@ -1,0 +1,25 @@
+### 20260826T013626-runs-ch7-run-CH7-plan-4-entrees.md
+2281 mots [HORS CIBLE] · 41 paragraphes · 173 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✗ Tic d'IA → 1
+    - `…à, à écouter les notes qui s'échappent. Elle ne peut s'empêcher de se demander comment cette playlist a pu…`
+- ✓ Point d'exclamation hors dialogue
+- ✓ Incise adverbiale (ou son équivalent prépositionnel)
+- ✓ Élision manquante
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✓ Phrase d'accumulation : exactement une
+    - `Je suis rentrée du travail, j'ai accroché mon manteau à sa place habituelle, j'ai posé mon sac à main sur la petite tabl…`
+- ✓ Phrase-couperet en fin de paragraphe → 9 (dont 20 couperets au total)
+    - `Je vais passer une journée ordinaire.`
+    - `Le plat est au four.`
+    - `Le corps est fatigué mais serein.`
+- ✓ Heure ou quantité exacte → 18
+    - `18 h 00`, `19 h`, `19 h 00`, `19 h 30`, `20 h`, `20 h 00`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ⚠ 1 forme(s) : `mis`
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.

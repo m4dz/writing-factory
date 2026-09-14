@@ -1,0 +1,34 @@
+### 20260821T160318-runs-s6-c-run-CC.md
+2240 mots [HORS CIBLE] · 31 paragraphes · 149 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✓ Tic d'IA
+- ✗ Point d'exclamation hors dialogue → 1
+    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Incise adverbiale (ou son équivalent prépositionnel)
+- ✓ Élision manquante
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✗ Phrase d'accumulation : 4 = tic
+    - `warnings: ["accumulation entrée 1, essai 1 : trop longue (205 mots ; plafond 120)", "accumulation entrée 1 : ACCEPTÉE ma…`
+    - `Hier soir, je suis rentrée chez moi, j'ai posé mon sac à main sur la table de l'entrée, je me suis dirigée vers la cuisi…`
+    - `Le carnet est ouvert sur la table, une page blanche attendant d'être remplie
+
+Je suis rentrée à 20h30, j'ai enlevé mes c…`
+    - `Je suis rentrée chez moi à 21h30, j'ai enlevé mes chaussures, j'ai allumé la télévision, je me suis préparé un thé, j'ai…`
+- ✓ Phrase-couperet en fin de paragraphe → 4 (dont 24 couperets au total)
+    - `-->
+# Run CC — runs-s6-c`
+    - `Juste le noir, le vide.`
+    - `Mais rien ne vient.`
+- ✓ Heure ou quantité exacte → 9
+    - `20h30`, `21h30`, `22h15`, `23h45`, `Deux assiettes`, `deux assiettes`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ⚠ 1 forme(s) : `mis`
+
+**Défauts nemo (hors grille du protocole)**
+- ⚠ tokens corrompus : ['nFAIT']
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.

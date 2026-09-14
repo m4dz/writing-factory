@@ -1,0 +1,61 @@
+id: 20260819-s5-stage-b-prime
+kind: series
+description: 'Session 5 stage B'': brief v3, anchor posed by code'
+date: '2026-08-19'
+source_dir: runs-s5-bp
+reconstructed: true
+note: Manifest rebuilt from the runs' frontmatter on 2026-09-11. The commit is the one that
+  ADDED the artifacts, not necessarily the code that produced them; seeds and clocks exist
+  only where the frontmatter of the time recorded them.
+added_in_commit: 0ee8163
+runs:
+- file: run-Bp1.md
+  id: Bp1
+  stage: Bp
+  role: score
+  rag: 'True'
+  ctx_need_max: '0.62'
+  date: '2026-08-19T11:13:18'
+  words: '185'
+  entries_generated: '1'
+  temperature: '0.7'
+  duration_s: '226'
+  done_reason: stop
+- file: run-Bp2.md
+  id: Bp2
+  stage: Bp
+  role: score
+  rag: 'True'
+  ctx_need_max: '0.62'
+  date: '2026-08-19T11:17:13'
+  words: '201'
+  entries_generated: '1'
+  temperature: '0.7'
+  duration_s: '236'
+  done_reason: stop
+- file: run-Bp3.md
+  id: Bp3
+  stage: Bp
+  role: score
+  rag: 'True'
+  ctx_need_max: '0.62'
+  date: '2026-08-19T11:22:33'
+  words: '366'
+  entries_generated: '1'
+  temperature: '0.7'
+  duration_s: '319'
+  done_reason: stop
+- file: run-BpC.md
+  id: BpC
+  stage: Bp
+  role: chapitre complet, hors score
+  rag: 'True'
+  ctx_need_max: '0.6'
+  date: '2026-08-19T11:36:30'
+  words: '1260'
+  entries_generated: '3'
+  temperature: '0.7'
+  duration_s: '837'
+  done_reason: stop
+other_files: []
+dropped: []

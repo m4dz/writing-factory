@@ -1,0 +1,53 @@
+id: 20260809-style-fiche-v2
+kind: series
+description: Style sheet v2 iteration, direct Ollama calls
+date: '2026-08-09'
+source_dir: runs-v2
+reconstructed: true
+note: Manifest rebuilt from the runs' frontmatter on 2026-09-11. The commit is the one that
+  ADDED the artifacts, not necessarily the code that produced them; seeds and clocks exist
+  only where the frontmatter of the time recorded them.
+added_in_commit: 0ee8163
+runs:
+- file: run-1-sr.md
+  id: run-1-sr
+  model: auteur-test
+  control: 'False'
+  temperature: '0.7'
+  date: '2026-08-09T16:11:38'
+  words: '408'
+  duration_s: '58'
+  done_reason: stop
+  resends: '0'
+- file: run-1.md
+  id: run-1
+  model: auteur-test
+  control: 'False'
+  temperature: '0.7'
+  date: '2026-08-09T16:08:21'
+  words: '480'
+  duration_s: '190'
+  done_reason: stop
+  resends: '1'
+- file: run-2-sr.md
+  id: run-2-sr
+  model: auteur-test
+  control: 'False'
+  temperature: '0.7'
+  date: '2026-08-09T16:12:46'
+  words: '472'
+  duration_s: '68'
+  done_reason: stop
+  resends: '0'
+- file: run-2.md
+  id: run-2
+  model: auteur-test
+  control: 'False'
+  temperature: '0.7'
+  date: '2026-08-09T16:10:28'
+  words: '331'
+  duration_s: '127'
+  done_reason: stop
+  resends: '1'
+other_files: []
+dropped: []

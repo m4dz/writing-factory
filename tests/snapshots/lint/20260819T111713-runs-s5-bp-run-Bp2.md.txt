@@ -1,0 +1,27 @@
+### 20260819T111713-runs-s5-bp-run-Bp2.md
+680 mots [HORS CIBLE] · 11 paragraphes · 64 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✓ Tic d'IA
+- ✗ Point d'exclamation hors dialogue → 1
+    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✗ Incise adverbiale (ou son équivalent prépositionnel) → 1
+    - `…ude sans m'en rendre compte ? Ou bien ai-je simplement mal compté hier soir, dans la pénombre …`
+- ✓ Élision manquante
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✗ Phrase d'accumulation : zéro = plat
+- ✓ Phrase-couperet en fin de paragraphe → 1 (dont 15 couperets au total)
+    - `-->
+# Run Bp2 — runs-s5-bp`
+- ✓ Heure ou quantité exacte → 3
+    - `Deux assiettes`, `deux assiettes`, `deux phrases`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ✓ aucune forme non ambiguë détectée
+
+**Défauts nemo (hors grille du protocole)**
+- ⚠ tokens corrompus : ['nBeats', 'nCitation', 'nEn', 'nFAIT', 'nInterdits', 'nMatériau', 'nSquelette']
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.

@@ -1,0 +1,24 @@
+### chapitre-7.md
+368 mots [HORS CIBLE] · 18 paragraphes · 42 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✓ Tic d'IA
+- ✗ Point d'exclamation hors dialogue → 1
+    - `… L'après-midi s'étire, lent et pesant.  <!-- BASCULE -->  Samedi 14. Beau temps.  …`
+- ✓ Incise adverbiale (ou son équivalent prépositionnel)
+- ✓ Élision manquante
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✗ Phrase d'accumulation : zéro = plat
+- ✓ Phrase-couperet en fin de paragraphe → 9 (dont 13 couperets au total)
+    - `Je ne pense pas à elle.`
+    - `L'après-midi s'étire, lent et pesant.`
+    - `-- BASCULE -->`
+- ✓ Heure ou quantité exacte → 4
+    - `19 h 30`, `20 h 00`, `Neuf ans`, `deux couverts`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ✓ aucune forme non ambiguë détectée
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.

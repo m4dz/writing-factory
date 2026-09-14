@@ -1,0 +1,26 @@
+### 20260826T014921-runs-ch7-run-CH7-plan-non-decoupe.md
+1049 mots [HORS CIBLE] · 20 paragraphes · 67 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✗ Tic d'IA → 1
+    - `…nant que je suis allongée dans mon lit, je ne peux m'empêcher de penser à elle. Je me demande où elle es…`
+- ✓ Point d'exclamation hors dialogue
+- ✓ Incise adverbiale (ou son équivalent prépositionnel)
+- ✓ Élision manquante
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✗ Phrase d'accumulation : 2 = tic
+    - `Je suis revenue à la maison après une journée de travail normale, j'ai trouvé la cuisine propre, j'ai préparé le dîner, …`
+    - `Elle est revenue à la maison, a sorti les photos de la boîte, les a regardées une à une, a mis deux couverts sur la tabl…`
+- ✓ Phrase-couperet en fin de paragraphe → 5 (dont 7 couperets au total)
+    - `Tout était sous contrôle.`
+    - `Le plat est au four.`
+    - `Je t'aime toujours. »`
+- ✓ Heure ou quantité exacte → 5
+    - `19 heures`, `20 heures`, `Neuf ans`, `deux couverts`, `deux dans`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ✓ aucune forme non ambiguë détectée
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.

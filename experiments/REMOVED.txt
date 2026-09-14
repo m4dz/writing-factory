@@ -1,0 +1,52 @@
+Files removed on 2026-09-11 while building experiments/ (ADR-0003).
+Each was a byte-identical copy of a surviving file, a launch log, or a
+discarded draw whose body is already in the journal. History: git log.
+
+runs/.gitkeep
+runs-s6/lancement-1.log
+runs-s6/lancement.log
+runs-s6/nohup.log
+runs-s7/lancement.log
+runs-s7/nohup.log
+runs-ch7/lancement-1.log
+runs-ch7/lancement-2.log
+runs-ch7/lancement-3.log
+runs-ch7/lancement-4.log
+runs-ch7/lancement-beats1.log
+runs-ch7/lancement-e2v10.log
+runs-ch7/lancement-e2v11.log
+runs-ch7/lancement-e2v13.log
+runs-ch7/lancement-e2v14.log
+runs-ch7/lancement-e2v15.log
+runs-ch7/lancement-e2v16.log
+runs-ch7/lancement-e2v3.log
+runs-ch7/lancement-e2v4.log
+runs-ch7/lancement-e2v5.log
+runs-ch7/lancement-e2v6.log
+runs-ch7/lancement-e2v7.log
+runs-ch7/lancement-e2v9.log
+runs-ch7/lancement-mouv3.log
+runs-ch7/lancement-racine.log
+runs-ch7/lancement.log
+runs-ch7/nohup.log
+rapport-etancheite-s7.md (identical to rapport-etancheite.md)
+retour-session-7/grille-lint-session-7.md
+retour-session-7/rapports/journal-de-lancement.log
+retour-session-7/runs/run-S7-1.md
+retour-session-7/runs/run-S7-2.md
+retour-session-7/runs/run-S7-3-ECARTE-veille.md
+retour-session-7/runs/run-S7-3.md
+retour-micro-lot-ch7/ecartes/run-CH7-entree1-continuee.md (body in journal)
+retour-micro-lot-ch7/ecartes/run-CH7-entree1-gestes.md (body in journal)
+retour-micro-lot-ch7/ecartes/run-CH7-plan-4-entrees.md (body in journal)
+retour-micro-lot-ch7/ecartes/run-CH7-plan-non-decoupe.md (body in journal)
+retour-micro-lot-ch7/ecartes/run-CH7-tirage5-verdict-coquille.md (body in journal)
+retour-micro-lot-ch7/grille-lint-chapitre-7.md
+retour-micro-lot-ch7/rapports/chronometrage.json
+retour-micro-lot-ch7/rapports/lancement-1.log
+retour-micro-lot-ch7/rapports/lancement-2.log
+retour-micro-lot-ch7/rapports/lancement-3.log
+retour-micro-lot-ch7/rapports/lancement-4.log
+retour-micro-lot-ch7/rapports/lancement-retenu.log
+retour-micro-lot-ch7/runs/chapitre-7.md
+retour-micro-lot-ch7/runs/run-CH7.md

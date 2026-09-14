@@ -1,0 +1,29 @@
+### 20260818T010720-runs-s4-a-run-A2.md
+765 mots [HORS CIBLE] · 13 paragraphes · 68 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✗ Tic d'IA → 1
+    - `…s distraite par mes pensées.  Pourtant, je ne peux m'empêcher de me demander si ce n'est pas autre chose…`
+- ✗ Point d'exclamation hors dialogue → 1
+    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Incise adverbiale (ou son équivalent prépositionnel)
+- ✓ Élision manquante
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✗ Phrase d'accumulation : zéro = plat
+- ✓ Phrase-couperet en fin de paragraphe → 4 (dont 15 couperets au total)
+    - `-->
+# Run A2 — runs-s4-a`
+    - `J'ai dû rêver.`
+    - `C'était un geste automatique, sans réfléchir.`
+- ✓ Heure ou quantité exacte → 4
+    - `Deux assiettes`, `deux assiettes`, `deux phrases`, `deux sur`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ✓ aucune forme non ambiguë détectée
+
+**Défauts nemo (hors grille du protocole)**
+- ⚠ tokens corrompus : ['nBeats', 'nCitation', 'nInterdits', 'nMatériau', 'nSquelette']
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.

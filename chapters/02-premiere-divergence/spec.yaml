@@ -1,0 +1,62 @@
+# Chapitre 2 — la première divergence. Spécification écrite depuis les
+# constantes de la session de calibration (brief v4, ancre, stations, chute,
+# banque) ; aucun brief.md n'existe encore pour ce chapitre, les textes sont
+# donc ici, en attendant que l'auteur les déplace.
+chapter: 2
+slug: premiere-divergence
+narrator: judith
+
+# Le brief du chapitre complet (trois entrées), en langue du monde (v4).
+brief: |-
+  Chapitre 2 complet, trois entrées du carnet à dates consécutives, 450-600 mots chacune. Ce que le chapitre raconte : la première divergence — l'entrée relue de son cahier mentionne une seconde assiette (citation à recopier verbatim dans l'entrée concernée : « Deux assiettes mises, sans y penser. Je l'ai laissée sur la table jusqu'au matin. »), elle va voir à la cuisine, elle se donne une raison — la fatigue —, elle rend son verdict : erreur de relevé, et la résolution de pointer plus précisément.
+  CE QU'ELLE VOIT, imposé : « L'égouttoir, ce soir : deux assiettes. »
+  En-tête : jamais de mois, jamais d'année.
+  Interdits : aucun nom propre, aucun dialogue, aucune explication, « journal » et « journal intime » bannis, aucun terme réservé (la tierce, l'errata, le bon à tirer).
+
+# Le brief d'entrée unique des runs SCORÉS de calibration (v4) : l'en-tête et
+# la citation sont déjà écrits par le code.
+entry_brief: |-
+  Chapitre 2, entrée unique du carnet, 450-600 mots.
+  L'en-tête et la citation sont DÉJÀ ÉCRITS.
+  Ce qui reste, dans l'ordre : elle relit, constate l'écart, va vérifier ; elle rétablit sa soirée ; elle rend son verdict ; le corps constate, une ligne ; une phrase brève referme.
+  Le soir : elle relit l'entrée de la veille de son cahier, comme chaque soir. Sa mémoire dit une assiette, un dîner seule ; l'entrée en compte deux. Elle va voir : la cuisine, l'égouttoir — regarder, compter. Ce qu'elle voit confirme l'entrée, pas sa mémoire. Elle se donne une raison : la fatigue, l'automatisme.
+  Verdict à rendre, dans ses mots : erreur de relevé — la faute est à elle, pas au texte ; et la résolution de pointer plus précisément.
+  Dans la maison, ce soir : le cahier, l'assiette, l'égouttoir.
+  CE QU'ELLE VOIT, imposé : « L'égouttoir, ce soir : deux assiettes. » Elle le CONSTATE, elle ne le découvre pas.
+  En-tête : jamais de mois, jamais d'année.
+  Interdits : aucun nom propre, aucun dialogue, aucune explication, « journal » et « journal intime » bannis, aucun terme réservé (la tierce, l'errata, le bon à tirer).
+
+calendar: {weekday: Mardi, number: 12, weather: Ciel couvert}
+verdict: erreur de relevé
+active_objects: "le cahier, le carnet, l'assiette, l'égouttoir"
+# L'ancre de citation, posée par le code en tête de chaque entrée.
+prefix: "« Deux assiettes mises, sans y penser. Je l'ai laissée sur la table jusqu'au matin. »"
+
+stations:
+  - la table du séjour, le cahier refermé
+  - la cuisine, l'égouttoir
+  - le dîner, l'assiette
+  - la vaisselle, l'eau
+  - la relecture de l'entrée de la veille
+  - la lampe éteinte, le couloir
+
+accumulation_fall: l'assiette
+
+drift_bank:
+  approaches:
+    - Je pourrais me demander ce qui, ce soir-là
+    - Si je savais seulement pourquoi
+    - Il faudrait que je relise le jour où elle
+  facts:
+    - L'assiette est sèche. Je la range.
+    - L'égouttoir est vide. Je ferme le placard.
+    - La lampe du couloir est restée allumée. Je l'éteins.
+
+# Bascule après deux phrases, audio borné en mots : les réglages par défaut.
+assembly: {}
+
+defaults: {rag: true, micro_nodes: true, segments: true}
+
+# Trois entrées à dates consécutives, toutes sous le comportement par défaut.
+entry_count: 3
+entries: []

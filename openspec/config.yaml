@@ -1,0 +1,73 @@
+schema: spec-driven
+
+context: |
+  Language: en
+  All artifacts must be written in en. Quoted prompt text, bible excerpts and
+  chapter material stay in French: they are the author's material and the
+  model's input, not engineering prose.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+
+  Project: writing-factory. A local-only pipeline that writes the chapters of
+  a French novel ("L'Involontaire") from an author-owned bible and per-chapter
+  specifications, on one Apple Silicon laptop, with a cloned-voice rendering
+  of an excerpt. It also serves an "actor mode" (in-character chat with the
+  narrator). It was built as the live demonstration of the keynote
+  "L'IA devant soi"; a second run of the talk is scheduled.
+
+  Invariants that every change must respect:
+  - Local only. Models run in Ollama on the host; no cloud API, no external
+    logging. The one accepted exception is the operator's Telegram beeper,
+    whose payload is built from structured fields and can never carry text
+    of the work.
+  - The firewall. The bible has a surface layer (what the author model may
+    know) and a deep layer (`bible/profond/`, the ending of the novel). Deep
+    material is never indexed, never served, never named to the model. The
+    seal test proves it on every reindex; it is never presumed.
+  - The owner owns canon. Generated chapters are candidates until the owner
+    promotes them after reading. The pipeline proposes; it never edits the
+    bible, the chapter specs or the doctrines on its own.
+  - The model supplies matter, the code holds the gesture. Headers, anchors,
+    the fall line, the drift, the assembly and the audio switch are composed
+    by code, never requested from the model.
+  - Shown is recited. Anything served to the model can come back verbatim,
+    counter-examples and instructions included. Served context carries
+    categories and facts, never example lines or workshop vocabulary.
+  - One variable between two measurements; failed runs are kept as material
+    in the journal.
+  - Every check is falsified before it is trusted, in both directions: it
+    must fail on a known defect and must accept the reference.
+
+  Conventions:
+  - Code, comments, docstrings, identifiers, file names: English
+    (ADR-0001). Prompts, bible, chapter specs, journal entries: French.
+  - Chapter knowledge lives in `chapters/NN-slug/spec.yaml`, never in code.
+    Configuration (models, context window, retries, thresholds) lives in one
+    Settings object with environment overrides, never in the chapter spec.
+  - Every run records the commit, the seed, the resolved configuration and
+    both clocks (monotonic and wall) in its manifest.
+  - The prompt snapshot suite (`tests/snapshots/`) is the invariant of any
+    refactor: served prompts must not change unless the change says so.
+  - The doctrines are in `docs/doctrines.md`; decisions in `docs/adr/`; the
+    plan in `docs/plans/2026-09-revamp.md`.
+
+rules:
+  proposal:
+    - Name the doctrine(s) the change relies on or challenges.
+    - State the single variable the change moves if it touches generation.
+    - Include a "Non-goals" section.
+  design:
+    - Say what the fake model fixtures and the prompt snapshot must show for
+      the change to be accepted.
+  tasks:
+    - Every task that touches a prompt names the snapshot it updates.
+
+operations:
+  apply:
+    guidance:
+      - Run `make check` before declaring a task done.
+      - Never edit `bible/`, `chapters/` or `docs/doctrines.md` as part of a
+        code change; raise it to the owner instead.
+  archive:
+    guidance:
+      - Confirm the delta specs were merged into `openspec/specs/` and the
+        ADR index is up to date.

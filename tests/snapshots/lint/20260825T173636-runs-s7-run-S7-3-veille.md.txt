@@ -1,0 +1,24 @@
+### 20260825T173636-runs-s7-run-S7-3-veille.md
+514 mots [OK] · 12 paragraphes · 45 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✓ Tic d'IA
+- ✓ Point d'exclamation hors dialogue
+- ✓ Incise adverbiale (ou son équivalent prépositionnel)
+- ✗ Élision manquante → 1
+    - `…joué des tours hier soir ? Peut-être ai-je été si distraite que j'ai mis deux assiette…`
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✓ Phrase d'accumulation : exactement une
+    - `Je suis revenue à 19h30, j'ai rangé mon assiette après avoir dîné seule, j'ai compté les couverts sur l'égouttoir, j'ai …`
+- ✓ Phrase-couperet en fin de paragraphe → 2 (dont 10 couperets au total)
+    - `Je la range.`
+    - `Mes mains sont froides.`
+- ✓ Heure ou quantité exacte → 8
+    - `19h30`, `19h45`, `20h15`, `20h30`, `Deux assiettes`, `Deux fourchettes`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ✓ aucune forme non ambiguë détectée
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.

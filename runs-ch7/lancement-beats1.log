@@ -1,6 +1,0 @@
-[22:01:13] RELANCE contrôle BEATS_N=1
-  ⚠ Swap : 1.64 GB libres sur 16.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total` au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les durées restent interprétables.
-
-==================================================================
-[CH7] répétition — chapitre 7 en conditions réelles — rag=True
-==================================================================

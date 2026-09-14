@@ -1,0 +1,24 @@
+### 20260809T233901-ch2-run-X1.md
+463 mots [OK] · 21 paragraphes · 36 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✓ Tic d'IA
+- ✗ Point d'exclamation hors dialogue → 1
+    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Incise adverbiale (ou son équivalent prépositionnel)
+- ✓ Élision manquante
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✗ Phrase d'accumulation : zéro = plat
+- ✓ Phrase-couperet en fin de paragraphe → 6 (dont 6 couperets au total)
+    - `, 1 hors champ)`
+    - `[Relisant l'entrée de la veille]`
+    - `[Dans la cuisine]`
+- ✓ Heure ou quantité exacte → 3
+    - `deux assiettes`, `huit heures précises`, `sept heures comme`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ⚠ 1 forme(s) : `mis`
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.

@@ -1,0 +1,75 @@
+id: 20260822-s6-segments
+kind: series
+description: 'Session 6: write in three segments, brief v4'
+date: '2026-08-22'
+source_dir: runs-s6
+reconstructed: true
+note: Manifest rebuilt from the runs' frontmatter on 2026-09-11. The commit is the one that
+  ADDED the artifacts, not necessarily the code that produced them; seeds and clocks exist
+  only where the frontmatter of the time recorded them.
+added_in_commit: d32d8df
+runs:
+- file: run-S6-1.md
+  id: S6-1
+  stage: S6
+  role: score
+  rag: 'True'
+  ctx_need_max: '0.63'
+  seed: '778238'
+  segments: 'True'
+  date: '2026-08-22T15:07:01'
+  words: '698'
+  entries_generated: '1'
+  temperature: '0.7'
+  duration_s: '338'
+  done_reason: stop
+- file: run-S6-2.md
+  id: S6-2
+  stage: S6
+  role: score
+  rag: 'True'
+  ctx_need_max: '0.58'
+  seed: '591268'
+  segments: 'True'
+  date: '2026-08-22T15:22:31'
+  words: '370'
+  entries_generated: '1'
+  temperature: '0.7'
+  duration_s: '268'
+  done_reason: stop
+- file: run-S6-3.md
+  id: S6-3
+  stage: S6
+  role: score
+  rag: 'True'
+  ctx_need_max: '0.71'
+  seed: '500408'
+  segments: 'True'
+  date: '2026-08-22T15:29:15'
+  words: '796'
+  entries_generated: '1'
+  temperature: '0.7'
+  duration_s: '386'
+  done_reason: stop
+- file: run-S6-C.md
+  id: S6-C
+  stage: S6
+  role: chapitre complet, hors score
+  rag: 'True'
+  ctx_need_max: '0.88'
+  seed: '73092'
+  segments: 'True'
+  date: '2026-08-22T15:53:44'
+  words: '3525'
+  entries_generated: '3'
+  temperature: '0.7'
+  duration_s: '1401'
+  done_reason: length
+other_files: []
+dropped:
+- file: lancement-1.log
+  reason: launch log (ADR-0003)
+- file: lancement.log
+  reason: launch log (ADR-0003)
+- file: nohup.log
+  reason: launch log (ADR-0003)
