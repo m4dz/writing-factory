@@ -7,8 +7,9 @@ documents below; do not restate them here.
 
 - `docs/doctrines.md` — the working rules. Every change is checked against them.
 - `docs/architecture.md` — one map of what runs.
-- `docs/plans/2026-09-revamp.md` — the restructuring in progress; the step
-  table says what is done and what is next.
+- `docs/plans/2026-09-quality-campaign.md` — the current plan: the levers on
+  the prose, the run protocol, the status table. `2026-09-revamp.md` is the
+  restructuring that preceded it, done.
 - `openspec/config.yaml` — project context and invariants; `openspec/specs/`
   the current behaviour; `openspec/changes/` the proposals.
 - `docs/adr/` — decisions, with dates. `docs/runbook.md` — operations.
