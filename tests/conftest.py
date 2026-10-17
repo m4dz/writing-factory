@@ -8,6 +8,7 @@ import as modules because ``pyproject.toml`` adds ``tests/`` to pytest's
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,15 @@ def pytest_addoption(parser):
         "--update-snapshots", action="store_true", default=False,
         help="rewrite the golden files under tests/snapshots instead of comparing",
     )
+
+
+@pytest.fixture(autouse=True)
+def no_real_voice(monkeypatch):
+    """The real synthesizer is never loaded in a test, even when the `tts`
+    extra is installed (the stage machine): importing it raises, as on a
+    machine without it. Tests of the render stage install their own fake."""
+    for name in ("mlx_audio", "mlx_audio.tts", "mlx_audio.tts.utils"):
+        monkeypatch.setitem(sys.modules, name, None)
 
 
 @pytest.fixture(scope="session")

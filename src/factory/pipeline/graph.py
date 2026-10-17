@@ -1086,12 +1086,23 @@ def _without_machinery(directive: str) -> str:
 # deterministic and falsifiable — never a judge of taste (doctrine 3: counting
 # is not reading). Prose is not graded; named defects that ten draws made
 # recurrent are REJECTED. The retained variant carries the fewest.
+# Narrowed against the 12 C5 draws, all held by the owner's reading
+# (tests/unit/test_resolution_check.py). Two false positives removed:
+# - « bien » / « parfaitement » resolve only when the memory is the gesture;
+#   remembering the evening itself is context:
+#   « je me souviens parfaitement de ma soirée »
+# - « me joue des tours » resolves as a statement, not as an open hypothesis:
+#   « je me demande si mon esprit me joue des tours »
 _BEAT_RESOLVES = re.compile(
     r"je\s+me\s+(?:souviens|rappelle)\s+(?:soudain|maintenant|enfin|"
-    r"à\s+nouveau|de\s+tout|de\s+chaque|bien|parfaitement)"
+    r"à\s+nouveau|de\s+tout|de\s+chaque|"
+    r"(?:bien|parfaitement)(?!\s+(?:de\s+)?(?:ma|la|cette|mon|ce)\s+"
+    r"(?:soirée|journée|veille|nuit|matinée|après-midi)))"
     r"|(?:cela|ça)\s+me\s+revient"
     r"|\bverdict\s*:\s*\w"
-    r"|(?:m'a\s+jou\w+\s+un|me\s+joue\s+(?:des?|un))\s+tours?"
+    r"|m'a\s+jou\w+\s+un\s+tours?"
+    r"|(?<!si mon esprit )(?<!si ma mémoire )(?<!si ma tête )"
+    r"me\s+joue\s+(?:des?|un)\s+tours?"
     r"|je\s+n'ai\s+pas\s+rêvé"
     r"|j'ai\s+bien\s+(?:mis|fait|noté)", re.IGNORECASE)
 _BEAT_DISMISS = re.compile(
