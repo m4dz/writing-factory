@@ -21,5 +21,7 @@
 - [x] Record the findings (plan §9): validator ordering gap as strict xfail,
       header-as-two-sentences, name binding.
 - [x] `make check` green; second run identical (snapshots stable).
-- [ ] Owner: run `make venv && make check` on the stage machine once, to
+- [x] Owner: run `make venv && make check` on the stage machine once, to
       confirm the suite is machine-independent (no macOS or Ollama needed).
+      Done 2026-10-17 on the stage machine, on main after step 7: fresh
+      venv (Python 3.10.9, extras pipeline+test), 259 passed.
