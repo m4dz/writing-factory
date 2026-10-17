@@ -227,9 +227,30 @@ def _entry(raw: dict, spec_dir: Path, chapter: int) -> EntrySpec:
     )
 
 
-def load_spec(path: Path) -> ChapterSpec:
+def load_variant(path: Path, root: Path | None = None) -> ChapterSpec:
+    """An experiment's variant of a chapter spec, kept outside ``chapters/``.
+
+    Its pointers (brief, entry briefs) resolve against the CANONICAL chapter
+    directory, so a variant reads the owner's briefs and never a copy of them.
+    The canonical files are never written."""
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    spec_dir = path.parent
+    if "chapter" not in raw:
+        raise ChapterSpecError(f"{path} : champ « chapter » manquant")
+    dirs = chapter_dirs(root)
+    chapter = int(raw["chapter"])
+    if chapter not in dirs:
+        raise ChapterSpecError(f"{path} : aucune spec canonique pour le chapitre {chapter}")
+    return load_spec(path, base_dir=dirs[chapter])
+
+
+def canonical_spec_path(chapter: int, root: Path | None = None) -> Path | None:
+    directory = chapter_dirs(root).get(chapter)
+    return directory / "spec.yaml" if directory else None
+
+
+def load_spec(path: Path, base_dir: Path | None = None) -> ChapterSpec:
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    spec_dir = base_dir or path.parent
     for key in ("chapter", "slug", "narrator"):
         if key not in raw:
             raise ChapterSpecError(f"{path} : champ « {key} » manquant")

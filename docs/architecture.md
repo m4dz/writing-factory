@@ -48,7 +48,8 @@ src/factory/
   roleplay/          session.py (memory, out-of-role guard), cli.py
   api/               server.py (one-worker queue, per-run routes, actor mode),
                      static/acteur.html
-  eval/              lint.py, grid.py, seal.py, journal.py, data/
+  eval/              lint.py, grid.py, seal.py, journal.py, ablation.py
+                     (arms of an experiment, blind reading set), data/
   tooling/           stage_runner (calibration stages, `factory calibrate`;
                      chapter 2 constants until step 5), interviews (demo
                      sessions), resolution_xp (an experiment's recipe)

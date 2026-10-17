@@ -30,6 +30,10 @@ OVERRIDABLE = ("author_model", "qa_model", "gesture_model", "num_ctx", "gesture_
                "beats_n", "pruning_enabled", "audio_seconds", "switch_after_sentences",
                "stage_budget_min")
 
+# Run options a command line may pass to `spec.state()` for one run: the
+# keyword overrides the spec already accepts, never spec content.
+OPTIONS = ("rag", "micro_nodes", "segments")
+
 TERMINAL = ("ready", "error", "cancelled")
 
 
@@ -72,10 +76,42 @@ def validate_overrides(overrides: dict | None) -> dict:
         if key not in OVERRIDABLE:
             raise RunError(f"override refusé : « {key} » (autorisés : {', '.join(OVERRIDABLE)})")
         current = getattr(settings, key)
+        # A boolean takes a boolean or 0/1, never a string: bool("false") is True.
+        if isinstance(current, bool):
+            if value not in (True, False, 0, 1) or isinstance(value, str):
+                raise RunError(f"override « {key} » : valeur invalide {value!r} "
+                               "(true/false attendu)")
+            out[key] = bool(value)
+            continue
         try:
-            out[key] = type(current)(value) if not isinstance(current, bool) else bool(value)
+            out[key] = type(current)(value)
         except (TypeError, ValueError):
             raise RunError(f"override « {key} » : valeur invalide {value!r}") from None
+    return out
+
+
+def parse_pairs(pairs: list[str] | None, what: str) -> dict:
+    """``["beats_n=1", "pruning_enabled=false"]`` → ``{"beats_n": "1", ...}``;
+    booleans spelled true/false are converted, other values are left to the
+    validator of their kind."""
+    out: dict = {}
+    for pair in pairs or []:
+        key, sep, value = pair.partition("=")
+        if not sep or not key.strip():
+            raise RunError(f"{what} « {pair} » : attendu CLÉ=VALEUR")
+        value = value.strip()
+        out[key.strip()] = {"true": True, "false": False}.get(value.lower(), value)
+    return out
+
+
+def validate_options(options: dict | None) -> dict:
+    out = {}
+    for key, value in (options or {}).items():
+        if key not in OPTIONS:
+            raise RunError(f"option refusée : « {key} » (autorisées : {', '.join(OPTIONS)})")
+        if not isinstance(value, bool):
+            raise RunError(f"option « {key} » : true ou false attendu, reçu {value!r}")
+        out[key] = value
     return out
 
 
@@ -98,7 +134,8 @@ def resolved_config(overrides: dict | None = None) -> dict:
 
 
 def create_run(chapter: int, slug: str, *, seed: int, overrides: dict | None = None,
-               root: Path | None = None, now: datetime | None = None) -> Run:
+               root: Path | None = None, now: datetime | None = None,
+               extra: dict | None = None) -> Run:
     """Make the run directory and its first manifest (status `queued`)."""
     overrides = validate_overrides(overrides)
     stamp = (now or datetime.now()).strftime("%Y%m%d-%H%M%S")
@@ -118,6 +155,7 @@ def create_run(chapter: int, slug: str, *, seed: int, overrides: dict | None = N
         "id": run.id, "kind": "run", "chapter": chapter, "slug": slug, "seed": seed,
         "created": run.created, "commit": git_commit(), "status": "queued",
         "overrides": dict(overrides), "config": resolved_config(overrides),
+        **(extra or {}),
     }
     write_manifest(run)
     return run
@@ -200,6 +238,18 @@ def render_prompts(calls: list[dict]) -> str:
     return "\n".join(out).rstrip() + "\n"
 
 
+def render_variants(variants: list[dict]) -> str:
+    """`variants.md`: every best-of variant drawn, before selection and pruning."""
+    out = [f"# Variants tirés — {len(variants)}", ""]
+    for v in variants:
+        mark = " — RETENU" if v.get("winner") else ""
+        defects = ", ".join(v.get("defects") or []) or "aucun"
+        out.append(f"## entrée {v['entry']} / {v['beat']} / variant {v['variant']}{mark}\n")
+        out.append(f"score {v['score']} — défauts : {defects}\n")
+        out.append("```\n" + str(v.get("text", "")).rstrip() + "\n```\n")
+    return "\n".join(out).rstrip() + "\n"
+
+
 def record_result(run: Run, final: dict | None, *, clocks: dict, calls: list[dict] | None,
                   collections: list[str], status: str, error: str | None = None) -> None:
     """Close the manifest and write the run's deliverables."""
@@ -221,6 +271,11 @@ def record_result(run: Run, final: dict | None, *, clocks: dict, calls: list[dic
         fields["coherence"] = final.get("coherence") or ""
         fields["audio"] = final.get("audio")
         fields["preflight_warnings"] = list(final.get("preflight_warnings") or [])
+        variants = final.get("beat_variants") or []
+        if variants:
+            (run.dir / "variants.md").write_text(render_variants(variants), encoding="utf-8")
+            fields["variants"] = {"drawn": len(variants),
+                                  "with_defects": sum(1 for v in variants if v.get("defects"))}
         text = final.get("chapter_md") or ""
         if text:
             from factory.eval.lint import analyze, report

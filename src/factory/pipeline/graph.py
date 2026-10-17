@@ -108,6 +108,7 @@ class ChapterState(TypedDict):
     imposed_plan: list     # one beat per entry, cut from the brief: the plan is not asked
     placed_fall: str      # last line imposed word for word — posed by the code
     served_prompts: list  # (segment, prompt) — deliverable, and the copy measurement
+    beat_variants: list   # every best-of variant drawn, scored, winner marked (variants.md)
     placed_header: str      # the header composed for the current entry — re-stamped
     placed_anchor: str      # the quotation anchor posed — re-stamped after repair
     seed: int           # drift draw, recorded in the run frontmatter
@@ -125,6 +126,7 @@ class ChapterState(TypedDict):
     artifacts_dir: str    # the run directory the render node writes into ("" : output/)
     preflight_warnings: list[str]
     render: bool          # write `chapitre.md` and render the WAV after coherence
+    voice: bool           # False: write `chapitre.md` but skip the synthesis
     assembly: dict        # kwargs of assembly.assemble (switch mode, imposed fall)
     chapter_md: str       # the assembled chapter, both markers, always produced
     audio: object         # TTS metrics dict, or None when the voice failed / was not asked
@@ -708,6 +710,9 @@ def write_node(state: ChapterState) -> dict:
     # (« dump du prompt servi »), and what measures copying — the check draw 6
     # lacked.
     served_prompts: list[tuple[str, str]] = []
+    # Every variant drawn by the best-of, BEFORE selection and pruning: what
+    # the selection hides is measured, not presumed (scaffold-ablation).
+    drawn_variants: list[dict] = []
     if sheet.strategy == "beats" and sheet.beats:
         # STRUCTURAL CODE CAP (entry 2, v5). Each beat is a short call, served
         # ALONE (not the whole movement — see `_prompt_beat`), bounded in
@@ -757,6 +762,11 @@ def write_node(state: ChapterState) -> dict:
             # Best score; ties go to the first drawn (stable, replayable).
             variants.sort(key=lambda v: (-v["score"], v["k"]))
             winner = variants[0]
+            drawn_variants += [
+                {"entry": idx + 1, "beat": name, "variant": v["k"] + 1,
+                 "score": v["score"], "defects": list(v["defauts"]),
+                 "winner": v is winner, "text": v["seg"]}
+                for v in sorted(variants, key=lambda v: v["k"])]
             seg = winner["seg"]
             wg += winner["w"]
             wg.append(
@@ -952,6 +962,7 @@ def write_node(state: ChapterState) -> dict:
         "placed_anchor": anchor,
         "placed_fall": sheet.fall,
         "served_prompts": (state.get("served_prompts") or []) + served_prompts,
+        "beat_variants": (state.get("beat_variants") or []) + drawn_variants,
         "metrics": state["metrics"] + _tag(ms, f"write/{idx + 1}"),
         "warnings": state["warnings"] + wg
         + [f"entrée {idx + 1}: {x}" for x in w],

@@ -46,6 +46,10 @@ def render_node(state: dict) -> dict:
     target = Path(state["artifacts_dir"]) if state.get("artifacts_dir") else settings.output_dir
     target.mkdir(parents=True, exist_ok=True)
     chapter_path(target).write_text(chapter_md, encoding="utf-8")
+    # `voice: False`: the chapter is written, the synthesis skipped — an
+    # experiment that reads text does not pay for the voice.
+    if state.get("voice") is False:
+        return {"chapter_md": chapter_md, "audio": None}
     progress.phase("Restitution", "préparation")
     unload(settings.qa_model)
     try:
