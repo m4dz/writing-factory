@@ -8,12 +8,21 @@ The spec points at it:
 
 ```yaml
 beats:
-  - {name: relève, num_predict: 300, actions: {file: storyboard-entree-2.md, section: "### Beat A — la relève"}}
+  - name: relève
+    actions: {file: storyboard-entree-2.md, section: "### Beat A — la relève"}
+    words_per_paragraph: [80, 160]   # owner setting; num_predict derived from it
 ```
 
-An action is one fact or one gesture, in the third person (as today's beat
-instructions, so person is not a second variable), present tense, at most one
-clause. The loader refuses: an action containing a bible file name or
+With 33 actions at 80–160 words, entry 2 lands around 2,600–5,300 words.
+The range is an owner setting, not a constant of this change.
+
+An action is one dramatic unit, developed by the model into one paragraph:
+a gesture or a finding with the concrete matter it carries (objects, hours,
+the trade's gestures, the body), in the third person (as today's beat
+instructions, so person is not a second variable), present tense. It states
+facts, never an intention, and carries no example line to recopy.
+
+The loader refuses: an action containing a bible file name or
 workshop vocabulary (existing anti-leak assertions), an intention verb
 (`décide`, `veut`, `va` + infinitive), a list shorter than 6 or longer than 14.
 
@@ -21,7 +30,7 @@ workshop vocabulary (existing anti-leak assertions), an intention verb
 
 ```
 <common veto line, unchanged>
-Ce qui se passe, dans l'ordre — une phrase ou deux par ligne, rien d'autre :
+Ce qui se passe, dans l'ordre — un paragraphe par ligne, développé avec la matière qu'elle porte, rien d'autre :
 1. …
 2. …
 ```
@@ -40,21 +49,23 @@ the S arm: the list replaces the instruction. Snapshot: a new scenario
 | Verbatim recopy per action (similarity > 0.8) | doctrine 6 |
 | Litany: share of sentences opening on the same construction; repeated discoveries | doctrine 12 |
 | Mean sentence length per beat, first vs last third | the trajectory must shorten (brief §2) |
-| Words of entry 2 against [300, 400] | 30+ actions in 350 words is ~10 words per action |
-| Planner time + swap (XP B) | record, budget headroom is 19 min |
+| Words per paragraph against the per-paragraph range; paragraphs that restate the previous one | developed, not padded |
+| Owner's grid line: complexity (layers held at once: the line, the proof, the trade, the body) | the density the project is after, not only the absence of defects |
+| Planner time + swap (XP B), write time | record only; time is not a criterion of this change |
 | **Is the declared movement accomplished?** | owner, aloud, blind |
 
 ## Runs
 
-- XP A: arms R and S, 5 paired seeds each (10 runs). Five rather than three:
-  the hand list removes most variance from the content, so the comparison is
-  on rendering, and the owner reads 10 short entries.
+- XP A: arms R, R-long and S, 5 paired seeds each (15 runs). R-long uses
+  today's beat instructions with the bounds raised to S's (a variant spec);
+  it is the v4 condition that padded, now measured instead of remembered.
+  Defect counts are compared per 1,000 words as well as in absolute terms.
 - XP B: 6 planners × 3 seeds (18 lists). Lists are vetted and read by the
   owner BEFORE rendering (a list is 30 lines; reading them is cheap). Only
   the lists that pass the veto are rendered, by nemo, with S's served form.
 - XP C: per-beat vs per-action on B's best list, 3 seeds each.
 
-## Memory and time
+## Memory
 
 Planner then writer, never co-resident: `keep_alive: 0` on the planner, then
 nemo loads (ADR-0008 pattern). The 14B abliterated model is 9 GB, nemo 13 GB:

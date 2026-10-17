@@ -15,7 +15,8 @@
 - [ ] Measures: action matching, recopy, litany, sentence-length slope.
 - [ ] Variant spec for arm S under the experiment directory (`--spec-file`
       from `scaffold-ablation`).
-- [ ] 10 runs (R, S × 5 paired seeds); blind set to the owner; report.
+- [ ] Variant spec for arm R-long (today's instructions, S's bounds).
+- [ ] 15 runs (R, R-long, S × 5 paired seeds); blind set to the owner; report.
 
 ## 2. XP B — generated storyboard (only if A: S not worse than R)
 

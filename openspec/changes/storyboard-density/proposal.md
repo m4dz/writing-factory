@@ -22,8 +22,15 @@ writing it (slow, poor); in CH7 the uncut plan made nemo write prose instead
 of planning.
 
 Hypothesis: **density removes the void.** A beat served as an ordered list of
-concrete actions leaves the model no room to invent, so fewer inventions,
-with no loss on the owner's reading.
+concrete actions, each developed into a paragraph, leaves the model no room
+to invent, so fewer inventions, at the length of a real chapter.
+
+The current bound of entry 2, 300–400 words, is not a literary or stage
+constraint. It was lowered from 450–600 on 2026-08-29 (`a0650c6`, "lever 3")
+because nemo padded thin matter with a litany: « la matière réelle est mince,
+l'allonger produit de la redite ». It treats the void by cutting the volume.
+A chapter is thousands of words; this change targets that length and treats
+the void by adding matter.
 
 ## What changes
 
@@ -31,7 +38,7 @@ Three experiments, in this order, each gated by the previous one:
 
 | XP | Single variable | Arms |
 |----|-----------------|------|
-| A — hand storyboard | entry 2 beats served as an action list written by the owner, instead of one instruction per beat | R (production, after `scaffold-ablation` decides the scaffolding), S (storyboard) |
+| A — hand storyboard | entry 2 beats served as an action list written by the owner, one paragraph per action, instead of one instruction per beat | R (production, 300–400 words), R-long (production instructions, S's length), S (storyboard, chapter length) |
 | B — generated storyboard | who writes the list | owner (A's list), `mistral-nemo` 12B, `qwen2.5:7b`, `qwen3:8b`, `qwen3-abliterated-8b`, `qwen3-abliterated-14b` |
 | C — rendering grain | one call per beat vs one call per action | per-beat, per-action |
 
@@ -48,9 +55,10 @@ Code:
 
 - Spec: a beat may carry `actions:` instead of (not in addition to) its
   instruction, as a pointer `{file, section}` into an owner-owned storyboard
-  file in `chapters/NN-slug/`. Caps per beat derive from the list
-  (`sentences_max` defaults to the number of actions), so the list and its
-  caps move as one variable, declared as such.
+  file in `chapters/NN-slug/`. One action is rendered as one paragraph; the
+  beat's bounds derive from the list (paragraphs = actions, words = actions ×
+  a per-paragraph range set in the spec). The entry's words bound is the sum
+  over its beats.
 - Served form: the actions as a numbered list of facts, headed by one line of
   the common veto. No example line, no workshop vocabulary beyond the brief's
   dose.
@@ -69,8 +77,9 @@ Code:
 
 ## Single variable
 
-A: the served form of the entry 2 beats (instruction → action list, caps
-derived from the list). B: the author of the list. C: the call grain.
+A: R → R-long moves the length alone (instructions unchanged); R-long → S
+moves the served form alone (same length). R → S is reported but never read
+as one variable. B: the author of the list. C: the call grain.
 
 ## Doctrines relied on or challenged
 
@@ -87,8 +96,9 @@ derived from the list). B: the author of the list. C: the call grain.
   intention. The plan veto counts « elle décide », « elle veut ».
 - 12 (every device creates a defect where it touches): the expected new
   defects are a litany (twelve actions of the same kind, as with stations), a
-  flat trajectory (a list does not climb, the doubt must), and choppy prose
-  (one sentence per action). Each has a measure in the design.
+  flat trajectory (a list does not climb, the doubt must), and paragraphs
+  that pad an action instead of developing it. Each has a measure in the
+  design.
 - C5 (`experiments/runs/20260831-xp-resolution-c5/`): the brief's trajectory
   names weakening verdicts. Serving them as actions re-serves verdict
   machinery, which C5 showed causes the resolution. The draft list keeps

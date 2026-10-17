@@ -54,6 +54,14 @@ Code needed, the smallest that makes the arms reproducible:
 
 Variant specs live in `experiments/runs/<date>-scaffold-ablation/specs/`.
 
+## Length caveat
+
+The arms run at today's production bound for entry 2 (300–400 words), which
+`storyboard-density` shows is a patch for thin matter, not a target. A piece
+found removable here is removable at that length. Before `storyboard-density`
+fixes its reference at chapter length, the decisive arms (any piece found
+removable) are re-run once at the R-long bound of that change.
+
 ## Single variable
 
 Per arm, the presence of one piece of scaffolding. The served prompts of R are
