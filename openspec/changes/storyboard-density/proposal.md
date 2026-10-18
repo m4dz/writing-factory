@@ -1,5 +1,9 @@
 # Proposal: storyboard-density
 
+> Depends on `plan-state-beats`: actions will be served through the same
+> code-owned plan state (done / current / next, end condition, progress
+> gate) if that mechanism holds on the owner's reading.
+
 ## Why
 
 Two observations from the owner's other projects:
