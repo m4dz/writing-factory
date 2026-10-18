@@ -108,7 +108,7 @@ résident). Les autres runs : 6 à 12 min. Le temps n'est pas un critère.
 1. Lecture à l'aveugle : `blind/E01.md` … `E15.md` (E13–E15 ajoutées après coup, A3 rejoué), verdicts dans
    `blind/verdicts.md` ; la clé (`blind-key.yaml`) n'est à ouvrir qu'après.
 2. ~~Rejouer A3~~ fait.
-3. ~~Instruments~~ faits sur la branche `detector-fixes` (`2d4ffb0`), à
+3. ~~Instruments~~ faits sur la branche `detector-fixes` (`af17580`), à
    fusionner avant `storyboard-density` — ils changent la sélection, donc
    les tirages à venir.
 4. Journal : un fichier par cause pour les défauts ci-dessus, après lecture.

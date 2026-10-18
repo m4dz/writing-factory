@@ -1,4 +1,4 @@
-# Ablation table — fixed checks (branch detector-fixes, 2d4ffb0)
+# Ablation table — fixed checks (branch detector-fixes, af17580)
 
 Same runs and texts as `ablation-table.md`, counted with the four fixed checks (perceived presence, open hypothesis, restart after entry 1 — whole entry here —, `decides` for doctrine 8). The runs were DRAWN with the old selection.
 
