@@ -63,10 +63,16 @@ Les §1–5 restent la référence CONCEPTUELLE ; ci-dessous est ce qui est SERV
 
 Elle relit la ligne qu'elle vient de recopier. Elle y relève un écart : ce que la ligne décrit — les deux couverts mis — elle l'a sous les yeux, mais elle ne se souvient pas de l'avoir fait.
 
+Finit quand : elle a nommé l'écart — la ligne dit qu'elle a mis les couverts, elle ne s'en souvient pas.
+
 ### Beat B — la découverte
 
 Autour d'elle, la maison est dressée pour la fête qu'elle avait décidé de ne pas tenir : les photos étalées, la musique qui joue, le plat au four, les deux couverts. Elle ne se souvient d'avoir rien préparé. Elle se met à ranger — remettre chaque chose à sa place, c'est son métier. Chaque objet une seule fois ; ne fais pas le tour de la maison.
 
+Finit quand : elle a commencé à ranger ; les quatre objets ont été trouvés, chacun une fois.
+
 ### Beat C — le doute (le corps, pas la pensée)
 
 Elle ne cherche plus le verdict. Ses mains sont froides, sa nuque raide, la page relue trois fois. Elle repose le crayon.
+
+Finit quand : elle repose le crayon.

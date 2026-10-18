@@ -131,6 +131,9 @@ def movement_row(chapter: int, entry: int | None = None,
     return ""
 
 
+ENDS = re.compile(r"^Finit\s+quand\s*:\s*", re.IGNORECASE)
+
+
 def read_entry_brief(path: Path) -> dict:
     """The sections of an entry brief written under the movement method."""
     txt = path.read_text(encoding="utf-8")
@@ -150,7 +153,9 @@ def read_entry_brief(path: Path) -> dict:
     position = next((l.split(":", 1)[1].strip() for l in drift.splitlines()
                      if l.startswith("Position")), "")
 
-    def beats() -> list[str]:
+    def beats() -> list[tuple[str, str]]:
+        """(instruction, end condition) per beat; a line « Finit quand : … »
+        is the end condition and never part of the instruction."""
         if "## 7." not in txt:
             return []
         seg7 = txt.split("## 7.", 1)[1]
@@ -158,8 +163,12 @@ def read_entry_brief(path: Path) -> dict:
         heads = list(re.finditer(r"^### Beat \w+", seg7, re.MULTILINE))
         for i, h in enumerate(heads):
             end = heads[i + 1].start() if i + 1 < len(heads) else len(seg7)
-            lines = [l for l in seg7[h.start():end].strip().splitlines() if l.strip()]
-            out.append(" ".join(lines[1:]).strip() if len(lines) > 1 else "")
+            lines = [l.strip() for l in seg7[h.start():end].strip().splitlines()[1:]
+                     if l.strip()]
+            ends = [l for l in lines if ENDS.match(l)]
+            body = [l for l in lines if not ENDS.match(l)]
+            out.append((" ".join(body).strip(),
+                        ENDS.sub("", ends[0]).strip() if ends else ""))
         return out
 
     return {
@@ -193,9 +202,13 @@ def _entry(raw: dict, spec_dir: Path, chapter: int) -> EntrySpec:
     if caps and instructions and len(caps) != len(instructions):
         raise ChapterSpecError(f"{len(caps)} bornes de beats pour {len(instructions)} "
                                f"libellés dans {raw.get('source')}")
+    def served(i: int) -> tuple[str, str]:
+        return instructions[i] if i < len(instructions) else ("", "")
+
     beats = tuple(
         BeatSpec(str(c["name"]), int(c["num_predict"]), int(c["sentences_max"]),
-                 str(c.get("instruction") or (instructions[i] if i < len(instructions) else "")))
+                 str(c.get("instruction") or served(i)[0]),
+                 str(c.get("ends") or served(i)[1]))
         for i, c in enumerate(caps))
     strategy = raw.get("strategy")
     if strategy not in (None, "single", "segments", "beats"):

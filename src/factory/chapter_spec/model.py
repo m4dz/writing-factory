@@ -24,6 +24,7 @@ class BeatSpec:
     num_predict: int
     sentences_max: int
     instruction: str
+    ends: str = ""        # « Finit quand : » of the brief; served only in the plan context
 
 
 @dataclass(frozen=True)

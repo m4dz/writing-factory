@@ -9,15 +9,16 @@
 
 ## 1. Owner
 
-- [ ] End conditions for beats A, B, C in `brief-entree-2.md` §7
-      (`Finit quand :`), or decision to run without them.
+- [x] Drafts of the end conditions written into `brief-entree-2.md` §7 at
+      the owner's request (and into the v5 proposal copy).
+- [ ] Owner corrects them.
 
 ## 2. Code
 
 - [ ] `beat_context` override (`blind` | `map` | `plan`), alias
       `beats_see_movement=true` → `map`; refused values tested.
-- [ ] Loader: `Finit quand :` → `BeatSpec.ends`, removed from the
-      instruction; absent → `""`.
+- [x] Loader: `Finit quand :` → `BeatSpec.ends`, removed from the
+      instruction; absent → `""`. Ch7 snapshot identical.
 - [ ] `_plan_state(sheet, current)`; prompt test per beat (one `→`, done
       times before it, next after it, labels only, no trajectory, guard).
 - [ ] Progress gate « recopie » (≥ 2 shared sentences with the entry's
