@@ -1,10 +1,9 @@
-# scaffold-ablation — rapport provisoire
+# scaffold-ablation — rapport
 
 > Change : `openspec/changes/scaffold-ablation`. Runs du 2026-10-18, 01:48–04:10,
 > commit `8218bb6` ; A3 rejoué 08:53–09:31 (`fd57830`, interrupteur
-> `accumulation_enabled`). **Provisoire** : le verdict de chaque bras est la lecture
-> debout de l'auteur, à l'aveugle (`blind/`), pas encore rendue. Ce qui suit
-> est la grille en véto et ce qu'elle permet de dire honnêtement.
+> `accumulation_enabled`). Verdict : la lecture de l'auteur, à l'aveugle
+> (`blind/verdicts.md`), clé ouverte après coup ; la grille n'est qu'un véto.
 
 ## Ce qui a tourné
 
@@ -71,31 +70,80 @@ le comptage change.
 Le reste bouge peu : les deux « congédie » de A4 disparaissent (faux
 positifs), A3 gagne une présence perçue réelle.
 
-## Ce que la grille permet de dire, et pas plus
+## La lecture de l'auteur (à l'aveugle, clé ouverte après)
 
-Règle écrite avant les runs : une pièce est **porteuse** si son bras montre le
-défaut contre lequel elle a été construite sur 2 graines sur 3 ; **retirable**
-si la lecture de l'auteur n'est pas pire que R sur 2 sur 3 ET qu'aucun défaut
-de véto absent de R n'apparaît.
+Mouvement déclaré accompli ? Par graine (395959 · 528559 · 781771) :
 
-- **Pruning (A2) : porteur selon la grille.** Résolution sur 2/3 sans lui,
-  dont la litanie de résolutions la plus nette de la série. La lecture peut
-  encore nuancer, pas renverser un défaut de véto.
-- **Best-of (A1) : candidat au retrait, sous condition de lecture.** Aucun
-  défaut de résolution, présence ou récursion sur 3/3 ; mais redémarrage
-  2/3 — défaut que R a aussi (1/3) et que la sélection ne combat pas au
-  premier beat. Trancher demande la lecture.
-- **Beats plafonnés par le code (A4) : porteurs selon la grille.** La
-  doctrine 8 revient sur 3/3 (1, 8, 7 « je décide de »), absente de R : un
-  défaut de véto nouveau, donc non retirable quelle que soit la lecture.
-- **Accumulation (A3) : pas de défaut de véto propre** (la présence perçue
-  existe aussi dans R, 1/3). Mais elle porte près de la moitié de la masse
-  de l'entrée 2 (170 mots sans elle, 326 avec) — dans un combat pour la
-  densité. Trancher demande la lecture.
+| bras | 395959 | 528559 | 781771 | oui / partiel / non |
+|---|---|---|---|---|
+| R — production | non (E07) | partiel (E08) | non (E06) | 0 / 1 / 2 |
+| A1 — sans best-of | partiel (E12) | partiel (E11) | non (E10) | 0 / 2 / 1 |
+| A2 — sans pruning | non (E02) | partiel (E09) | non (E05) | 0 / 1 / 2 |
+| A3 — sans accumulation | non (E15) | non (E14) | non (E13) | 0 / 0 / 3 |
+| A4 — entrée 2 en un appel | non (E04) | **oui** (E03) | **oui** (E01) | **2** / 0 / 1 |
 
-Rappel : la production elle-même (R) laisse passer une résolution, une
-présence et une récursion sur une graine sur trois. L'échafaudage actuel
-n'est pas étanche.
+Les deux seuls « oui » de la série sont A4. E03 : « un des meilleurs tirages
+[…] la construction est claire et la progression de la tension évidente ».
+E01 : « oui ; aucun détail, aucune tension, froide énumération ». E04, le
+plus long (624 mots) : « on a de la densité, mais le ton sonne creux […] le
+personnage ne tient pas son rôle ».
+
+La production elle-même n'accomplit le mouvement sur aucune graine.
+
+Motif récurrent des notes, hors A4 : **l'invention**. « le texte invente des
+narratifs » (E06, R), « externalités qui ne peuvent avoir lieu » (E08, R),
+« Huit couverts ce soir. » (E09, A2), « le reste est inventé » (E10, A1),
+« incohérences et inventions » (E14, A3), « incohérent » (E05, A2). Aucune
+note d'invention sur A4. Hypothèse, pas constat : chaque beat est servi
+seul, sans le mouvement entier (`_prompt_beat`) ; le modèle comble ce qu'il
+ne voit pas.
+
+## Décision par pièce (règle écrite avant les runs)
+
+Règle : **retirable** si la lecture n'est pas pire que R sur ≥ 2 graines ET
+qu'aucun défaut de véto absent de R n'apparaît ; **porteuse** si le bras
+montre le défaut contre lequel la pièce a été construite sur ≥ 2 graines.
+Liste de véto écrite avant les runs : résout, congédie, redémarre,
+présence, récursion, décor interdit.
+
+- **Best-of (A1) : retirable.** Pas pire que R sur 3/3 (mieux sur 395959).
+  Seul défaut de véto : le redémarrage, que R a aussi.
+- **Pruning (A2) : porteur.** Résolution sur 2/3 (le défaut contre lequel il
+  a été construit) et décor interdit sur 1, absent de R. La lecture est
+  égale à R sur 3/3 : il ne gâche rien.
+- **Accumulation (A3) : retirable à la lettre, à ne pas retirer.** Pas pire
+  que R sur 2/3 — mais seulement parce que R est « non » sur ces deux
+  graines : effet plancher. Pire sur 528559. Trois « non », « pas de
+  densité », « pas de profondeur », et la moitié de la masse de l'entrée en
+  moins (170 mots contre 326). La règle ne voit pas la densité ; c'est son
+  angle mort, pas un acquittement.
+- **Beats plafonnés par le code (A4) : retirables selon la règle.** Mieux que
+  R sur 2/3, égal sur la troisième ; aucun défaut de véto absent de R
+  (résolution, présence, redémarrage : R les a ; les deux « congédie » sont
+  des faux positifs).
+
+**Ce que j'avais écrit avant la lecture est faux.** J'avais déclaré les
+beats porteurs sur la doctrine 8 (« je décide de » : 1, 8, 7 dans A4, 0
+ailleurs). La doctrine 8 n'était pas dans la liste de véto écrite avant les
+runs : l'y ajouter après coup déplacerait le but. Et la lecture contredit
+le compte : E03, le meilleur tirage de la série, porte 8 « je décide de ».
+La doctrine 8 reste un défaut à mesurer — c'est peut-être les
+« automatismes » que la note d'E03 relève —, pas un véto rétroactif.
+
+## Ce que la série dit, au-delà des pièces
+
+1. **L'échafaudage actuel de l'entrée 2 ne livre pas le mouvement.** R : 0
+   oui sur 3. Retirer une pièce ne le fait pas basculer, sauf les beats.
+2. **Le découpage en beats servis seuls est le suspect principal** : il
+   coïncide avec les inventions, et l'appel unique, qui voit tout le
+   mouvement, donne les deux seuls « oui ». C'est la question que
+   `storyboard-density` doit poser autrement : des beats qui voient le
+   mouvement entier et la matière de chaque action, pas des beats aveugles.
+3. **Densité et justesse ne vont pas ensemble chez nemo, telles quelles** :
+   le tirage le plus dense (E04) est un contre-sens ; le plus juste avec
+   tension (E03) est à 438 mots ; E01 est juste et froid.
+4. **Trois graines.** Deux « oui » sur trois tirages n'est pas un taux ; c'est
+   assez pour retourner une présomption, pas pour la remplacer.
 
 ## Temps
 
@@ -105,10 +153,10 @@ résident). Les autres runs : 6 à 12 min. Le temps n'est pas un critère.
 
 ## À faire
 
-1. Lecture à l'aveugle : `blind/E01.md` … `E15.md` (E13–E15 ajoutées après coup, A3 rejoué), verdicts dans
-   `blind/verdicts.md` ; la clé (`blind-key.yaml`) n'est à ouvrir qu'après.
-2. ~~Rejouer A3~~ fait.
-3. ~~Instruments~~ faits sur la branche `detector-fixes` (`af17580`), à
-   fusionner avant `storyboard-density` — ils changent la sélection, donc
-   les tirages à venir.
-4. Journal : un fichier par cause pour les défauts ci-dessus, après lecture.
+1. ~~Lecture à l'aveugle~~ rendue.
+2. Proposition d'ADR : `adr-proposal.md` (à l'auteur de décider ; aucun
+   changement de `chapters/07-anniversaire/spec.yaml` sans son go).
+3. Journal : `experiments/journal/20261018T*-scaffold-ablation.md`.
+4. Branche `detector-fixes` (af17580) : à fusionner avant
+   `storyboard-density`. La vérification doctrine 8 y pénalise « je décide
+   de » dans la sélection — à rediscuter au vu d'E03 (score, pas véto ?).
