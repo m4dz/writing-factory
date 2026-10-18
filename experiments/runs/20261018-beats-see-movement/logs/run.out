@@ -1,0 +1,19 @@
+=== 17:53:32 seed 395959 arm R
+    exit 0 run 20261018-175333-ch07-anniversaire
+=== 18:03:08 seed 395959 arm B
+    exit 0 run 20261018-180309-ch07-anniversaire
+=== 18:11:01 seed 528559 arm R
+    exit 0 run 20261018-181102-ch07-anniversaire
+=== 18:22:58 seed 528559 arm B
+    exit 1 run 20261018-182259-ch07-anniversaire (preflight refused)
+=== 18:25:05 seed 528559 arm B
+    exit 1 run 20261018-182506-ch07-anniversaire (preflight refused)
+=== 18:27:15 seed 528559 arm B
+    exit 1 run 20261018-182716-ch07-anniversaire (preflight refused)
+=== 18:29:25 seed 528559 arm B
+    exit 0 run 20261018-182926-ch07-anniversaire
+=== 18:38:16 seed 781771 arm R
+    exit 0 run 20261018-183817-ch07-anniversaire
+=== 18:47:08 seed 781771 arm B
+    exit 0 run 20261018-184709-ch07-anniversaire
+=== 18:56:28 done
