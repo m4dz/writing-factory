@@ -37,7 +37,10 @@ arms:
   - 20261018-022422-ch07-anniversaire
   - 20261018-030716-ch07-anniversaire
   - 20261018-035146-ch07-anniversaire
-  A3: []
+  A3:
+  - 20261018-085322-ch07-anniversaire
+  - 20261018-090522-ch07-anniversaire
+  - 20261018-091321-ch07-anniversaire
   A4:
   - 20261018-023421-ch07-anniversaire
   - 20261018-031409-ch07-anniversaire
@@ -75,9 +78,19 @@ excluded:
   arm: A3
   seed: 781771
   reason: preflight refused
+- run: 20261018-090105-ch07-anniversaire
+  arm: A3
+  seed: 528559
+  reason: preflight refused
+- run: 20261018-090312-ch07-anniversaire
+  arm: A3
+  seed: 528559
+  reason: preflight refused
 notes:
 - 'Seed 395959 arm R: one nemo call stalled at 0.4 tok/s (~9 min) under swap pressure
   (swap 15.8/16.4 GB, browser ~13 GB resident). Timings of this experiment are not
   interpretable (doctrine 5); time is not a criterion.'
 - A3 re-run on 2026-10-18 with the accumulation-only switch, same seeds, code commit
   recorded per run; detector fixes deliberately AFTER it so the arms share the selection.
+- 'A3 re-run 08:53–09:31: 3 ready runs, 2 preflight refusals retried. Runs 2-3 record
+  commit 86e18d2 (untracks __pycache__ only; code identical to fd57830).'

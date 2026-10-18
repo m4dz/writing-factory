@@ -1,6 +1,6 @@
   ⚠ le brief du chapitre 7 porte des termes d'atelier que le lint bannit en sortie : ['ancre', 'matériau'] — à arbitrer par l'auteur
 
-=== run 20261018-035146-ch07-anniversaire ===
+=== run 20261018-091321-ch07-anniversaire ===
 
 ##############################################################################
 PLAN DE SCÈNES
@@ -30,41 +30,45 @@ CHAPITRE (après relecture + réparation linguistique)
 ##############################################################################
 Samedi 14. Beau temps.
 
-J'ai rangé aujourd'hui les photos de nous deux dans le tiroir du bas, celles où nous sourions à l'objectif, insouciants et heureux. J'ai décidé de ne pas célébrer notre anniversaire.
+J'ai rangé les photos d'elle dans le tiroir du bas, celles qui étaient posées sur la commode du salon. Je ne supporte plus de les voir chaque fois que j'entre dans la pièce.
 
 <!-- BASCULE -->
 
 Samedi 14. Beau temps.
 
-"Neuf ans aujourd'hui que je t'ai dit oui. J'ai mis deux couverts, exprès cette fois, et j'ai redit oui tout haut dans la cuisine. Je t'aime toujours."
+« Neuf ans aujourd'hui que je t'ai dit oui. J'ai mis deux couverts, exprès cette fois, et j'ai redit oui tout haut dans la cuisine. Je t'aime toujours. »
 
-Je relis ma ligne d'hier soir. Le texte dit que j'ai mis deux couverts exprès et que j'ai redit oui tout haut dans la cuisine. Mais je ne me souviens pas avoir fait cela. Ma mémoire ne retient que la table vide, un seul couvert, celui que j'utilise depuis son départ.
+« J'ai relu hier soir la dernière entrée. Elle dit que j'ai mis deux couverts exprès, et que j'ai redit oui tout haut dans la cuisine. Je ne me souviens pas avoir fait ça. L'égouttoir ne contient qu'une assiette et une tasse. »
 
-La porte de la chambre est entrouverte. Hier soir, elle était fermée, j'en suis certaine. Sur le lit, un livre ouvert à une page marquée. Je ne me souviens pas avoir laissé un livre là-bas. Le titre est étrange : "Le Manuel des Ombres".
+« J'ai vérifié dans le réfrigérateur, il n'y avait pas de plat au four. »
 
-Le cahier est sur la table de la cuisine, à sa place habituelle. Mais quelque chose ne va pas. Je le prends en main, le feuillette. Les pages sont gondolées, comme si elles avaient été exposées à l'eau.
+J'allais poser le verdict quand la main s'est arrêtée. Neuf ans, et j'aurais dû demander, quand il était encore temps, ce qui l'a… La marge reste blanche. Le crayon ne biffe pas.
 
-Verdict : coquille, la faute à moi. L'explication que je me suis donnée : trouble à demi avoué. J'ai résolu de pointer plus précisément. Ce que j'ai sous la main, ces jours-ci : le téléphone.
+« La phrase qui cloche : "J'ai mis deux couverts, exprès cette fois, et j'ai redit oui tout haut dans la cuisine." Coquille dans le réel. »
 
-Ma main est froide, ma nuque raide. La page relue trois fois. Je n'ai pas rêvé.
+« Ma main gauche est glacée ce matin, sans raison apparente. »
+
+»
+
+Constat : anniversaire.
 
 <!-- FIN AUDIO -->
 
 ##############################################################################
 RAPPORT DE COHÉRENCE
 ##############################################################################
-FAIT 1 : tenu — La narratrice a 38 ans et est correctrice depuis quinze ans.
+FAIT 1 : tenu — La narratrice a 38 ans et a été correctrice depuis quinze ans.
 FAIT 2 : tenu — La narratrice ne cherchera jamais à joindre Romane ni à comprendre pourquoi elle est partie.
 FAIT 3 : tenu — La narratrice utilise une méthode de dater, relever, relire pour se tenir debout.
-FAIT 4 : tenu — La narratrice ne supprime jamais une ligne de ce qu'elle relit, même si cela la blesse.
-FAIT 5 : tenu — La narratrice ne consulte jamais de thérapeute, préférant se référer à des avis conditionnels.
-FAIT 6 : tenu — La narratrice ne cherche pas à contacter Romane et ne lui accorde aucune coordonnée.
+FAIT 4 : tenu — La narratrice ne descend une marche que quand celle du dessus a cédé.
+FAIT 5 : tenu — La narratrice ne supprime jamais une ligne de ce qu'elle relit, même si cela la blesse.
+FAIT 6 : tenu — La narratrice envisage par moments de consulter une thérapeute mais ne le fait jamais.
 FAIT 7 : tenu — Personne d'autre n'entre dans la maison.
 FAIT 8 : tenu — Aucun repas n'est partagé, aucune conversation n'a lieu.
 FAIT 9 : tenu — Elle ne sort pas de la maison.
 
 [signalements écartés faute de citation vérifiable :]
-    fait 3, scène 2 : « Verdict : coquille, la faute à moi. L'explication que je me suis donnée : trouble à demi avoué. J'ai résolu de pointer plus précisément. Ce que j'ai sous la main, ces jours-ci : le téléphone. » [non confirmé au contre-appel]
+    fait 5, scène 2 : "La phrase qui cloche : 'J'ai mis deux couverts, exprès cette fois, et j'ai redit oui tout haut dans la cuisine.' Coquille dans le réel." [citation introuvable dans la scène]
 
 ##############################################################################
 LINT DE STYLE (fuites de langue, tokens corrompus)
@@ -72,55 +76,57 @@ LINT DE STYLE (fuites de langue, tokens corrompus)
   texte final : aucune alerte
 
   détecté puis corrigé en amont (état avant réparation) :
-    · entrée 1#1 : fin coupée à la dernière phrase complète, 32 caractères retirés — « Je ne veux pas me laisser submer »
-    · entrée 1 : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #3 score 3 ; #2 score -3
+    · entrée 1#1 : fin coupée à la dernière phrase complète, 93 caractères retirés — « Je ne veux pas être tentée de me rappeler les moments heureux que nous avons par »
+    · entrée 1 : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #2 score 3 ; #3 score -3
     · entrée 1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) — le code compose les en-têtes
-    · entrée 1 : bornée à 2 phrase(s) — 3 retirée(s), à partir de « J'ai supprimé la playlist que nous avions créée ensemble, celle qui accompagnait… »
-    · entrée 2/relève#1 : fin coupée à la dernière phrase complète, 36 caractères retirés — « Pas de trace du deuxième couvert que »
+    · entrée 1 : bornée à 2 phrase(s) — 4 retirée(s), à partir de « Je vais aussi supprimer sa musique de la playlist du salon. J'ai besoin de me co… »
+    · entrée 2/relève#1 : fin coupée à la dernière phrase complète, 40 caractères retirés — « Peut-être que c'est en train de revenir, »
     · entrée 2/relève#1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) — le code compose les en-têtes
-    · entrée 2 : bornée à 4 phrase(s) — 4 retirée(s), à partir de « Je suis pourtant certaine de ne pas avoir rêvé cette ligne. Le texte est bien là… »
-    · entrée 2/relève : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #3 score 3 ; #2 score 0
-    · entrée 2/découverte#2 : fin coupée à la dernière phrase complète, 68 caractères retirés — « Je vais vérifier le réfrigérateur et m'assurer que tout est en ordre »
-    · entrée 2/découverte#2 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) — le code compose les en-têtes
-    · entrée 2 : bornée à 5 phrase(s) — 10 retirée(s), à partir de « Je ne l'ai jamais vu auparavant. Je devrais le ranger, mais quelque chose me ret… »
-    · entrée 2/découverte : best-of-3 — variant 2 retenu (score 3, propre) ; rejetés : #3 score 3 ; #1 score -8
-    · entrée 2/doute#2 : fin coupée à la dernière phrase complète, 2 caractères retirés — « Je »
-    · entrée 2/doute#2 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) — le code compose les en-têtes
-    · entrée 2 : bornée à 4 phrase(s) — 6 retirée(s), à partir de « Je ne me souviens pas avoir renversé quelque chose dessus. Je le pose à l'envers… »
-    · entrée 2/doute : best-of-3 — variant 2 retenu (score 0, propre) ; rejetés : #3 score 0 ; #1 score -5
+    · entrée 2 : bornée à 4 phrase(s) — 5 retirée(s), à partir de « J'ai dû ranger l'autre ce matin, sans m'en rendre compte. Je relève aussi que la… »
+    · entrée 2/relève : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #2 score 3 ; #3 score 3
+    · entrée 2/découverte#3 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) — le code compose les en-têtes
+    · entrée 2 : bornée à 5 phrase(s) — 5 retirée(s), à partir de « J'ai passé la soirée à corriger des manuscrits, je m'en souviens clairement. Je … »
+    · entrée 2/découverte : best-of-3 — variant 3 retenu (score 3, propre) ; rejetés : #1 score -5 ; #2 score -9
+    · entrée 2/doute#1 : fin coupée à la dernière phrase complète, 29 caractères retirés — « Je suis descendue prendre mon »
+    · entrée 2/doute#1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) — le code compose les en-têtes
+    · entrée 2 : bornée à 4 phrase(s) — 5 retirée(s), à partir de « "Je suis allée vérifier dans le salon. Le livre que je lisais hier soir était ou… »
+    · entrée 2/doute : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #2 score 3 ; #3 score -5
+    · pruning : 1 phrase(s) retirée(s) — [résolution] « Je n'ai pas rêvé.
+    · assemblage entrée 1 : aucune accumulation à poser
+    · assemblage entrée 2 : frontière « à la frontière du dernier objet — les couverts. » introuvable dans le texte — repli sur le placement par offset
+    · assemblage entrée 2 : chute imposée absente — posée par le code : « Constat : anniversaire. »
+    · assemblage entrée 2 : aucune accumulation à poser
 
 ##############################################################################
 PROFILAGE (contrainte des 25 min)
 ##############################################################################
-  appels LLM       : 22
-  tokens générés   : 3163
-  vitesse moyenne  : 16.2 tok/s
-  TEMPS TOTAL      : 708 s  (11.8 min)
+  appels LLM       : 20
+  tokens générés   : 2974
+  vitesse moyenne  : 13.8 tok/s
+  TEMPS TOTAL      : 1081 s  (18.0 min)
 
   détail par appel (« length » = génération coupée — une continuation a été relancée, cf. lint ; need > 1.00 = fenêtre insuffisante) :
-    #0   136/136 tok    7.3 tok/s  ctx 0.35 / need 0.41  [length]  <-- COUPÉ (continuation)
-    #1   136/136 tok    8.0 tok/s  ctx 0.35 / need 0.41  [length]  <-- COUPÉ (continuation)
-    #2    10/136 tok   10.1 tok/s  ctx 0.34 / need 0.41  [stop]
-    #3   150/150 tok    7.2 tok/s  ctx 0.35 / need 0.41  [length]  <-- COUPÉ (continuation)
-    #4   150/150 tok    9.4 tok/s  ctx 0.35 / need 0.41  [length]  <-- COUPÉ (continuation)
-    #5   150/150 tok    9.1 tok/s  ctx 0.35 / need 0.41  [length]  <-- COUPÉ (continuation)
-    #6   240/240 tok    3.8 tok/s  ctx 0.37 / need 0.44  [length]  <-- COUPÉ (continuation)
-    #7   240/240 tok    8.5 tok/s  ctx 0.37 / need 0.44  [length]  <-- COUPÉ (continuation)
-    #8   240/240 tok    8.8 tok/s  ctx 0.37 / need 0.44  [length]  <-- COUPÉ (continuation)
-    #9   150/150 tok    6.8 tok/s  ctx 0.36 / need 0.43  [length]  <-- COUPÉ (continuation)
-    #10   150/150 tok    7.9 tok/s  ctx 0.36 / need 0.43  [length]  <-- COUPÉ (continuation)
-    #11   150/150 tok    8.1 tok/s  ctx 0.36 / need 0.43  [length]  <-- COUPÉ (continuation)
-    #12    55/1200 tok    9.1 tok/s  ctx 0.30 / need 0.48  [stop]
-    #13   307/1200 tok    9.0 tok/s  ctx 0.35 / need 0.51  [stop]
-    #14    64/600 tok   27.8 tok/s  ctx 0.03 / need 0.10  [stop]
-    #15   335/600 tok   25.5 tok/s  ctx 0.10 / need 0.13  [stop]
-    #16   141/400 tok   26.4 tok/s  ctx 0.17 / need 0.20  [stop]
-    #17   169/500 tok   26.9 tok/s  ctx 0.07 / need 0.11  [stop]
-    #18    40/300 tok   27.8 tok/s  ctx 0.04 / need 0.07  [stop]
-    #19    45/400 tok   27.6 tok/s  ctx 0.07 / need 0.12  [stop]
-    #20   103/400 tok   27.1 tok/s  ctx 0.11 / need 0.15  [stop]
-    #21     2/8 tok   53.3 tok/s  ctx 0.06 / need 0.07  [stop]
+    #0   136/136 tok    7.8 tok/s  ctx 0.35 / need 0.41  [length]  <-- COUPÉ (continuation)
+    #1   136/136 tok    8.9 tok/s  ctx 0.35 / need 0.41  [length]  <-- COUPÉ (continuation)
+    #2   136/136 tok    7.2 tok/s  ctx 0.35 / need 0.41  [length]  <-- COUPÉ (continuation)
+    #3   150/150 tok    8.3 tok/s  ctx 0.35 / need 0.41  [length]  <-- COUPÉ (continuation)
+    #4   150/150 tok    9.0 tok/s  ctx 0.35 / need 0.41  [length]  <-- COUPÉ (continuation)
+    #5   150/150 tok    8.0 tok/s  ctx 0.35 / need 0.41  [length]  <-- COUPÉ (continuation)
+    #6   183/240 tok    9.0 tok/s  ctx 0.36 / need 0.43  [stop]
+    #7   240/240 tok    8.0 tok/s  ctx 0.37 / need 0.43  [length]  <-- COUPÉ (continuation)
+    #8   240/240 tok    8.3 tok/s  ctx 0.37 / need 0.43  [length]  <-- COUPÉ (continuation)
+    #9   150/150 tok    9.4 tok/s  ctx 0.36 / need 0.43  [length]  <-- COUPÉ (continuation)
+    #10   150/150 tok    9.8 tok/s  ctx 0.36 / need 0.43  [length]  <-- COUPÉ (continuation)
+    #11   150/150 tok    8.9 tok/s  ctx 0.36 / need 0.43  [length]  <-- COUPÉ (continuation)
+    #12    54/1200 tok    9.7 tok/s  ctx 0.30 / need 0.48  [stop]
+    #13   196/1200 tok    8.7 tok/s  ctx 0.34 / need 0.51  [stop]
+    #14    57/600 tok   27.3 tok/s  ctx 0.03 / need 0.10  [stop]
+    #15   213/600 tok   26.1 tok/s  ctx 0.07 / need 0.11  [stop]
+    #16   133/400 tok   24.7 tok/s  ctx 0.17 / need 0.20  [stop]
+    #17   219/500 tok   25.7 tok/s  ctx 0.08 / need 0.11  [stop]
+    #18    45/400 tok   26.0 tok/s  ctx 0.07 / need 0.12  [stop]
+    #19    86/400 tok   24.6 tok/s  ctx 0.10 / need 0.14  [stop]
 
-  run      : /Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory/experiments/runs/20261018-scaffold-ablation/runs/20261018-035146-ch07-anniversaire
-  chapitre : /Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory/experiments/runs/20261018-scaffold-ablation/runs/20261018-035146-ch07-anniversaire/chapitre.md
+  run      : /Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory/experiments/runs/20261018-scaffold-ablation/runs/20261018-091321-ch07-anniversaire
+  chapitre : /Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory/experiments/runs/20261018-scaffold-ablation/runs/20261018-091321-ch07-anniversaire/chapitre.md
   audio    : absent (voir notes)
