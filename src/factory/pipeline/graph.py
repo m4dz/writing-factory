@@ -1476,6 +1476,10 @@ def accumulate_node(state: ChapterState) -> dict:
         return {}
     if not _gestures_allowed(state):
         return {}
+    # The accumulation alone can be switched off (scaffold-ablation, arm A3):
+    # `micro_nodes` also gates the drift, the fall and the pruning.
+    if not settings.accumulation_enabled:
+        return {}
     # THE CONTEXT IS THE RECONSTRUCTION SEGMENT, not the whole entry.
     # `accumulate` had become stage C's famine channel: it got only the entry
     # and a form instruction, so when the reconstruction was thin it invented

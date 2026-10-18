@@ -125,3 +125,21 @@ def test_last_entry_and_litany():
     entry = ablation.last_entry(md)
     assert entry == "Je range. Je range. Je range. Elle dort."
     assert ablation.litany(entry) == 0.75
+
+
+def test_accumulation_alone_can_be_switched_off(fake_model, fake_chroma, tmp_path):
+    """Arm A3: `micro_nodes=false` also drops the drift, the fall and the
+    pruning; `accumulation_enabled=false` drops the accumulation only."""
+    assert generate(tmp_path, "--chapter", "7") == 0
+    assert generate(tmp_path, "--chapter", "7", "--override", "accumulation_enabled=false") == 0
+    off, on = runs.list_runs(tmp_path / "runs")
+    assert off.manifest["overrides"] == {"accumulation_enabled": False}
+    assert settings.accumulation_enabled is True                          # restored
+
+    def calls(run):                     # the accumulate call: 300 tokens, gesture temperature
+        return run.prompts_path.read_text(encoding="utf-8").count(
+            f"num_predict=300 temperature={settings.gesture_temperature}")
+
+    assert calls(on) > 0 and calls(off) == 0
+    for run in (on, off):
+        assert "Constat : anniversaire." in run.chapter_path.read_text(encoding="utf-8")

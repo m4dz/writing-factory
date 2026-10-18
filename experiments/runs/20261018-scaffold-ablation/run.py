@@ -24,7 +24,9 @@ ARMS = {
     "R": ["--chapter", "7"],
     "A1": ["--chapter", "7", "--override", "beats_n=1"],
     "A2": ["--chapter", "7", "--override", "pruning_enabled=false"],
-    "A3": ["--chapter", "7", "--option", "micro_nodes=false"],
+    # A3 re-run: `micro_nodes=false` (kept as A3x) also dropped the drift, the
+    # fall and the pruning; this switch drops the accumulation only.
+    "A3": ["--chapter", "7", "--override", "accumulation_enabled=false"],
     "A4": ["--spec-file", str(X / "specs" / "a4-single.yaml")],
 }
 PAUSE_S, MAX_REFUSALS = 120, 30

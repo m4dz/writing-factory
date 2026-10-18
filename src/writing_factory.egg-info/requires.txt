@@ -1,0 +1,17 @@
+chromadb-client>=0.5
+python-frontmatter>=1.1
+httpx>=0.27
+pyyaml>=6
+
+[pipeline]
+langgraph>=1.0
+
+[test]
+pytest>=8
+ruff>=0.6
+langgraph>=1.0
+
+[tts]
+mlx-audio>=0.4
+soundfile>=0.12
+numpy>=1.26

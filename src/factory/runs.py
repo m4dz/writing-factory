@@ -27,7 +27,7 @@ RUN_ID = re.compile(r"^\d{8}-\d{6}-ch\d{2}-[a-z0-9-]{1,40}$")
 # Configuration keys a payload may override for one run: knobs of the machine,
 # never spec fields (ADR-0005). Applied for the run's duration only.
 OVERRIDABLE = ("author_model", "qa_model", "gesture_model", "num_ctx", "gesture_temperature",
-               "beats_n", "pruning_enabled", "audio_seconds", "switch_after_sentences",
+               "beats_n", "pruning_enabled", "accumulation_enabled", "audio_seconds", "switch_after_sentences",
                "stage_budget_min")
 
 # Run options a command line may pass to `spec.state()` for one run: the
@@ -126,7 +126,8 @@ def git_commit() -> str:
 
 def resolved_config(overrides: dict | None = None) -> dict:
     keys = ("author_model", "qa_model", "embed_model", "num_ctx", "gesture_model",
-            "gesture_temperature", "beats_n", "pruning_enabled", "switch_after_sentences",
+            "gesture_temperature", "beats_n", "pruning_enabled", "accumulation_enabled",
+            "switch_after_sentences",
             "audio_seconds", "audio_words_per_minute", "tts_model", "stage_budget_min")
     conf = {k: getattr(settings, k) for k in keys}
     conf.update(overrides or {})
