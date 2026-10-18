@@ -35,4 +35,9 @@ arms:
   - 20261018-183817-ch07-anniversaire
   P: []
 notes: []
-excluded: []
+excluded:
+- run: 20261019-004931-ch07-anniversaire (under smoke-v2/)
+  arm: smoke v2
+  seed: 111111
+  reason: killed by the host under memory pressure (swap 23.5/24.6 GB), left in status
+    generating; not a result
