@@ -27,7 +27,7 @@ from langgraph.graph import StateGraph, START, END
 from factory.infra import progress
 from factory.eval.lint import (ENTRY_HEADER, MACHINERY,
                         MARKS, META_TERMS, material_forbidden)
-from factory.infra.ollama import chat, unload
+from factory.infra.ollama import chat, chat_continue, unload
 from factory.retrieval.context import REVIEW_STYLE, assemble_system_prompt
 from factory.text import delint, ends_mid_sentence, sentence_ends, trim_to_sentence
 from factory.pipeline.qa import repair, derive_facts, check_facts, check_plan
@@ -299,8 +299,8 @@ def _reattach(start: str, continuation: str) -> str:
 
 
 def _generate_whole(system: str, user: str, *, num_predict: int,
-                    temperature: float, label: str,
-                    keep_going: bool = True) -> tuple[str, list[dict], list[str]]:
+                    temperature: float, label: str, keep_going: bool = True,
+                    start: str = "") -> tuple[str, list[dict], list[str]]:
     """Generate a WHOLE text: relaunch if `num_predict` cut the generation.
 
     Ollama signals the amputation only through `done_reason: "length"` — the
@@ -313,8 +313,14 @@ def _generate_whole(system: str, user: str, *, num_predict: int,
     overflows. The net is never the first resort: it returns a scene that
     stops early, so without the final state the plan asked of it.
     """
-    text, m = chat(system, user, num_predict=num_predict, temperature=temperature,
-                   on_token=progress.token_sink())
+    if start:
+        # The answer is already begun: the model continues `start`, and only
+        # the new text comes back (plan-state-beats, served prompt v2).
+        text, m = chat_continue(system, user, start, num_predict=num_predict,
+                                temperature=temperature, on_token=progress.token_sink())
+    else:
+        text, m = chat(system, user, num_predict=num_predict, temperature=temperature,
+                       on_token=progress.token_sink())
     metrics = [m]
     warns: list[str] = []
 
@@ -742,7 +748,11 @@ def write_node(state: ChapterState) -> dict:
                 instruction, block,
                 _plan_state(sheet, name) if context == "plan"
                 else _movement_map(sheet, name) if context == "map" else "",
-                ends=b.ends if context == "plan" else "")
+                ends=b.ends if context == "plan" else "",
+                written_first=context == "plan")
+            # Plan (v2): the answer opens on the last paragraph already
+            # written; the model continues it instead of starting over.
+            start = already.split("\n\n")[-1].strip() if context == "plan" else ""
             served_prompts.append((name, beat_user))
             # BEST-OF-N per beat. nemo's failures are CORRELATED (it resolves /
             # restarts in every draw, differently): N variants are drawn and
@@ -757,7 +767,8 @@ def write_node(state: ChapterState) -> dict:
                                i=idx + 1, n=len(state["plan"]))
                 seg, m, w = _generate_whole(
                     system, beat_user, num_predict=num_predict, temperature=0.7,
-                    label=f"entrée {idx + 1}/{name}#{k + 1}", keep_going=False)
+                    label=f"entrée {idx + 1}/{name}#{k + 1}", keep_going=False,
+                    start=start)
                 seg, wn = _clean_segment(seg, f"entrée {idx + 1}/{name}#{k + 1}")
                 seg, wb = _bound_sentences(seg, max_sentences, idx, "")
                 sc, defects = _score_beat(
@@ -1312,7 +1323,7 @@ def _plan_state(sheet: EntrySpec, current: str) -> str:
 
 
 def _prompt_beat(instruction: str, block: str, movement_map: str = "",
-                 ends: str = "") -> str:
+                 ends: str = "", written_first: bool = False) -> str:
     """Assemble the prompt of ONE beat — structural code cap of entry 2 (v5).
 
     Serves ONLY this beat and the common veto, NEVER the whole movement.
@@ -1331,8 +1342,11 @@ def _prompt_beat(instruction: str, block: str, movement_map: str = "",
             else instruction.strip())
     if ends:
         task += f"\nIl finit quand : {ends.strip()}"
-    prompt = "\n\n".join(b for b in (movement_map.strip(), task, block.strip(),
-                                     _BEAT_SUFFIX) if b)
+    # `written_first` (plan, v2): the text already written comes BEFORE the
+    # task, so the task is the last thing read before the answer.
+    parts = ((movement_map.strip(), block.strip(), task, _BEAT_SUFFIX) if written_first
+             else (movement_map.strip(), task, block.strip(), _BEAT_SUFFIX))
+    prompt = "\n\n".join(b for b in parts if b)
     leaks = sorted({m.group(0).lower() for m in META_TERMS.finditer(prompt)}
                     | {m.group(0).lower() for m in MACHINERY.finditer(prompt)}
                     | set(re.findall(r"\b[\w-]+\.md\b", prompt)))

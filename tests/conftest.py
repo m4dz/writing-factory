@@ -74,7 +74,7 @@ def fake_model(monkeypatch):
     """Replace the one model client.
 
     Every module calls ``factory.infra.ollama.chat`` / ``chat_turns`` /
-    ``unload``, which delegate to ``ollama.client`` at call time; patching the
+    ``chat_continue`` / ``unload``, which delegate to ``ollama.client`` at call time; patching the
     client's three methods covers every caller.
     """
     from factory.infra import ollama as llm
@@ -82,6 +82,7 @@ def fake_model(monkeypatch):
     model = FakeModel()
     monkeypatch.setattr(llm.client, "chat", model.chat, raising=True)
     monkeypatch.setattr(llm.client, "chat_turns", model.chat_turns, raising=True)
+    monkeypatch.setattr(llm.client, "chat_continue", model.chat_continue, raising=True)
     monkeypatch.setattr(llm.client, "unload", lambda *a, **k: True, raising=True)
     return model
 

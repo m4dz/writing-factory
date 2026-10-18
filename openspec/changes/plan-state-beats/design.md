@@ -38,6 +38,34 @@ The `✓ / → / ○` marks are code glyphs, not workshop words; the entry guard
 named: nemo may echo the list (« Je passe maintenant à… »); the lint's
 meta-commentary checks and the reading catch it.
 
+## Served prompt v2 — question + start of the answer (after the smoke run)
+
+Smoke run v1 (seed 111111, `f3e5ac6`): discovery 3/3 and doubt 3/3 variants
+recopied the entry (2–4 sentences); the plan list was not echoed. The more
+context before the prefix, the more nemo opens by copying it; the « ne
+réécris pas » instruction does not hold. Owner's choice (2026-10-19): a
+hybrid of « continue the answer » and « instruction last ».
+
+- **Question (user turn)**, in this order: voice (folded in, see below) →
+  map with states → the text already written, as a reference block → CE
+  TEMPS-CI + `Il finit quand :` → beat suffix. The task is the last thing
+  read before the answer.
+- **Start of the answer (assistant turn)**: the last paragraph already
+  written (for beat A: the served quotation). nemo continues it; Ollama
+  returns only the new tokens. Done steps live in the history, not in an
+  instruction.
+- **System prompt folded into the question.** nemo's template drops
+  `$.System` unless the last message is the user's; it renders it at the
+  head of the last `[INST]` otherwise. Folding `FRENCH_GUARD + system` at
+  the head of the user turn reproduces R's rendering of that turn.
+- Probe (6 calls, no voice): 0/6 recopies; 2/3 continuations of a text
+  ending on a full stop answered as an assistant (« Je vais corriger
+  cela. Voici… »). Watched in the smoke run; a check is added only if it
+  shows there.
+- `prompts.md` records the question and, apart, the start of the answer.
+- `map` is unchanged (arm B evidence); `plan` now means v2. The smoke run
+  v1 is replayable at its commit only.
+
 ## End conditions — drafts for the owner (brief §7)
 
 The last sentence of each instruction already reads as one; the owner

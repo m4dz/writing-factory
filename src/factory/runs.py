@@ -249,6 +249,9 @@ def render_prompts(calls: list[dict]) -> str:
                    f"wall_s={c.get('wall_s')}\n")
         out.append("### system\n\n```\n" + str(c.get("system", "")).rstrip() + "\n```\n")
         out.append("### user\n\n```\n" + str(c.get("user", "")).rstrip() + "\n```\n")
+        if c.get("start"):
+            out.append("### début de la réponse (le modèle le continue)\n\n```\n"
+                       + str(c["start"]).rstrip() + "\n```\n")
     return "\n".join(out).rstrip() + "\n"
 
 

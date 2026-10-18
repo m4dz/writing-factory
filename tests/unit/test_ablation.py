@@ -189,6 +189,46 @@ def test_beats_see_where_they_are_in_the_plan(fake_model, fake_chroma, tmp_path)
         assert all(labels[k] in state for k in range(len(labels)) if k != here)
         assert f"Il finit quand : {beat.ends}" in call and beat.ends
         assert "COMPORTEMENT DE LA PROSE" not in call                     # no trajectory
+        user, start = call.split("### début de la réponse")              # v2: answer begun
+        assert user.index("DÉJÀ COMMENCÉE") < user.index("CE TEMPS-CI :")  # task read last
+        already = user.split("---\n")[1].split("\n---")[0]
+        assert start.split("```\n")[1].strip() == already.split("\n\n")[-1].strip()
+
+
+def test_a_continued_answer_folds_the_system_into_the_question(monkeypatch):
+    """nemo's template drops the system prompt when the answer is begun: it
+    goes at the head of the question; the begun answer closes the messages."""
+    import json
+
+    from factory.infra.ollama import OllamaClient
+    from factory.text import FRENCH_GUARD
+
+    sent = {}
+
+    class Response:
+        def __init__(self, req):
+            sent.update(json.loads(req.data))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return json.dumps({"message": {"content": " la suite."}, "eval_count": 3,
+                               "done_reason": "stop"}).encode()
+
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=0: Response(req))
+    client = OllamaClient()
+    client.recording = []
+    text, _ = client.chat_continue("VOIX", "TÂCHE", "Le début.")
+    assert text == "la suite."
+    assert sent["messages"] == [
+        {"role": "user", "content": f"{FRENCH_GUARD}\n\nVOIX\n\nTÂCHE"},
+        {"role": "assistant", "content": "Le début."}]
+    (call,) = client.recording
+    assert (call["system"], call["user"], call["start"]) == ("VOIX", "TÂCHE", "Le début.")
 
 
 @pytest.mark.parametrize("value", ["peut-être", "MAP", "plans"])

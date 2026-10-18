@@ -115,6 +115,45 @@ class OllamaClient:
             num_ctx=num_ctx, timeout=timeout, on_token=on_token,
         )
 
+    def chat_continue(
+        self,
+        system: str,
+        user: str,
+        start: str,
+        *,
+        model: str | None = None,
+        temperature: float = 0.8,
+        num_predict: int = 1200,
+        num_ctx: int | None = None,
+        timeout: float = 900.0,
+        on_token=None,
+    ) -> tuple[str, dict]:
+        """One turn whose ANSWER is already begun: the model continues `start`
+        and only the new text comes back (plan-state-beats, served prompt v2).
+
+        The system prompt is folded at the head of the user turn: nemo's
+        template drops `$.System` when the last message is the assistant's,
+        and renders it at the head of the last `[INST]` otherwise — so the
+        user turn reads as it does in a plain call.
+        """
+        rec, self.recording = self.recording, None
+        try:
+            text, metrics = self.chat_turns(
+                "", [{"role": "user", "content": f"{FRENCH_GUARD}\n\n{system}\n\n{user}"},
+                     {"role": "assistant", "content": start}],
+                model=model, temperature=temperature, num_predict=num_predict,
+                num_ctx=num_ctx, timeout=timeout, on_token=on_token)
+        finally:
+            self.recording = rec
+        if self.recording is not None:
+            self.recording.append({
+                "model": model or self.settings.author_model, "system": system,
+                "user": user, "start": start, "turns": 2, "num_predict": num_predict,
+                "temperature": temperature, "gen_toks": metrics["gen_toks"],
+                "wall_s": metrics["wall_s"],
+            })
+        return text, metrics
+
     def chat_turns(
         self,
         system: str,
@@ -151,8 +190,10 @@ class OllamaClient:
         payload = json.dumps(
             {
                 "model": model,
+                # An empty system: already folded into the turns (`chat_continue`).
                 "messages": [
-                    {"role": "system", "content": f"{FRENCH_GUARD}\n\n{system}"},
+                    *([{"role": "system", "content": f"{FRENCH_GUARD}\n\n{system}"}]
+                      if system else []),
                     *turns,
                 ],
                 "stream": on_token is not None,
@@ -235,6 +276,10 @@ def chat(*args, **kwargs) -> tuple[str, dict]:
 
 def chat_turns(*args, **kwargs) -> tuple[str, dict]:
     return client.chat_turns(*args, **kwargs)
+
+
+def chat_continue(*args, **kwargs) -> tuple[str, dict]:
+    return client.chat_continue(*args, **kwargs)
 
 
 def unload(*args, **kwargs) -> bool:

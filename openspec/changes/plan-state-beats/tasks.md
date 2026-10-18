@@ -29,7 +29,11 @@
 
 ## 3. Run
 
-- [ ] Smoke run (seed 111111, not counted).
+- [x] Smoke run v1 (seed 111111, not counted): FAILED, recopy 6/6 (`8c8ac01`).
+- [ ] v2 (owner's go 2026-10-19): continuation turn in the client, prompt
+      order (written text before the task), system folded, `prompts.md`
+      records the start of the answer; tests.
+- [ ] Smoke run v2 (seed 111111, not counted).
 - [ ] P × 3 seeds; blind set R × 3 + P × 3.
 
 ## 4. Conclude
