@@ -730,7 +730,11 @@ def write_node(state: ChapterState) -> dict:
         for b in beats:
             name, num_predict, max_sentences, instruction = (
                 b.name, b.num_predict, b.sentences_max, b.instruction)
-            is_first = (name == first_name)
+            # The waking is served only once per DAY: by the first beat of the
+            # first entry. Chapter 7's entry 2 is written the same night,
+            # after entry 1 — « Je me suis réveillée ce matin » there is a
+            # restart, and the exemption let it win (scaffold-ablation, R, A1).
+            is_first = (name == first_name) and idx == 0
             already = f"{prefix}\n\n{text}".strip() if prefix else text.strip()
             block = (
                 "L'entrée est DÉJÀ COMMENCÉE par ce texte, que tu ne réécris "
@@ -1131,14 +1135,35 @@ _BEAT_RECURSION = re.compile(
     r"je\s+relis\s+(?:la|cette|ma|une|l')\s*(?:phrase|entrée)\s+"
     r"(?:d'hier|que\s+j'ai\s+[ée]crite?)"
     r"|je\s+rel[èe]ve\s+un\s+d[ée]tail\s+qui\s+me\s+trouble", re.IGNORECASE)
+# An open hypothesis is not a dismissal:
+# « peut-être l'ai-je fait sans y penser »
+# is the automatism step of the trajectory the brief serves, and the
+# scaffold-ablation draws counted it as a congé (A4, twice).
+_HYPOTHESIS = re.compile(r"peut-être|\?\s*$", re.IGNORECASE)
 _BEAT_WAKING = re.compile(
     r"je\s+me\s+suis\s+(?:réveillée|levée)|à\s+mon\s+réveil", re.IGNORECASE)
+# Presence is also PERCEIVED, and this named no noise and passed
+# (scaffold-ablation, A2):
+# « je me souviens maintenant avoir entendu la porte d'entrée se fermer »
+# The negations stay open: « je n'ai rien entendu » does not match.
 _BEAT_PRESENCE = re.compile(
     r"\b(?:un\s+bruit|une\s+sonnerie|des\s+pas|une\s+voix|quelqu'un"
-    r"|un\s+mouvement\s+qui\s+n'|surprendre)\b", re.IGNORECASE)
+    r"|un\s+mouvement\s+qui\s+n'|surprendre"
+    r"|j'(?:ai\s+)?(?:cru\s+)?entend(?:s|ue?s?|re)|avoir\s+entendu)\b", re.IGNORECASE)
+# DOCTRINE 8 in the selection: a character who states her intentions.
+# « Je décide de vérifier », « je décide de relever cette preuve » — seven to
+# nine times per chapter in the scaffold-ablation runs, every arm; no check of
+# the selection counted it.
+_BEAT_DECIDES = re.compile(r"\bje\s+décide\s+d(?:e\b|')", re.IGNORECASE)
 _BEAT_DOUBT = re.compile(
     r"je\s+ne\s+me\s+(?:souviens|rappelle)\s+pas|aucun\s+souvenir"
     r"|sans\s+(?:m'en\s+souvenir|le\s+savoir)", re.IGNORECASE)
+
+
+def _dismissals(variant: str) -> list[str]:
+    """The sentences that dismiss the doubt, open hypotheses left out."""
+    return [s for s in re.split(r"(?<=[.!?…»])\s+", variant)
+            if _BEAT_DISMISS.search(s) and not _HYPOTHESIS.search(s.strip())]
 
 
 def _score_beat(variant: str, is_first: bool,
@@ -1155,7 +1180,7 @@ def _score_beat(variant: str, is_first: bool,
     if _BEAT_RESOLVES.search(variant):
         score -= 10
         defects.append("résout (souvenir retrouvé / verdict rendu)")
-    if _BEAT_DISMISS.search(variant):
+    if _dismissals(variant):
         score -= 4
         defects.append("congédie (je dois me tromper / je me suis endormie)")
     if not is_first and _BEAT_WAKING.search(variant):
@@ -1167,6 +1192,9 @@ def _score_beat(variant: str, is_first: bool,
     if _BEAT_RECURSION.search(variant):
         score -= 6
         defects.append("récursion (re-lit sa propre ligne / gabarit répété)")
+    if _BEAT_DECIDES.search(variant):
+        score -= 4
+        defects.append("décide (intention énoncée, doctrine 8)")
     # FORBIDDEN DECOR: the detector already exists (`material_forbidden`); it
     # is WIRED into the selection. A beat that names the television, the
     # dishwasher, the handbag… must never win (v14: it won).

@@ -36,12 +36,14 @@ MARKER = re.compile(r"<!--.*?-->", re.DOTALL)
 SENTENCE = re.compile(r"[^.!?…]+[.!?…]+")
 PRUNED = re.compile(r"pruning : (\d+) phrase")
 
+# The selection's own checks, each counting its matches in a text.
 CHECKS = {
-    "resolves": graph._BEAT_RESOLVES,
-    "dismisses": graph._BEAT_DISMISS,
-    "recursion": graph._BEAT_RECURSION,
-    "presence": graph._BEAT_PRESENCE,
-    "restarts": graph._BEAT_WAKING,
+    "resolves": lambda t: len(graph._BEAT_RESOLVES.findall(t)),
+    "dismisses": lambda t: len(graph._dismissals(t)),
+    "recursion": lambda t: len(graph._BEAT_RECURSION.findall(t)),
+    "presence": lambda t: len(graph._BEAT_PRESENCE.findall(t)),
+    "restarts": lambda t: len(graph._BEAT_WAKING.findall(t)),
+    "decides": lambda t: len(graph._BEAT_DECIDES.findall(t)),
 }
 
 
@@ -68,7 +70,7 @@ def measure(run: run_registry.Run) -> dict:
     entry = last_entry(text) if text else ""
     row = {"run": run.id, "status": run.status, "words": len(entry.split())}
     for name, check in CHECKS.items():
-        row[name] = len(check.findall(entry))
+        row[name] = check(entry)
     row["decor"] = len(graph.material_forbidden(entry, run.chapter))
     row["litany"] = litany(entry)
     variants = manifest.get("variants") or {}
@@ -83,7 +85,7 @@ def measure(run: run_registry.Run) -> dict:
 
 
 COLUMNS = ("run", "words", "resolves", "dismisses", "presence", "recursion", "restarts",
-           "decor", "litany", "variants", "pruned", "wall_s")
+           "decides", "decor", "litany", "variants", "pruned", "wall_s")
 
 
 def table(arms: dict[str, list[dict]]) -> str:
@@ -98,7 +100,7 @@ def table(arms: dict[str, list[dict]]) -> str:
     for arm, rows in arms.items():
         ok = [r for r in rows if r["status"] == "ready"]
         defects = sum(r["resolves"] + r["dismisses"] + r["presence"] + r["recursion"]
-                      + r["restarts"] + r["decor"] for r in ok)
+                      + r["restarts"] + r["decides"] + r["decor"] for r in ok)
         words = round(sum(r["words"] for r in ok) / len(ok)) if ok else 0
         lit = round(sum(r["litany"] for r in ok) / len(ok), 2) if ok else 0
         out.append(f"| {arm} | {len(ok)}/{len(rows)} | {defects} | {words} | {lit} |")
