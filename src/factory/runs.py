@@ -27,9 +27,16 @@ RUN_ID = re.compile(r"^\d{8}-\d{6}-ch\d{2}-[a-z0-9-]{1,40}$")
 # Configuration keys a payload may override for one run: knobs of the machine,
 # never spec fields (ADR-0005). Applied for the run's duration only.
 OVERRIDABLE = ("author_model", "qa_model", "gesture_model", "num_ctx", "gesture_temperature",
-               "beats_n", "pruning_enabled", "accumulation_enabled", "beats_see_movement",
+               "beats_n", "pruning_enabled", "accumulation_enabled", "beat_context",
                "audio_seconds", "switch_after_sentences",
                "stage_budget_min")
+
+# Overrides that take one of a closed set of values.
+CHOICES = {"beat_context": ("blind", "map", "plan")}
+
+# Former override names, still accepted so earlier runs replay: name → (key, value).
+ALIASES = {("beats_see_movement", True): ("beat_context", "map"),
+           ("beats_see_movement", False): ("beat_context", "blind")}
 
 # Run options a command line may pass to `spec.state()` for one run: the
 # keyword overrides the spec already accepts, never spec content.
@@ -74,6 +81,8 @@ def runs_root(root: Path | None = None) -> Path:
 def validate_overrides(overrides: dict | None) -> dict:
     out = {}
     for key, value in (overrides or {}).items():
+        if key == "beats_see_movement" and value in (True, False) and not isinstance(value, str):
+            key, value = ALIASES[(key, bool(value))]
         if key not in OVERRIDABLE:
             raise RunError(f"override refusé : « {key} » (autorisés : {', '.join(OVERRIDABLE)})")
         current = getattr(settings, key)
@@ -84,6 +93,9 @@ def validate_overrides(overrides: dict | None) -> dict:
                                "(true/false attendu)")
             out[key] = bool(value)
             continue
+        if key in CHOICES and value not in CHOICES[key]:
+            raise RunError(f"override « {key} » : valeur invalide {value!r} "
+                           f"(attendu : {' | '.join(CHOICES[key])})")
         try:
             out[key] = type(current)(value)
         except (TypeError, ValueError):
@@ -128,7 +140,7 @@ def git_commit() -> str:
 def resolved_config(overrides: dict | None = None) -> dict:
     keys = ("author_model", "qa_model", "embed_model", "num_ctx", "gesture_model",
             "gesture_temperature", "beats_n", "pruning_enabled", "accumulation_enabled",
-            "beats_see_movement", "switch_after_sentences",
+            "beat_context", "switch_after_sentences",
             "audio_seconds", "audio_words_per_minute", "tts_model", "stage_budget_min")
     conf = {k: getattr(settings, k) for k in keys}
     conf.update(overrides or {})

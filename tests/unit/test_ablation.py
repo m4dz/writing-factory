@@ -150,8 +150,8 @@ def test_beats_can_see_the_whole_movement(fake_model, fake_chroma, tmp_path):
     the beat prompts are the production ones (snapshot ch7)."""
     assert generate(tmp_path, "--chapter", "7", "--override", "beats_see_movement=true") == 0
     (run,) = runs.list_runs(tmp_path / "runs")
-    assert run.manifest["overrides"] == {"beats_see_movement": True}
-    assert settings.beats_see_movement is False                           # restored
+    assert run.manifest["overrides"] == {"beat_context": "map"}           # former name, aliased
+    assert settings.beat_context == "blind"                               # restored
     spec = load_chapter(7).entries[1]
     calls = [p for p in run.prompts_path.read_text(encoding="utf-8").split("## appel")
              if "L'ENTRÉE ENTIÈRE" in p]
@@ -161,3 +161,37 @@ def test_beats_can_see_the_whole_movement(fake_model, fake_chroma, tmp_path):
         marked = next(line for line in call.splitlines() if "← CE TEMPS-CI" in line)
         assert beat.instruction.split(".")[0] in marked
         assert "COMPORTEMENT DE LA PROSE" not in call                     # no trajectory
+
+
+def beat_calls(run, marker):
+    return [p for p in run.prompts_path.read_text(encoding="utf-8").split("## appel")
+            if marker in p]
+
+
+def test_beats_see_where_they_are_in_the_plan(fake_model, fake_chroma, tmp_path):
+    """plan-state-beats: the code marks each time done / current / next and
+    serves the current one's end condition; done times by their label only."""
+    assert generate(tmp_path, "--chapter", "7", "--override", "beat_context=plan") == 0
+    (run,) = runs.list_runs(tmp_path / "runs")
+    assert run.manifest["overrides"] == {"beat_context": "plan"}
+    assert settings.beat_context == "blind"                               # restored
+    spec = load_chapter(7).entries[1]
+    calls = beat_calls(run, "Où tu en es :")
+    assert len(calls) == 9                                                # 3 beats × best-of-3
+    labels = [b.instruction.split(".")[0] for b in spec.beats]
+    for n, call in enumerate(calls):
+        here = n // 3
+        beat = spec.beats[here]
+        state = call.split("Où tu en es :")[1].split("\n\n")[0]
+        marks = [line.strip()[0] for line in state.strip().splitlines()]
+        assert marks == ["✓"] * here + ["→"] + ["○"] * (len(spec.beats) - here - 1)
+        assert labels[here] not in state                                  # served below, once
+        assert all(labels[k] in state for k in range(len(labels)) if k != here)
+        assert f"Il finit quand : {beat.ends}" in call and beat.ends
+        assert "COMPORTEMENT DE LA PROSE" not in call                     # no trajectory
+
+
+@pytest.mark.parametrize("value", ["peut-être", "MAP", "plans"])
+def test_beat_context_takes_three_values(tmp_path, value):
+    with pytest.raises(SystemExit, match="blind | map | plan"):
+        generate(tmp_path, "--chapter", "7", "--override", f"beat_context={value}")
