@@ -1,0 +1,21 @@
+Samedi 14. Beau temps.
+
+"Je vais ranger les photos de nous deux dans le tiroir du bas, celles que je sors chaque année pour les regarder en souriant, en me rappelant nos rires et nos sourires complices." J'ai décidé cet après-midi de ne pas célébrer notre anniversaire.
+
+<!-- BASCULE -->
+
+Samedi 14. Beau temps.
+
+« Neuf ans aujourd'hui que je t'ai dit oui. J'ai mis deux couverts, exprès cette fois, et j'ai redit oui tout haut dans la cuisine. Je t'aime toujours. »
+
+Je me suis réveillée tôt ce matin, avec une étrange sensation de présence dans la maison. J'ai parcouru chaque pièce, sans trouver personne. Tout était à sa place, à l'exception d'un livre sur la table du salon. Je ne me souviens pas l'avoir laissé là hier soir.
+
+Je me suis levée ce matin avec une sensation de froid dans les mains. J'ai décidé de ranger le salon, de remettre chaque chose à sa place. Le livre était toujours là, sur la table. Je l'ai ouvert à la page où il s'était arrêté, mais je ne me souvenais pas l'avoir lu hier soir. J'ai commencé à le parcourir, en relevant chaque coquille, chaque bourdon.
+
+J'allais poser le verdict quand la main s'est arrêtée. Neuf ans, et j'aurais dû demander, quand il était encore temps, ce qui l'a… La marge reste blanche. Le crayon ne biffe pas.
+
+Je suis rentrée à la maison à 20h30, j'ai accroché mon manteau dans l'entrée, je suis allée dans la cuisine, j'ai sorti le plat des anniversaires du placard, j'ai mis la table avec les deux couverts, j'ai ouvert le cahier pour noter la liste des courses, j'ai préparé le dîner, j'ai mangé seule en écoutant la playlist qui tournait encore.
+
+Constat : anniversaire.
+
+<!-- FIN AUDIO -->

@@ -1,0 +1,94 @@
+id: 20261018-030716-ch07-anniversaire
+kind: run
+chapter: 7
+slug: anniversaire
+seed: 528559
+created: '2026-10-18T01:07:16.423409+00:00'
+commit: 8218bb6
+status: ready
+overrides: {}
+config:
+  author_model: mistral-nemo:12b-instruct-2407-q8_0
+  qa_model: qwen2.5:7b-instruct
+  embed_model: nomic-embed-text
+  num_ctx: 8192
+  gesture_model: ''
+  gesture_temperature: 0.3
+  beats_n: 3
+  pruning_enabled: true
+  switch_after_sentences: 2
+  audio_seconds: 165.0
+  audio_words_per_minute: 177.0
+  tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+  stage_budget_min: 25.0
+options:
+  micro_nodes: false
+timings:
+  monotonic_s: 411.9
+  wall_s: 412.0
+  sleep_s: 0.1
+collections:
+- auteur
+finished: '2026-10-18T01:14:08+00:00'
+metrics:
+  calls: 22
+  gen_toks: 2873
+  ctx_need_max: 0.51
+  ctx_truncated: 0
+scenes: 2
+warnings:
+- 'entrée 1#1 : fin coupée à la dernière phrase complète, 46 caractères retirés —
+  « Je veux juste que tout redevienne comme avant, »'
+- 'entrée 1 : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #2 score
+  3 ; #3 score 3'
+- 'entrée 1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) — le code compose
+  les en-têtes'
+- 'entrée 1 : bornée à 2 phrase(s) — 5 retirée(s), à partir de « J''ai supprimé la
+  musique qu''elle aimait tant, celle qui résonnait dans notre app… »'
+- 'entrée 2/relève#3 : fin coupée à la dernière phrase complète, 97 caractères retirés
+  — « La porte-fenêtre est fermée, le salon est rangé, le troisième tiroir de la commo
+  »'
+- 'entrée 2/relève#3 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) —
+  le code compose les en-têtes'
+- 'entrée 2 : bornée à 4 phrase(s) — 5 retirée(s), à partir de « Je décide de prendre
+  des notes plus précises ce soir. Chaque objet sera nommé, c… »'
+- 'entrée 2/relève : best-of-3 — variant 3 retenu (score 3, propre) ; rejetés : #2
+  score 0 ; #1 score -10'
+- 'entrée 2/découverte#2 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s)
+  — le code compose les en-têtes'
+- 'entrée 2 : bornée à 5 phrase(s) — 5 retirée(s), à partir de « Je pointe une anomalie
+  : la radio allumée. Je me souviens l''avoir éteinte avant … »'
+- 'entrée 2/découverte : best-of-3 — variant 2 retenu (score 3, propre) ; rejetés
+  : #3 score 3 ; #1 score -7'
+- 'entrée 2/doute#1 : fin coupée à la dernière phrase complète, 27 caractères retirés
+  — « Elles étaient toutes entrou »'
+- 'entrée 2 : bornée à 4 phrase(s) — 7 retirée(s), à partir de « « Je ne me souviens
+  pas avoir mis la radio en marche hier soir. La musique joue … »'
+- 'entrée 2/doute : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #2
+  score 0 ; #3 score -3'
+- 'relecture entrée 1: garde-fou déclenché (24 mots contre 30, soit 80% — hors cible
+  25-60) — relecture REJETÉE, original conservé'
+plan_report: plan FOURNI par le brief — nœud court-circuité (structure imposée, un
+  beat par entrée)
+coherence: "FAIT 1 : tenu — La narratrice a 38 ans et a été correctrice pendant 15\
+  \ ans.\nFAIT 2 : tenu — Elle a perdu son épouse, Romane, il y a neuf mois sans explication.\n\
+  FAIT 3 : tenu — La narratrice ne cherche jamais à joindre Romane ni à comprendre\
+  \ pourquoi elle est partie.\nFAIT 4 : tenu — Elle utilise une méthode de dater,\
+  \ relever, relire pour se tenir debout.\nFAIT 5 : tenu — La narratrice ne supprime\
+  \ jamais une ligne de ce qu'elle relit, même si cela la blesse.\nFAIT 6 : tenu —\
+  \ Elle ne consulte jamais de thérapeute, préférant se reconstruire seule.\nFAIT\
+  \ 7 : tenu — Personne d'autre n'entre dans la maison.\nFAIT 8 : tenu — Aucun repas\
+  \ n'est partagé, aucune conversation n'a lieu.\nFAIT 9 : tenu — Elle ne sort pas\
+  \ de la maison.\n\n[signalements écartés faute de citation vérifiable :]\n    fait\
+  \ 3, scène 2 : « Je relis ce que j'ai écrit hier. Un détail m'échappe : les couverts\
+  \ sur la table. Je me souviens les avoir sortis du placard, mais pas les avoir posés.\
+  \ » [non confirmé au contre-appel]"
+audio: null
+preflight_warnings:
+- 'Swap : 1.18 GB libres sur 13.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts
+  sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total`
+  au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les
+  durées restent interprétables.'
+variants:
+  drawn: 9
+  with_defects: 3

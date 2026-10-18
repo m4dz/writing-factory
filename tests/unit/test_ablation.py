@@ -114,6 +114,9 @@ def test_ablation_table_and_blind_set(fake_model, fake_chroma, tmp_path, capsys)
         entry = (experiment / "blind" / f"{tag}.md").read_text(encoding="utf-8")
         assert "Samedi 14" not in entry and "<!--" not in entry and len(entry.split()) > 50
     assert "A1" not in (experiment / "blind" / "verdicts.md").read_text(encoding="utf-8")
+    assert ablation.main([str(experiment), "--runs-dir", str(tmp_path / "runs"),
+                          "--arms", "R"]) == 0
+    assert "| A1 |" not in capsys.readouterr().out
 
 
 def test_last_entry_and_litany():

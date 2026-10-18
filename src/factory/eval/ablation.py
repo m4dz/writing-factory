@@ -131,12 +131,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--runs-dir", default=None, help="Run root (default: settings.runs_dir)")
     p.add_argument("--blind", action="store_true", help="Write the blind reading set")
     p.add_argument("--seed", type=int, default=None, help="Shuffle seed for --blind")
+    p.add_argument("--arms", default=None,
+                   help="Comma-separated arms to keep (default: every arm of the manifest)")
     args = p.parse_args(argv)
     experiment = Path(args.experiment)
     data = yaml.safe_load((experiment / "manifest.yaml").read_text(encoding="utf-8")) or {}
     root = Path(args.runs_dir) if args.runs_dir else None
     arms: dict[str, list[dict]] = {}
+    keep = set(args.arms.split(",")) if args.arms else None
     for arm, ids in (data.get("arms") or {}).items():
+        if keep is not None and arm not in keep:
+            continue
         arms[arm] = []
         for run_id in ids or []:
             run = run_registry.find_run(run_id, root)

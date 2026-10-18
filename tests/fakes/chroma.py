@@ -73,8 +73,13 @@ class FakeChromaClient:
 
         client = cls()
         col = client.get_or_create_collection(collection)
+        generated = bible_dir / "generated"
         for path in sorted(bible_dir.rglob("*.md")):
-            if path.name.startswith("_") or indexer.excluded(path):
+            # `generated/` is derived by real runs on this machine (narrative
+            # state per chapter, gitignored): the canon only, or the suite
+            # would depend on which chapters were last generated here.
+            if path.name.startswith("_") or indexer.excluded(path) \
+                    or generated in path.parents:
                 continue
             ids, docs, metas = indexer.index_file(path, None)
             if ids:

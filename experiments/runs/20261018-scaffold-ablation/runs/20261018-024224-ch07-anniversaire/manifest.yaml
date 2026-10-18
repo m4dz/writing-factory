@@ -1,0 +1,34 @@
+id: 20261018-024224-ch07-anniversaire
+kind: run
+chapter: 7
+slug: anniversaire
+seed: 528559
+created: '2026-10-18T00:42:24.480214+00:00'
+commit: 8218bb6
+status: error
+overrides: {}
+config:
+  author_model: mistral-nemo:12b-instruct-2407-q8_0
+  qa_model: qwen2.5:7b-instruct
+  embed_model: nomic-embed-text
+  num_ctx: 8192
+  gesture_model: ''
+  gesture_temperature: 0.3
+  beats_n: 3
+  pruning_enabled: true
+  switch_after_sentences: 2
+  audio_seconds: 165.0
+  audio_words_per_minute: 177.0
+  tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+  stage_budget_min: 25.0
+timings:
+  monotonic_s: 5.4
+  wall_s: 5.4
+  sleep_s: 0.0
+collections: []
+finished: '2026-10-18T00:42:29+00:00'
+error: "préflight refusé : Préflight refusé :\n  - Entretien macOS en cours : corespotlightd\
+  \ 137 %. Le processus de génération tourne à nice 5 et perdra l'arbitrage : trous\
+  \ de plusieurs minutes entre deux appels au modèle, budget de scène explosé. ATTENDRE\
+  \ que ça retombe (`ps -Ao %cpu,comm -r | head`) — après un redémarrage, l'analyse\
+  \ média peut tourner longtemps."
