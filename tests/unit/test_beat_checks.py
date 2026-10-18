@@ -80,3 +80,12 @@ def test_waking_is_exempt_in_the_first_entry_only(fake_model, fake_chroma, tmp_p
     assert len(seen) == 9 and not any(seen)            # entry 2: 3 beats × best-of-3
     wake = "Je me suis réveillée ce matin avec une sensation bizarre."
     assert "redémarre (réveil déjà servi)" in defects(wake, is_first=False)
+
+
+def test_a_stated_intention_only_breaks_ties():
+    """Below every veto defect, below the open doubt's bonus (owner, after E03)."""
+    doubt = "Je ne me souviens pas avoir mis la table."
+    assert graph._score_beat(doubt + " Je décide de vérifier.", False, 7)[0] \
+        > graph._score_beat("Je regarde la table.", False, 7)[0]
+    assert graph._score_beat("Je décide de vérifier.", False, 7)[0] \
+        > graph._score_beat("J'ai dû le faire machinalement.", False, 7)[0]

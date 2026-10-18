@@ -1192,8 +1192,11 @@ def _score_beat(variant: str, is_first: bool,
     if _BEAT_RECURSION.search(variant):
         score -= 6
         defects.append("récursion (re-lit sa propre ligne / gabarit répété)")
+    # A tie-breaker, not a veto: below every veto defect and below the open
+    # doubt's bonus. The owner's blind reading held E03, the best draw of
+    # scaffold-ablation, with eight « je décide de ».
     if _BEAT_DECIDES.search(variant):
-        score -= 4
+        score -= 2
         defects.append("décide (intention énoncée, doctrine 8)")
     # FORBIDDEN DECOR: the detector already exists (`material_forbidden`); it
     # is WIRED into the selection. A beat that names the television, the

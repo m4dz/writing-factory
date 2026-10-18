@@ -23,4 +23,6 @@ first beat of the chapter's first entry.
 
 #### Scenario: A stated intention
 - **WHEN** a beat variant says "Je décide de vérifier une dernière fois la cuisine"
-- **THEN** it carries the defect "décide" and scores lower than the same variant without it
+- **THEN** it carries the defect "décide" and scores lower than the same variant without it,
+  but higher than a variant with any veto defect, and a variant holding the doubt with it
+  still outranks a flat one (tie-breaker, not a veto)
