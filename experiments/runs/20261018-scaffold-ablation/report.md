@@ -130,6 +130,19 @@ le compte : E03, le meilleur tirage de la série, porte 8 « je décide de ».
 La doctrine 8 reste un défaut à mesurer — c'est peut-être les
 « automatismes » que la note d'E03 relève —, pas un véto rétroactif.
 
+## A4 n'est pas une pièce, c'est un paquet
+
+`strategy: single` ne retire pas que le découpage. Pour l'entrée 2, A4 :
+sert le mouvement entier (`_movement_prompt`) au lieu de beats aveugles ;
+n'a ni best-of ni plafond de phrases ; **n'est pas élagué** (`assemble_node`
+ne nettoie que les entrées en beats) ; **sert le squelette de voix avec le
+verdict et le couperet** (amputés seulement dans les beats, correctif C5) ;
+ne sert pas le suffixe de véto des beats (« aucune voix, aucun bruit… »).
+Les deux « oui » ne disent pas laquelle de ces différences compte. Et le
+squelette de verdict servi n'a donné qu'une résolution sur trois, comme R :
+le constat C5 (12/12 tiennent sans lui) ne se retrouve pas dans le pipeline
+complet.
+
 ## Ce que la série dit, au-delà des pièces
 
 1. **L'échafaudage actuel de l'entrée 2 ne livre pas le mouvement.** R : 0
