@@ -737,7 +737,9 @@ def write_node(state: ChapterState) -> dict:
                 f"PAS :\n---\n{already}\n---\n"
                 "Écris uniquement CE QUI SUIT, en enchaînant directement. Ne "
                 "répète rien de ce qui précède.\n" if already else "")
-            beat_user = _prompt_beat(instruction, block)
+            beat_user = _prompt_beat(
+                instruction, block,
+                _movement_map(sheet, name) if settings.beats_see_movement else "")
             served_prompts.append((name, beat_user))
             # BEST-OF-N per beat. nemo's failures are CORRELATED (it resolves /
             # restarts in every draw, differently): N variants are drawn and
@@ -1209,7 +1211,38 @@ _BEAT_SUFFIX = (
 )
 
 
-def _prompt_beat(instruction: str, block: str) -> str:
+def _movement_map(sheet: EntrySpec, current: str) -> str:
+    """The whole entry, served to ONE beat as a map: where it starts, where it
+    goes, what is in the house, and which time is this call's.
+
+    scaffold-ablation: the owner's reading noted inventions on six of the
+    twelve beat entries and on none of the single-call ones, which saw the
+    whole movement. Blind beats fill what they cannot see. The trajectory
+    (the arc of the prose) is NOT served: re-serving it to each segment made
+    each one attempt the whole arc (« trois arcs »). The map gives the arc's
+    end points and the matter; the beat's own instruction stays the task.
+    """
+    lines = ["L'ENTRÉE ENTIÈRE, pour que tu saches d'où elle part et où elle "
+             "va. Tu n'en écris qu'un temps.",
+             f"Ce que l'entrée accomplit : {sheet.movement}"]
+    if sheet.material:
+        lines.append("Ce qui est là, à ta disposition, jamais une liste à "
+                     "épuiser :\n" + "\n".join(f"  - {_without_machinery(m)}"
+                                                  for m in sheet.material))
+    times = []
+    for n, b in enumerate(sheet.beats, 1):
+        first = re.split(r"(?<=[.!?])\s+", b.instruction.strip(), maxsplit=1)[0]
+        mark = "   ← CE TEMPS-CI" if b.name == current else ""
+        times.append(f"  {n}. {first}{mark}")
+    lines.append(f"Ses {len(times)} temps :\n" + "\n".join(times))
+    if sheet.vetos:
+        lines.append(f"Ce que le texte ne fait pas : {sheet.vetos}")
+    lines.append("Tu écris CE TEMPS-CI seulement, et tu t'arrêtes là où il "
+                 "finit : le temps suivant sera écrit ensuite.")
+    return "\n\n".join(lines)
+
+
+def _prompt_beat(instruction: str, block: str, movement_map: str = "") -> str:
     """Assemble the prompt of ONE beat — structural code cap of entry 2 (v5).
 
     Serves ONLY this beat and the common veto, NEVER the whole movement.
@@ -1224,7 +1257,9 @@ def _prompt_beat(instruction: str, block: str) -> str:
     Same entry guard as `_movement_prompt`: the served assembly must carry no
     workshop or machinery term.
     """
-    prompt = "\n\n".join(b for b in (instruction.strip(), block.strip(),
+    task = (f"CE TEMPS-CI :\n{instruction.strip()}" if movement_map
+            else instruction.strip())
+    prompt = "\n\n".join(b for b in (movement_map.strip(), task, block.strip(),
                                      _BEAT_SUFFIX) if b)
     leaks = sorted({m.group(0).lower() for m in META_TERMS.finditer(prompt)}
                     | {m.group(0).lower() for m in MACHINERY.finditer(prompt)}

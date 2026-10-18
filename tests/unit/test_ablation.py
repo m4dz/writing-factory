@@ -143,3 +143,21 @@ def test_accumulation_alone_can_be_switched_off(fake_model, fake_chroma, tmp_pat
     assert calls(on) > 0 and calls(off) == 0
     for run in (on, off):
         assert "Constat : anniversaire." in run.chapter_path.read_text(encoding="utf-8")
+
+
+def test_beats_can_see_the_whole_movement(fake_model, fake_chroma, tmp_path):
+    """Each beat gets the entry as a map with its own time marked once; off,
+    the beat prompts are the production ones (snapshot ch7)."""
+    assert generate(tmp_path, "--chapter", "7", "--override", "beats_see_movement=true") == 0
+    (run,) = runs.list_runs(tmp_path / "runs")
+    assert run.manifest["overrides"] == {"beats_see_movement": True}
+    assert settings.beats_see_movement is False                           # restored
+    spec = load_chapter(7).entries[1]
+    calls = [p for p in run.prompts_path.read_text(encoding="utf-8").split("## appel")
+             if "L'ENTRÉE ENTIÈRE" in p]
+    assert len(calls) == 9                                                # 3 beats × best-of-3
+    for beat, call in zip([b for b in spec.beats for _ in range(3)], calls):
+        assert spec.movement in call and call.count("← CE TEMPS-CI") == 1
+        marked = next(line for line in call.splitlines() if "← CE TEMPS-CI" in line)
+        assert beat.instruction.split(".")[0] in marked
+        assert "COMPORTEMENT DE LA PROSE" not in call                     # no trajectory

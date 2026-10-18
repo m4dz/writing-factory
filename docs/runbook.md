@@ -149,6 +149,7 @@ repository). Defaults are the values below.
 | `GESTURE_TEMPERATURE` | `gesture_temperature` | `0.3` |
 | `BEATS_N` | `beats_n` | `3` |
 | `PRUNING` | `pruning_enabled` | `1` (`0` disables the assemble pass) |
+| `BEATS_MOVEMENT` | `beats_see_movement` | `0` (`1` serves each beat the whole entry as a map: movement, matter, its times, vetos) |
 | `ACCUMULATION` | `accumulation_enabled` | `1` (`0` skips the accumulation sentence only; drift, fall and pruning stay) |
 | `CHROMA_HOST` / `CHROMA_PORT` | `chroma_host` / `chroma_port` | `localhost` / `8000` |
 | `CHROMA_COLLECTION` | `author_collection` | `auteur` |

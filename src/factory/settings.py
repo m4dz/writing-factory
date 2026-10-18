@@ -61,6 +61,7 @@ class Settings:
     beats_n: int = 3
     pruning_enabled: bool = True
     accumulation_enabled: bool = True
+    beats_see_movement: bool = False
 
     # --- vector store and bible -----------------------------------------------
     chroma_host: str = "localhost"
@@ -136,6 +137,7 @@ class Settings:
         "beats_n": ("BEATS_N", int),
         "pruning_enabled": ("PRUNING", _flag),
         "accumulation_enabled": ("ACCUMULATION", _flag),
+        "beats_see_movement": ("BEATS_MOVEMENT", _flag),
         "chroma_host": ("CHROMA_HOST", str),
         "chroma_port": ("CHROMA_PORT", int),
         "author_collection": ("CHROMA_COLLECTION", str),

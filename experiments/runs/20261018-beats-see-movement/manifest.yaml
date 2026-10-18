@@ -1,0 +1,18 @@
+id: 20261018-beats-see-movement
+kind: experiment
+change: openspec/changes/beats-see-movement
+chapter: 7
+question: Do code-capped beats stop inventing when each one sees the whole entry (movement, matter, times, vetos)? One variable against R.
+seeds:
+- 395959
+- 528559
+- 781771
+order: interleaved by seed (R B for each seed)
+flags: --no-voice; preflight strict; narrative state on; old selection (detector-fixes not merged)
+arms_definition:
+  R: production, fresh draws (the scaffold-ablation R entries were read with the key open)
+  B: --override beats_see_movement=true
+arms:
+  R: []
+  B: []
+notes: []
