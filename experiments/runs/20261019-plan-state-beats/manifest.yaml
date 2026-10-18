@@ -1,0 +1,38 @@
+id: 20261019-plan-state-beats
+kind: experiment
+change: openspec/changes/plan-state-beats
+chapter: 7
+question: Do code-capped beats stop inventing and recopying when each one sees the
+  entry with every time's state (done / current / next) and its end condition, with
+  a recopy gate in the selection? One variable against R.
+seeds:
+- 395959
+- 528559
+- 781771
+order: P only, by seed; R reused
+flags: --no-voice; preflight strict; narrative state on; old selection (detector-fixes
+  not merged)
+arms_definition:
+  R: production, drawn in 20261018-beats-see-movement, never read (symlinked under
+    runs/)
+  P: --override beat_context=plan
+smoke:
+  seed: 111111
+  run: 20261019-001202-ch07-anniversaire (under smoke/)
+  commit: f3e5ac6
+  result: FAILED, stop rule applied, P x 3 not run
+  observed:
+  - discovery 3/3 and doubt 3/3 variants recopy the entry (2-4 sentences); gate flags
+    all six, all-fail warning fires on both beats
+  - relève 2/3 variants recopy the quotation (excluded by the gate, as designed)
+  - plan list not echoed (no « je passe à », no marks in the text)
+  - 'final entry 2 short: _reattach strips the recopied sentences, so little new text
+    survives'
+arms:
+  R:
+  - 20261018-175333-ch07-anniversaire
+  - 20261018-181102-ch07-anniversaire
+  - 20261018-183817-ch07-anniversaire
+  P: []
+notes: []
+excluded: []
