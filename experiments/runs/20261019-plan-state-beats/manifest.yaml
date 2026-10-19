@@ -60,3 +60,18 @@ smoke_v2:
     as is -> 3/3 empty; begun answer + blank line -> 3/3 written, no recopy, instruction
     paraphrased (« Chaque objet une seule fois ; je ne fais pas le tour de la maison
     »)'
+smoke_v3:
+  seed: 111111
+  run: 20261019-*-ch07-anniversaire (under smoke-v3/)
+  commit: fe88b0b
+  result: PASSED the mechanical checks; P x 3 launched
+  observed:
+  - 9/9 variants written, none empty; no recopy of the entry; end condition not written
+    into the text; no assistant-style reply
+  - 'the beats advance (relève, then tidying, then the living room) but the doubt
+    beat writes another discovery (photos), not the body and the pencil: for the reading'
+  - « je décide de » opens 6 of 9 variants (doctrine 8, measured on detector-fixes
+    only)
+  - relève variant 1 transposes the instruction in the third person
+  - partial remembering not caught by the checks (« je me souviens avoir préparé la
+    playlist hier soir »)
