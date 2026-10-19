@@ -14,6 +14,7 @@ src/factory/chapter_spec/loader.py
 src/factory/chapter_spec/model.py
 src/factory/chapter_spec/narrative_state.py
 src/factory/eval/__init__.py
+src/factory/eval/ablation.py
 src/factory/eval/grid.py
 src/factory/eval/journal.py
 src/factory/eval/lint.py

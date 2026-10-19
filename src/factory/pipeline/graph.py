@@ -31,7 +31,7 @@ from factory.infra.ollama import chat, chat_continue, unload
 from factory.retrieval.context import REVIEW_STYLE, assemble_system_prompt
 from factory.text import delint, ends_mid_sentence, sentence_ends, trim_to_sentence
 from factory.pipeline.qa import repair, derive_facts, check_facts, check_plan
-from factory.chapter_spec.model import EMPTY_ENTRY, EntrySpec
+from factory.chapter_spec.model import EMPTY_ENTRY, BeatSpec, EntrySpec
 from factory.pipeline import scorers
 from factory.pipeline.nodes.narrative_state import narrative_state_node
 from factory.pipeline.nodes.preflight import preflight_node
@@ -735,7 +735,7 @@ def write_node(state: ChapterState) -> dict:
         first_name = beats[0].name
         for b in beats:
             name, num_predict, max_sentences, instruction = (
-                b.name, b.num_predict, b.sentences_max, b.instruction)
+                b.name, b.num_predict, b.sentences_max, _served_beat(b)[0])
             # The waking is served only once per DAY: by the first beat of the
             # first entry. Chapter 7's entry 2 is written the same night,
             # after entry 1 — « Je me suis réveillée ce matin » there is a
@@ -1337,7 +1337,7 @@ def _movement_map(sheet: EntrySpec, current: str) -> str:
                                                   for m in sheet.material))
     times = []
     for n, b in enumerate(sheet.beats, 1):
-        first = re.split(r"(?<=[.!?])\s+", b.instruction.strip(), maxsplit=1)[0]
+        first = re.split(r"(?<=[.!?])\s+", _served_beat(b)[0].strip(), maxsplit=1)[0]
         mark = "   ← CE TEMPS-CI" if b.name == current else ""
         times.append(f"  {n}. {first}{mark}")
     lines.append(f"Ses {len(times)} temps :\n" + "\n".join(times))
@@ -1346,6 +1346,24 @@ def _movement_map(sheet: EntrySpec, current: str) -> str:
     lines.append("Tu écris CE TEMPS-CI seulement, et tu t'arrêtes là où il "
                  "finit : le temps suivant sera écrit ensuite.")
     return "\n\n".join(lines)
+
+
+def _served_beat(b: BeatSpec) -> tuple[str, str]:
+    """(instruction, end condition) of a beat in the served form.
+
+    `beat_form=nominal` (beat-instruction-form) serves the person-less form
+    the owner wrote under « Nominal : ». A prose instruction in « elle » is
+    transposed and recited (« Je relis la ligne que je viens de recopier »,
+    xp-author-models blind set); a form with no person leaves no sentence to
+    transpose. Absent, the run refuses: the exception is declared in data,
+    never as a silent fallback to prose (doctrine 9).
+    """
+    if settings.beat_form != "nominal":
+        return b.instruction, b.ends
+    if not b.nominal:
+        raise ValueError(f"beat {b.name!r} : pas de forme « Nominal : » dans le brief, "
+                         "beat_form=nominal impossible")
+    return b.nominal, b.ends_nominal or b.ends
 
 
 def _plan_state(sheet: EntrySpec, current: str) -> str:
@@ -1367,14 +1385,15 @@ def _plan_state(sheet: EntrySpec, current: str) -> str:
     here = names.index(current)
     times = []
     for n, b in enumerate(sheet.beats):
-        label = re.split(r"(?<=[.!?])\s+", b.instruction.strip(), maxsplit=1)[0]
+        served, ends = _served_beat(b)
+        label = re.split(r"(?<=[.!?])\s+", served.strip(), maxsplit=1)[0]
         if n < here:
             times.append(f"  ✓ {n + 1}. {label} — déjà écrit, plus haut ; ne le "
                          "reprends pas")
         elif n == here:
             # The end condition lives in the state, not after the task: served
             # last, nemo wrote it into the text (smoke v2).
-            ends = f" — il finit quand : {b.ends.strip()}" if b.ends else ""
+            ends = f" — il finit quand : {ends.strip()}" if ends else ""
             times.append(f"  → {n + 1}. CE TEMPS-CI (ci-dessous){ends}")
         else:
             times.append(f"  ○ {n + 1}. {label} — écrit ensuite ; ne l'écris pas")

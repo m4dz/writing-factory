@@ -25,6 +25,8 @@ class BeatSpec:
     sentences_max: int
     instruction: str
     ends: str = ""        # « Finit quand : » of the brief; served only in the plan context
+    nominal: str = ""     # « Nominal : » — the person-less form (beat_form=nominal)
+    ends_nominal: str = ""  # « Finit quand (nominal) : »
 
 
 @dataclass(frozen=True)

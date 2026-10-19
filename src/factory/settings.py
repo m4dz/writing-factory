@@ -62,6 +62,7 @@ class Settings:
     pruning_enabled: bool = True
     accumulation_enabled: bool = True
     beat_context: str = "blind"             # blind | map | plan (plan-state-beats)
+    beat_form: str = "prose"                # prose | nominal (beat-instruction-form)
 
     # --- vector store and bible -----------------------------------------------
     chroma_host: str = "localhost"
@@ -138,6 +139,7 @@ class Settings:
         "pruning_enabled": ("PRUNING", _flag),
         "accumulation_enabled": ("ACCUMULATION", _flag),
         "beat_context": ("BEAT_CONTEXT", str),
+        "beat_form": ("BEAT_FORM", str),
         "chroma_host": ("CHROMA_HOST", str),
         "chroma_port": ("CHROMA_PORT", int),
         "author_collection": ("CHROMA_COLLECTION", str),
