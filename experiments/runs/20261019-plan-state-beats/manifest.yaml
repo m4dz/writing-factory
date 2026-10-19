@@ -1,6 +1,6 @@
 id: 20261019-plan-state-beats
 kind: experiment
-change: openspec/changes/plan-state-beats
+change: openspec/changes/archive/2026-10-19-plan-state-beats
 chapter: 7
 question: Do code-capped beats stop inventing and recopying when each one sees the
   entry with every time's state (done / current / next) and its end condition, with

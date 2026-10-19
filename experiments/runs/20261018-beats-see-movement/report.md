@@ -1,6 +1,6 @@
 # beats-see-movement — rapport (avant lecture)
 
-> Change : `openspec/changes/plan-state-beats` (premier jet `beats-see-movement`). 6 runs `ready`, 2026-10-18
+> Change : `openspec/changes/archive/2026-10-19-plan-state-beats` (premier jet `beats-see-movement`). 6 runs `ready`, 2026-10-18
 > 17:53–18:56, commit `4b7af6a`, 3 refus du préflight relancés. Jeu à
 > l'aveugle écrit (`blind/`, graine 61018) mais **non soumis** : voir plus bas.
 

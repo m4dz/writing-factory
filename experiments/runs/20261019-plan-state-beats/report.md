@@ -1,6 +1,6 @@
 # plan-state-beats — rapport
 
-> Change : `openspec/changes/plan-state-beats`. P tiré le 2026-10-19,
+> Change : `openspec/changes/archive/2026-10-19-plan-state-beats`. P tiré le 2026-10-19,
 > 10:30–10:55, commit `fe88b0b` (servi v3). R tiré le 2026-10-18
 > (`20261018-beats-see-movement`, jamais lu avant). Verdict : la lecture de
 > l'auteur, à l'aveugle (`blind/verdicts.md`, graine 503640), clé ouverte

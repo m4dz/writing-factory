@@ -46,5 +46,5 @@
       resolving the doubt deferred to a later change.
 - [x] « troisième personne » check in the plan selection, falsified on every
       beat variant since 2026-10-18; rescues no beat of P × 3 (report).
-- [ ] If P holds: `storyboard-density` serves actions through the same
-      plan state.
+- [x] Spec delta rewritten to the served v3; the storyboard follow-up moved
+      to `storyboard-density`.

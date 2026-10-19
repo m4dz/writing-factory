@@ -6,6 +6,10 @@
 - [ ] Owner corrects the draft (`storyboard-draft-ch7-entree-2.md` in this
       folder) and moves it to `chapters/07-anniversaire/storyboard-entree-2.md`.
 - [ ] Owner decides whether the attempted verdicts stay in the list (C5 risk).
+- [ ] Serve the actions through the plan state of `plan-state-beats`
+      (archived; P kept as reference by the owner, 2026-10-19): each action
+      done / current / next, its end condition, the begun answer. Revisit the
+      arms (R = P on the model kept by the model XP; seeds are not paired).
 
 ## 1. XP A — hand storyboard
 
