@@ -55,3 +55,7 @@ arms:
 notes:
 - ChromaDB runs from the main checkout (factory/), whose data/chromadb holds the index;
   the worktree's is empty
+blind:
+  shuffle_seed: 484351
+  entries: 5
+  key: blind-key.yaml (closed until verdicts)
