@@ -41,6 +41,6 @@
 
 ## 4. Conclude
 
-- [ ] Owner verdicts; rule applied in `report.md`; journal entry.
+- [x] Owner verdicts; rule applied in `report.md` (inconclusive); journal entry.
 - [ ] If P holds: `storyboard-density` serves actions through the same
       plan state.
