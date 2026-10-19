@@ -36,8 +36,8 @@
 - [x] Smoke run v2: FAILED, 6/9 empty variants (`59703ab`).
 - [x] v3: begun answer ends on a blank line; « vide ou trop court » in the
       plan selection; end condition in the state line.
-- [ ] Smoke run v3 (seed 111111, not counted).
-- [ ] P × 3 seeds; blind set R × 3 + P × 3.
+- [x] Smoke run v3: passed the mechanical checks (`d2c08b6`).
+- [x] P × 3 seeds; blind set R × 3 + P × 3 (shuffle seed 503640).
 
 ## 4. Conclude
 
