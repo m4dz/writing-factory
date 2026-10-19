@@ -46,7 +46,8 @@
 
 ## 4. Conclude
 
-- [ ] Owner verdicts in; `report.md` with the decision rule applied per piece.
-- [ ] ADR proposal for the scaffolding kept or removed; owner decides any
-      change to `chapters/07-anniversaire/spec.yaml`.
-- [ ] Journal entries for the failed draws.
+- [x] Owner verdicts in; `report.md` with the decision rule applied per piece.
+- [x] ADR proposal for the scaffolding kept or removed; owner decides any
+      change to `chapters/07-anniversaire/spec.yaml`. Accepted amended as
+      ADR-0026 (2026-10-19); no spec change; `detector-fixes` merged.
+- [x] Journal entries for the failed draws (`20261018T120000-scaffold-ablation`).

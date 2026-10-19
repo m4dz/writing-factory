@@ -2,7 +2,8 @@
 
 ## 0. Gates
 
-- [ ] `scaffold-ablation` concluded; reference configuration fixed.
+- [x] `scaffold-ablation` concluded; reference configuration fixed (ADR-0026:
+      P, `beat_context=plan`, best-of-3, pruning and accumulation kept).
 - [ ] Owner corrects the draft (`storyboard-draft-ch7-entree-2.md` in this
       folder) and moves it to `chapters/07-anniversaire/storyboard-entree-2.md`.
 - [ ] Owner decides whether the attempted verdicts stay in the list (C5 risk).

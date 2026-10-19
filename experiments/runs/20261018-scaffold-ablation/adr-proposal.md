@@ -1,6 +1,6 @@
 # ADR-0026 (proposal) — Chapter 7 entry 2 scaffolding after the ablation
 
-Date: 2026-10-18. Status: **proposed** — the owner decides; nothing in
+Date: 2026-10-18. Status: **superseded** by `docs/adr/0026-entry-2-scaffolding-after-the-ablation.md` (accepted, amended, 2026-10-19). Was: proposed; nothing in
 `chapters/07-anniversaire/spec.yaml` changes without their go.
 
 ## Context
