@@ -1,0 +1,51 @@
+id: 20261019-xp-author-models
+kind: experiment
+change: openspec/changes/xp-author-models
+chapter: 7
+question: Does a newer author model in nemo's memory envelope (Ministral 3 14B Q5_K_M,
+  Gemma 4 12B Q8_0) write chapter 7 better than nemo under the same served prompts,
+  within the time budget? One variable, the author tag.
+seeds:
+- 395959
+- 528559
+- 781771
+order: by seed, N then M then G; previous model unloaded before each run
+flags: --no-voice; preflight strict; --override beat_context=plan; QA qwen2.5:7b-instruct
+arms_definition:
+  N: mistral-nemo:12b-instruct-2407-q8_0 (reference, re-drawn after detector-fixes)
+  M: xp-ministral3-14b-q5 = hf.co/mistralai/Ministral-3-14B-Instruct-2512-GGUF:Q5_K_M
+    under Modelfile.ministral3-14b-q5 (library template, no default system prompt)
+  G: gemma4:12b-it-q8_0
+digests:
+  mistral-nemo:12b-instruct-2407-q8_0: e9b8ba00d2a1
+  xp-ministral3-14b-q5: 87501e5270dc
+smoke:
+  seed: 111111
+  result: 'M passed the stop rules on the second attempt (20261019-203848, ready,
+    355 s, 24 calls, no truncation). First attempt: error after 9.5 s, ChromaDB not
+    running (not counted).'
+  observed:
+  - French throughout; no role tokens or template markup in chapitre.md or variants.md
+  - 355 s wall vs 517-716 s for nemo P/R runs of 2026-10-18/19 (different commit,
+    indicative only)
+  - 'découverte: 3/3 variants third person, least bad kept; accumulation entry 2 abandoned
+    after 2 tries (third person)'
+  - relève quotation recopied in Markdown italics (one paragraph)
+  - 294 words, below the 365 reference; entry 1 bounded to 2 sentences
+  - 'invented presence: lipstick on the spatula, « Le rouge n''est pas le sien » (the
+    known over-fill wall)'
+smoke_runs:
+  M:
+  - 20261019-203624-ch07-anniversaire
+  - 20261019-203848-ch07-anniversaire
+dropped:
+  G: 'owner 2026-10-19, before any draw: thinking on by default (empty answers, English
+    reasoning eats num_predict; think=false needs a src change); a begun answer restarts
+    instead of continuing (chat continuation of plan-state beats); 14 GB loaded, 12%
+    on CPU at 4k ctx'
+arms:
+  N: []
+  M: []
+notes:
+- ChromaDB runs from the main checkout (factory/), whose data/chromadb holds the index;
+  the worktree's is empty

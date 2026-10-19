@@ -1,0 +1,102 @@
+id: 20261019-203848-ch07-anniversaire
+kind: run
+chapter: 7
+slug: anniversaire
+seed: 111111
+created: '2026-10-19T18:38:48.103001+00:00'
+commit: 487fcf0
+status: ready
+overrides:
+  beat_context: plan
+  author_model: xp-ministral3-14b-q5
+config:
+  author_model: xp-ministral3-14b-q5
+  qa_model: qwen2.5:7b-instruct
+  embed_model: nomic-embed-text
+  num_ctx: 8192
+  gesture_model: ''
+  gesture_temperature: 0.3
+  beats_n: 3
+  pruning_enabled: true
+  accumulation_enabled: true
+  beat_context: plan
+  switch_after_sentences: 2
+  audio_seconds: 165.0
+  audio_words_per_minute: 177.0
+  tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+  stage_budget_min: 25.0
+timings:
+  monotonic_s: 355.3
+  wall_s: 355.2
+  sleep_s: 0.0
+collections:
+- auteur
+finished: '2026-10-19T18:44:43+00:00'
+metrics:
+  calls: 24
+  gen_toks: 3543
+  ctx_need_max: 0.56
+  ctx_truncated: 0
+scenes: 2
+warnings:
+- 'entrée 1#1 : fin coupée à la dernière phrase complète, 47 caractères retirés —
+  « À la place, elle prépare un ragoût, avec ce qui »'
+- 'entrée 1 : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #2 score
+  3 ; #3 score 3'
+- 'entrée 1 : bornée à 2 phrase(s) — 3 retirée(s), à partir de « La musique de ce
+  jour-là, elle la supprime du dossier en deux clics, le silence … »'
+- 'entrée 2/relève#2 : fin coupée à la dernière phrase complète, 45 caractères retirés
+  — « Les mots tiennent, mais ce qu’ils disent — *j »'
+- 'entrée 2 : bornée à 4 phrase(s) — 2 retirée(s), à partir de « Le carnet est ouvert
+  sur la page de la veille. Elle relit la ligne une deuxième … »'
+- 'entrée 2/relève : best-of-3 — variant 2 retenu (score 0, propre) ; rejetés : #1
+  score -10 ; #3 score -10'
+- 'entrée 2/découverte#1 : fin coupée à la dernière phrase complète, 4 caractères
+  retirés — « Elle »'
+- 'entrée 2 : bornée à 5 phrase(s) — 6 retirée(s), à partir de « La musique joue,
+  une chanson qu’elle n’a pas mise, quelque chose qui ressemble à… »'
+- 'entrée 2/découverte : best-of-3 — variant 1 retenu (score -10, troisième personne
+  (la consigne transposée)) ; rejetés : #2 score -10 ; #3 score -10'
+- 'entrée 2/découverte : aucune des 3 variantes n''est propre ; la moins mauvaise
+  est gardée'
+- 'entrée 2/doute#3 : fin coupée à la dernière phrase complète, 102 caractères retirés
+  — « Une ligne droite, comme chaque année : la plage à gauche, le mariage au centre,  »'
+- 'entrée 2 : bornée à 4 phrase(s) — 4 retirée(s), à partir de « Elle compte les flacons
+  dans le tiroir : trois. Un est vide, l’autre presque. Le… »'
+- 'entrée 2/doute : best-of-3 — variant 3 retenu (score 0, propre) ; rejetés : #1
+  score -10 ; #2 score -10'
+- 'accumulation entrée 2, essai 1 : troisième personne : « Elle est rentrée à vingt-trois
+  heures  »'
+- 'accumulation entrée 2, essai 2 : troisième personne : « Elle est rentrée à vingt-deux
+  heures t »'
+- 'accumulation entrée 2 : ABANDONNÉE après 2 essais'
+- 'pruning : rien à retirer'
+- 'assemblage entrée 1 : aucune accumulation à poser'
+- 'assemblage entrée 2 : frontière « à la frontière du dernier objet — les couverts.
+  » introuvable dans le texte — repli sur le placement par offset'
+- 'assemblage entrée 2 : ancre ABSENT après réparation — reposé par le code'
+- 'assemblage entrée 2 : chute imposée absente — posée par le code : « Constat : anniversaire.
+  »'
+- 'assemblage entrée 2 : aucune accumulation à poser'
+plan_report: plan FOURNI par le brief — nœud court-circuité (structure imposée, un
+  beat par entrée)
+coherence: "FAIT 1 : tenu — La narratrice a 38 ans et a été correctrice pendant 15\
+  \ ans.\nFAIT 2 : tenu — Elle a vécu 12 ans avec Romane, dont 9 en mariage.\nFAIT\
+  \ 3 : tenu — Romane est partie il y a neuf mois sans donner de raisons.\nFAIT 4\
+  \ : tenu — La narratrice ne cherche jamais à la joindre ou à comprendre pourquoi\
+  \ elle est partie.\nFAIT 5 : tenu — La narratrice ne supprime jamais une ligne de\
+  \ ce qu'elle relit, même si elle la trouve blessante.\nFAIT 6 : tenu — La narratrice\
+  \ se reconstruit sans se plaindre et ne écrit pas sa souffrance.\nFAIT 7 : tenu\
+  \ — Personne d'autre n'entre dans la maison.\nFAIT 8 : tenu — Aucun repas n'est\
+  \ partagé, aucune conversation n'a lieu.\nFAIT 9 : tenu — Elle ne sort pas de la\
+  \ maison.\n\n[signalements écartés faute de citation vérifiable :]\n    fait 3,\
+  \ scène 2 : « Le crayon ne biffe pas. » [non confirmé au contre-appel]"
+audio: null
+preflight_warnings:
+- 'Swap : 1.58 GB libres sur 5.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts
+  sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total`
+  au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les
+  durées restent interprétables.'
+variants:
+  drawn: 9
+  with_defects: 7
