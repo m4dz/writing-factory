@@ -26,11 +26,23 @@
 - [x] Specs: `chapter-spec` delta (variant spec), `eval` delta (ablation
       table). `make check` green, snapshots identical.
 
+- [x] `accumulation_enabled` override: the accumulation alone, for the A3
+      re-run (`micro_nodes=false` also dropped drift, fall and pruning).
+
 ## 3. Run
 
-- [ ] Experiment directory, seeds drawn and written, A4 variant spec.
-- [ ] `factory doctor` green; 15 runs interleaved by seed.
-- [ ] Blind set to the owner.
+- [x] Experiment directory, seeds drawn and written, A4 variant spec.
+- [x] `factory doctor` green; 15 runs interleaved by seed.
+- [x] Blind set to the owner (A3 out: invalid arm).
+- [ ] A3 re-run with `accumulation_enabled=false`, same seeds.
+
+## 3b. Instruments, after the runs (the arms share the old selection)
+
+- [x] Presence by perception; open hypothesis is not a dismissal; restart
+      exempt only in the chapter's first entry; « je décide de » counted
+      (doctrine 8). Each falsified both ways on the runs' own sentences
+      (`tests/unit/test_beat_checks.py`); `pipeline` delta spec.
+- [x] `factory eval ablation` counts with the same checks (`decides` column).
 
 ## 4. Conclude
 
