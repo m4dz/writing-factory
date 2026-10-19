@@ -67,7 +67,7 @@ was merged since, so the selection differs.
    time. A failing arm is reported and dropped, never tuned in this change.
 2. **Arms** × seeds 395959, 528559, 781771 (the P seeds), interleaved by seed,
    the previous model unloaded between runs.
-3. **Blind set**: entry 2 of the nine final chapters, shuffled, key closed;
+3. **Blind set**: entry 2 of the six final chapters, shuffled, key closed;
    owner verdict per entry (oui / partiel / non + note), as in
    plan-state-beats.
 
