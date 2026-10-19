@@ -66,6 +66,22 @@ hybrid of « continue the answer » and « instruction last ».
 - `map` is unchanged (arm B evidence); `plan` now means v2. The smoke run
   v1 is replayable at its commit only.
 
+## Served prompt v3 (after smoke v2)
+
+Smoke v2 (`695b197`): no recopy, but 6/9 variants empty — the begun answer
+ended on a full stop and nemo closed at once (probe: 3/3 empty; with a blank
+line after it, 3/3 written); empty variants scored 0, no defect; the doubt
+wrote its end condition into the text. v3 (owner's go):
+
+- the begun answer ends with a blank line;
+- `plan` selection: fewer than 2 sentences → « vide ou trop court », −10;
+- the end condition moves into the state line of the current time
+  (`→ 2. CE TEMPS-CI (ci-dessous) — il finit quand : …`), no longer served
+  after the task.
+
+Measured, not checked: beats paraphrasing their instruction in the first
+person; to be compared across R and P at the reading.
+
 ## End conditions — drafts for the owner (brief §7)
 
 The last sentence of each instruction already reads as one; the owner

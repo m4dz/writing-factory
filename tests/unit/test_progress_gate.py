@@ -57,3 +57,12 @@ def test_off_without_the_entry():
     """`blind` passes nothing written: the selection is production's."""
     assert _score_beat(RECOPIED_DOUBT, False, 7) == _score_beat(RECOPIED_DOUBT, False, 7,
                                                                   written="")
+
+
+def test_an_empty_beat_loses_when_the_plan_asks_for_sentences():
+    """Smoke v2: begun answers came back empty and tied with clean beats."""
+    for empty in ("", "Je repose le crayon."):
+        score, defects = _score_beat(empty, False, 7, min_sentences=2)
+        assert score <= -10 and defects[0].startswith("vide ou trop court")
+    assert _score_beat(OPEN_DOUBT, False, 7, min_sentences=2) == (3, [])
+    assert _score_beat("", False, 7) == (0, [])                          # production

@@ -748,11 +748,13 @@ def write_node(state: ChapterState) -> dict:
                 instruction, block,
                 _plan_state(sheet, name) if context == "plan"
                 else _movement_map(sheet, name) if context == "map" else "",
-                ends=b.ends if context == "plan" else "",
                 written_first=context == "plan")
             # Plan (v2): the answer opens on the last paragraph already
             # written; the model continues it instead of starting over.
-            start = already.split("\n\n")[-1].strip() if context == "plan" else ""
+            # Ended on a blank line: after a bare full stop nemo closes the
+            # answer at once (smoke v2: 6/9 empty variants).
+            start = (already.split("\n\n")[-1].strip() + "\n\n"
+                     if context == "plan" else "")
             served_prompts.append((name, beat_user))
             # BEST-OF-N per beat. nemo's failures are CORRELATED (it resolves /
             # restarts in every draw, differently): N variants are drawn and
@@ -773,7 +775,8 @@ def write_node(state: ChapterState) -> dict:
                 seg, wb = _bound_sentences(seg, max_sentences, idx, "")
                 sc, defects = _score_beat(
                     seg, is_first, state.get("chapter") or 0,
-                    written=text if context != "blind" else "", quotation=anchor)
+                    written=text if context != "blind" else "", quotation=anchor,
+                    min_sentences=2 if context == "plan" else 0)
                 variants.append({"score": sc, "k": k, "seg": seg,
                                   "defauts": defects, "m": m, "w": w + wn + wb})
             # Best score; ties go to the first drawn (stable, replayable).
@@ -1183,7 +1186,8 @@ def _recopied(variant: str, written: str, quotation: str = "") -> int:
 
 
 def _score_beat(variant: str, is_first: bool, chapter: int = 2,
-                 written: str = "", quotation: str = "") -> tuple[int, list[str]]:
+                 written: str = "", quotation: str = "",
+                 min_sentences: int = 0) -> tuple[int, list[str]]:
     """Score a beat variant by reading checks. Higher is better.
 
     Falsified both ways (doctrine 4): it MUST reject the resolution / presence
@@ -1193,6 +1197,13 @@ def _score_beat(variant: str, is_first: bool, chapter: int = 2,
     """
     defects: list[str] = []
     score = 0
+    # TOO SHORT (plan, v3): a begun answer can come back empty; it carries no
+    # defect, so it would tie with a clean beat (smoke v2).
+    if min_sentences:
+        n = len([x for x in re.split(r"(?<=[.!?…])\s+", variant.strip()) if x])
+        if n < min_sentences:
+            score -= 10
+            defects.append(f"vide ou trop court ({n} phrase{'s' if n > 1 else ''})")
     if _BEAT_RESOLVES.search(variant):
         score -= 10
         defects.append("résout (souvenir retrouvé / verdict rendu)")
@@ -1313,7 +1324,10 @@ def _plan_state(sheet: EntrySpec, current: str) -> str:
             times.append(f"  ✓ {n + 1}. {label} — déjà écrit, plus haut ; ne le "
                          "reprends pas")
         elif n == here:
-            times.append(f"  → {n + 1}. CE TEMPS-CI (ci-dessous)")
+            # The end condition lives in the state, not after the task: served
+            # last, nemo wrote it into the text (smoke v2).
+            ends = f" — il finit quand : {b.ends.strip()}" if b.ends else ""
+            times.append(f"  → {n + 1}. CE TEMPS-CI (ci-dessous){ends}")
         else:
             times.append(f"  ○ {n + 1}. {label} — écrit ensuite ; ne l'écris pas")
     lines.append("Où tu en es :\n" + "\n".join(times))
@@ -1323,7 +1337,7 @@ def _plan_state(sheet: EntrySpec, current: str) -> str:
 
 
 def _prompt_beat(instruction: str, block: str, movement_map: str = "",
-                 ends: str = "", written_first: bool = False) -> str:
+                 written_first: bool = False) -> str:
     """Assemble the prompt of ONE beat — structural code cap of entry 2 (v5).
 
     Serves ONLY this beat and the common veto, NEVER the whole movement.
@@ -1340,8 +1354,6 @@ def _prompt_beat(instruction: str, block: str, movement_map: str = "",
     """
     task = (f"CE TEMPS-CI :\n{instruction.strip()}" if movement_map
             else instruction.strip())
-    if ends:
-        task += f"\nIl finit quand : {ends.strip()}"
     # `written_first` (plan, v2): the text already written comes BEFORE the
     # task, so the task is the last thing read before the answer.
     parts = ((movement_map.strip(), block.strip(), task, _BEAT_SUFFIX) if written_first

@@ -187,7 +187,9 @@ def test_beats_see_where_they_are_in_the_plan(fake_model, fake_chroma, tmp_path)
         assert marks == ["✓"] * here + ["→"] + ["○"] * (len(spec.beats) - here - 1)
         assert labels[here] not in state                                  # served below, once
         assert all(labels[k] in state for k in range(len(labels)) if k != here)
-        assert f"Il finit quand : {beat.ends}" in call and beat.ends
+        current = next(line for line in state.splitlines() if "→" in line)
+        assert current.endswith(f"il finit quand : {beat.ends}") and beat.ends
+        assert call.count("finit quand") == 1                             # in the state only
         assert "COMPORTEMENT DE LA PROSE" not in call                     # no trajectory
         user, start = call.split("### début de la réponse")              # v2: answer begun
         assert user.index("DÉJÀ COMMENCÉE") < user.index("CE TEMPS-CI :")  # task read last
