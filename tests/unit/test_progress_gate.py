@@ -66,3 +66,24 @@ def test_an_empty_beat_loses_when_the_plan_asks_for_sentences():
         assert score <= -10 and defects[0].startswith("vide ou trop court")
     assert _score_beat(OPEN_DOUBT, False, 7, min_sentences=2) == (3, [])
     assert _score_beat("", False, 7) == (0, [])                          # production
+
+
+# P, run 103846 (E06, « l'ensemble est à la troisième personne »): the
+# discovery beat retained.
+THIRD_PERSON = ("Autour d'elle, la maison est dressée pour la fête qu'elle avait décidé de ne "
+                "pas tenir : les photos étalées, la musique qui joue, le plat au four, les deux "
+                "couverts. Elle ne se souvient d'avoir rien préparé. Elle se met à ranger.")
+# Smoke v1, a relève variant: « elle » is the line, the narrator says « je ».
+THE_LINE = ("Je relis la ligne que j'ai recopiée. Elle décrit les deux couverts que j'ai mis, "
+            "mais je ne me souviens pas avoir fait cela. Elle dit vrai, elle ment peut-être.")
+
+
+def test_a_beat_in_the_third_person_loses_in_the_plan():
+    score, defects = _score_beat(THIRD_PERSON, False, 7, first_person=True)
+    assert "troisième personne (la consigne transposée)" in defects and score <= -10
+    assert _score_beat(THIRD_PERSON, False, 7)[1] == []                  # production
+
+
+def test_she_next_to_i_is_not_the_third_person():
+    assert not any("troisième" in d for d in
+                   _score_beat(THE_LINE, False, 7, first_person=True)[1])

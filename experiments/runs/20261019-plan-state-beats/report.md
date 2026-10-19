@@ -92,3 +92,28 @@ que l'auteur désigne comme le meilleur.
   narratrice) dans la sélection, falsifiée sur E06 et les R, avant toute
   nouvelle série.
 - Le paragraphe d'accumulation qui résout : à traiter dans une change à part.
+
+## Décisions de l'auteur (2026-10-19)
+
+1. **P est la référence** pour l'XP modèles (`--override beat_context=plan`).
+   Le défaut de production reste `blind` : changer le défaut est une
+   décision à part.
+2. **L'accumulation qui résout** : une change ultérieure ; non concluant
+   pour l'instant.
+
+## La vérification « troisième personne » (après la décision)
+
+Ajoutée à la sélection de P (`fe88b0b` → commit suivant) : aucune marque de
+première personne et au moins deux « elle » → −10. Sur toutes les variantes
+de beat tirées depuis le 2026-10-18 (scaffold-ablation, beats-see-movement,
+plan-state-beats, essais à blanc), la règle sépare sans recouvrement : les
+variantes à la troisième personne ont 0 marque de « je » et 2 à 7 « elle » ;
+toutes les autres ont au moins une marque de « je ».
+
+**Rejouée sur les trois P, elle ne sauve aucun beat** : là où une variante
+est à la troisième personne, les trois le sont (103846 : 9/9 ; 104812 :
+découverte 3/3 et doute 3/3 ; 103008 : les gagnants sont déjà en « je »).
+Elle signale, elle ne corrige pas. Et E02 (104812, lu « oui ») a sa
+découverte et son doute à la troisième personne : la lecture ne l'a pas
+relevé. La cause est en amont : la consigne, écrite en « elle », est lue en
+dernier dans P.

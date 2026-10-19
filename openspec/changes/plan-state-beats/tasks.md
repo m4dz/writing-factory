@@ -42,5 +42,9 @@
 ## 4. Conclude
 
 - [x] Owner verdicts; rule applied in `report.md` (inconclusive); journal entry.
+- [x] Owner (2026-10-19): P is the reference for the model XP; accumulation
+      resolving the doubt deferred to a later change.
+- [x] « troisième personne » check in the plan selection, falsified on every
+      beat variant since 2026-10-18; rescues no beat of P × 3 (report).
 - [ ] If P holds: `storyboard-density` serves actions through the same
       plan state.

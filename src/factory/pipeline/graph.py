@@ -776,7 +776,8 @@ def write_node(state: ChapterState) -> dict:
                 sc, defects = _score_beat(
                     seg, is_first, state.get("chapter") or 0,
                     written=text if context != "blind" else "", quotation=anchor,
-                    min_sentences=2 if context == "plan" else 0)
+                    min_sentences=2 if context == "plan" else 0,
+                    first_person=context == "plan")
                 variants.append({"score": sc, "k": k, "seg": seg,
                                   "defauts": defects, "m": m, "w": w + wn + wb})
             # Best score; ties go to the first drawn (stable, replayable).
@@ -1166,6 +1167,11 @@ _BEAT_DOUBT = re.compile(
     r"|sans\s+(?:m'en\s+souvenir|le\s+savoir)", re.IGNORECASE)
 
 
+_FIRST_PERSON = re.compile(r"(?<!\w)(?:je|j['’]|me|m['’]|moi|mon|ma|mes)(?!\w)",
+                           re.IGNORECASE)
+_SHE = re.compile(r"\belle\b", re.IGNORECASE)
+
+
 def _sentences_norm(text: str) -> set[str]:
     """Sentences of `text`, case, spaces and quotes normalized; short ones
     (under four words) left out: « Je range. » may recur without recopying."""
@@ -1187,7 +1193,8 @@ def _recopied(variant: str, written: str, quotation: str = "") -> int:
 
 def _score_beat(variant: str, is_first: bool, chapter: int = 2,
                  written: str = "", quotation: str = "",
-                 min_sentences: int = 0) -> tuple[int, list[str]]:
+                 min_sentences: int = 0,
+                 first_person: bool = False) -> tuple[int, list[str]]:
     """Score a beat variant by reading checks. Higher is better.
 
     Falsified both ways (doctrine 4): it MUST reject the resolution / presence
@@ -1204,6 +1211,16 @@ def _score_beat(variant: str, is_first: bool, chapter: int = 2,
         if n < min_sentences:
             score -= 10
             defects.append(f"vide ou trop court ({n} phrase{'s' if n > 1 else ''})")
+    # THIRD PERSON (plan): the beat transposes its instruction, written with
+    # « elle », instead of writing as the narrator (E06 of plan-state-beats).
+    # On every beat variant drawn since 2026-10-18, the third-person ones
+    # carry no first-person mark and at least two « elle »; every other one
+    # carries a first-person mark (« Elle décrit les couverts », the line,
+    # stays legitimate next to a « je »).
+    if first_person and not _FIRST_PERSON.search(variant) \
+            and len(_SHE.findall(variant)) >= 2:
+        score -= 10
+        defects.append("troisième personne (la consigne transposée)")
     if _BEAT_RESOLVES.search(variant):
         score -= 10
         defects.append("résout (souvenir retrouvé / verdict rendu)")
