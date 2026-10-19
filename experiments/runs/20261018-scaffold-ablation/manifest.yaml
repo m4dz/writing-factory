@@ -1,6 +1,6 @@
 id: 20261018-scaffold-ablation
 kind: experiment
-change: openspec/changes/scaffold-ablation
+change: openspec/changes/archive/2026-10-19-scaffold-ablation
 chapter: 7
 commit: 8218bb6
 question: Which scaffolding of chapter 7 entry 2 still pays for itself once the verdict

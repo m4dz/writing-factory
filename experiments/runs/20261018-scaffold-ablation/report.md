@@ -1,6 +1,6 @@
 # scaffold-ablation — rapport
 
-> Change : `openspec/changes/scaffold-ablation`. Runs du 2026-10-18, 01:48–04:10,
+> Change : `openspec/changes/archive/2026-10-19-scaffold-ablation`. Runs du 2026-10-18, 01:48–04:10,
 > commit `8218bb6` ; A3 rejoué 08:53–09:31 (`fd57830`, interrupteur
 > `accumulation_enabled`). Verdict : la lecture de l'auteur, à l'aveugle
 > (`blind/verdicts.md`), clé ouverte après coup ; la grille n'est qu'un véto.
