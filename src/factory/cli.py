@@ -8,7 +8,7 @@
     factory runs                        the runs, newest first
     factory promote <run>               a generated chapter becomes canon (bible/scenes/)
     factory calibrate --stage S7        calibration stages (run files)
-    factory eval lint|grid|seal|journal scoring
+    factory eval lint|grid|seal|journal|ablation scoring
     factory serve                       the HTTP surface for the deck
     factory chat --character judith     actor mode in the terminal
 
@@ -23,6 +23,7 @@ import argparse
 import sys
 import time
 import urllib.request
+from pathlib import Path
 
 from factory.settings import settings
 
@@ -42,12 +43,17 @@ def _generate_parser() -> argparse.ArgumentParser:
     what.add_argument("--chapters", default=None,
                       help="Plusieurs chapitres, l'un après l'autre : « 2,7 » ou « 1-11 »")
     what.add_argument("--brief", help="Chapitre ad hoc : objectif libre (plan généré)")
+    what.add_argument("--spec-file", default=None,
+                      help="Spec variante d'expérience, hors chapters/ (pointeurs résolus "
+                           "dans le dossier canonique du chapitre ; diff consigné)")
     p.add_argument("--characters", nargs="+", default=["judith"],
                    help="doc_ids des personnages présents (mode --brief)")
     p.add_argument("--seed", type=int, default=None,
                    help="Graine du tirage du glissement (défaut : aléatoire, consignée)")
     p.add_argument("--no-render", action="store_true",
                    help="Sans écriture de chapitre.md ni synthèse vocale")
+    p.add_argument("--no-voice", action="store_true",
+                   help="chapitre.md écrit, synthèse vocale sautée (expériences sur le texte)")
     p.add_argument("--skip-preflight", action="store_true",
                    help="Préflight en avertissement seulement (dev, JAMAIS en scène)")
     p.add_argument("--no-preflight", action="store_true",
@@ -60,6 +66,12 @@ def _generate_parser() -> argparse.ArgumentParser:
                    help="Budget de scène en minutes pour le compte à rebours")
     p.add_argument("--runs-dir", default=None,
                    help="Racine des dossiers de run (défaut : experiments/runs)")
+    p.add_argument("--override", action="append", default=[], metavar="CLÉ=VALEUR",
+                   help="Réglage machine pour ce run (beats_n=1, pruning_enabled=false…), "
+                        "liste blanche des runs, consigné au manifeste")
+    p.add_argument("--option", action="append", default=[], metavar="CLÉ=VALEUR",
+                   help="Option de run passée à la spec : rag, micro_nodes, segments "
+                        "(true/false), consignée au manifeste")
     return p
 
 
@@ -85,24 +97,56 @@ def _machine_requests(args) -> dict:
         "preflight": (None if args.no_preflight
                       else {"strict": not args.skip_preflight, "timer": True}),
         "render": not args.no_render,
+        "voice": not args.no_voice,
         "narrative_state": not args.no_narrative_state,
     }
 
 
-def _generate_state(args) -> dict:
-    """State of a single --chapter/--brief invocation (the run fields are added
-    by `generate`)."""
+def _run_settings(args) -> tuple[dict, dict]:
+    """The validated ``--override`` and ``--option`` pairs of an invocation."""
+    from factory import runs as run_registry
+    try:
+        overrides = run_registry.validate_overrides(
+            run_registry.parse_pairs(args.override, "--override"))
+        options = run_registry.validate_options(
+            run_registry.parse_pairs(args.option, "--option"))
+    except run_registry.RunError as exc:
+        raise SystemExit(str(exc))
+    return overrides, options
+
+
+def _variant_record(path) -> dict:
+    """Manifest record of a variant spec: its source and its diff against the
+    canonical spec of the same chapter."""
+    import difflib
+    import yaml
+    from factory.chapter_spec import canonical_spec_path
+    text = path.read_text(encoding="utf-8")
+    chapter = int((yaml.safe_load(text) or {}).get("chapter") or 0)
+    canonical = canonical_spec_path(chapter)
+    base = canonical.read_text(encoding="utf-8") if canonical else ""
+    diff = "".join(difflib.unified_diff(
+        base.splitlines(keepends=True), text.splitlines(keepends=True),
+        fromfile=str(canonical or "—"), tofile=str(path)))
+    return {"source": str(path), "canonical": str(canonical or ""), "diff": diff}
+
+
+def _generate_state(args, options: dict | None = None) -> dict:
+    """State of a single --chapter/--brief/--spec-file invocation (the run
+    fields are added by `generate`)."""
+    options = options or {}
     if args.brief:
         state = {"brief": args.brief, "characters": args.characters}
         if args.seed is not None:
             state["seed"] = args.seed
     else:
-        from factory.chapter_spec import ChapterSpecError, load_chapter
+        from factory.chapter_spec import ChapterSpecError, load_chapter, load_variant
         try:
-            spec = load_chapter(args.chapter if args.chapter is not None else 7)
-        except ChapterSpecError as exc:
+            spec = (load_variant(Path(args.spec_file)) if args.spec_file
+                    else load_chapter(args.chapter if args.chapter is not None else 7))
+        except (ChapterSpecError, OSError) as exc:
             raise SystemExit(str(exc))
-        state = spec.state(seed=args.seed)
+        state = spec.state(seed=args.seed, **options)
         if spec.workshop_terms:
             print(f"  ⚠ le brief du chapitre {spec.chapter} porte des termes d'atelier "
                   f"que le lint bannit en sortie : {list(spec.workshop_terms)} — "
@@ -111,7 +155,8 @@ def _generate_state(args) -> dict:
     return state
 
 
-def _run_one(state: dict, chapter: int, slug: str, args, root) -> int:
+def _run_one(state: dict, chapter: int, slug: str, args, root, *,
+             overrides: dict | None = None, extra: dict | None = None) -> int:
     """One run: directory, graph, manifest, report. Returns the exit code."""
     import random
     from factory import runs as run_registry
@@ -124,7 +169,12 @@ def _run_one(state: dict, chapter: int, slug: str, args, root) -> int:
     seed = state.get("seed")
     if seed is None:
         seed = state["seed"] = random.randrange(1, 10**6)
-    run = run_registry.create_run(chapter, slug, seed=seed, root=root)
+    overrides = overrides or {}
+    run = run_registry.create_run(chapter, slug, seed=seed, root=root,
+                                  overrides=overrides, extra=extra)
+    if extra and extra.get("spec") and getattr(args, "spec_file", None):
+        (run.dir / "spec.yaml").write_text(Path(args.spec_file).read_text(encoding="utf-8"),
+                                           encoding="utf-8")
     state["artifacts_dir"] = str(run.dir)
     print(f"\n=== run {run.id} ===", file=sys.stderr)
     tracking = progress.Progress(active=not args.quiet, budget_min=args.budget)
@@ -135,6 +185,10 @@ def _run_one(state: dict, chapter: int, slug: str, args, root) -> int:
     clocks = run_registry.Clocks()
     final, status, error, code = None, "error", None, 1
     t0 = time.time()
+    # Overrides hold for this run only, as in the API worker.
+    saved = {k: getattr(settings, k) for k in overrides}
+    for k, v in overrides.items():
+        setattr(settings, k, v)
     try:
         final = build_graph().invoke(state, config={"recursion_limit": 50})
         status, code = "ready", 0
@@ -144,6 +198,8 @@ def _run_one(state: dict, chapter: int, slug: str, args, root) -> int:
     except progress.Cancelled:
         status, error = "cancelled", "annulé"
     finally:
+        for k, v in saved.items():
+            setattr(settings, k, v)
         calls, client.recording = client.recording, None
         tracking.end()
         run_registry.record_result(run, final, clocks=clocks.read(), calls=calls,
@@ -162,6 +218,8 @@ def generate(argv: list[str]) -> int:
     from pathlib import Path
 
     root = Path(args.runs_dir) if args.runs_dir else None
+    overrides, options = _run_settings(args)
+    extra = {"options": options} if options else {}
     if args.chapters:
         from factory.chapter_spec import ChapterSpecError, load_chapter
         numbers = parse_chapters(args.chapters)
@@ -172,20 +230,25 @@ def generate(argv: list[str]) -> int:
             except ChapterSpecError as exc:
                 raise SystemExit(f"{exc}\n  (aucun run lancé : la série est refusée entière)")
         for spec in specs:
-            state = {**spec.state(seed=args.seed), **_machine_requests(args)}
-            code = _run_one(state, spec.chapter, spec.slug, args, root)
+            state = {**spec.state(seed=args.seed, **options), **_machine_requests(args)}
+            code = _run_one(state, spec.chapter, spec.slug, args, root,
+                            overrides=overrides, extra=extra)
             if code:
                 print(f"chapitre {spec.chapter} en échec : la série s'arrête", file=sys.stderr)
                 return code
         return 0
-    state = _generate_state(args)
+    state = _generate_state(args, options)
     chapter = int(state.get("chapter") or 0)
     if args.brief:
         slug = "brief"
+    elif args.spec_file:
+        from factory.chapter_spec import load_variant
+        slug = load_variant(Path(args.spec_file)).slug
+        extra["spec"] = _variant_record(Path(args.spec_file))
     else:
         from factory.chapter_spec import load_chapter
         slug = load_chapter(chapter).slug
-    return _run_one(state, chapter, slug, args, root)
+    return _run_one(state, chapter, slug, args, root, overrides=overrides, extra=extra)
 
 
 def _print_report(final: dict, total: float) -> None:
@@ -446,9 +509,10 @@ def _chat(argv: list[str]) -> int:
 
 def _eval(argv: list[str]) -> int:
     tools = {"lint": "factory.eval.lint", "grid": "factory.eval.grid",
-             "seal": "factory.eval.seal", "journal": "factory.eval.journal"}
+             "seal": "factory.eval.seal", "journal": "factory.eval.journal",
+             "ablation": "factory.eval.ablation"}
     if not argv or argv[0] not in tools:
-        print("usage : factory eval {lint|grid|seal|journal} [...]", file=sys.stderr)
+        print("usage : factory eval {lint|grid|seal|journal|ablation} [...]", file=sys.stderr)
         return 2
     import importlib
     return int(importlib.import_module(tools[argv[0]]).main(argv[1:]) or 0)

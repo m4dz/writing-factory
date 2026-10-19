@@ -1,0 +1,34 @@
+# Ablation table — fixed checks (branch detector-fixes, af17580)
+
+Same runs and texts as `ablation-table.md`, counted with the four fixed checks (perceived presence, open hypothesis, restart after entry 1 — whole entry here —, `decides` for doctrine 8). The runs were DRAWN with the old selection.
+
+| arm | run | words | resolves | dismisses | presence | recursion | restarts | decides | decor | litany | variants | pruned | wall_s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| R | 20261018-014804-ch07-anniversaire | 303 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0.11 | 5/9 | 1 | 1068.2 |
+| R | 20261018-024430-ch07-anniversaire | 344 | 1 | 0 | 2 | 1 | 0 | 0 | 0 | 0.17 | 2/9 | 0 | 471.0 |
+| R | 20261018-032210-ch07-anniversaire | 331 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0.15 | 3/9 | 0 | 588.6 |
+| A1 | 20261018-020553-ch07-anniversaire | 312 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0.14 | 0/3 | 0 | 401.8 |
+| A1 | 20261018-025223-ch07-anniversaire | 252 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0.12 | 1/3 | 2 | 386.3 |
+| A1 | 20261018-033200-ch07-anniversaire | 237 | 0 | 0 | 0 | 0 | 2 | 0 | 0 | 0.06 | 2/3 | 0 | 334.3 |
+| A2 | 20261018-021344-ch07-anniversaire | 282 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0.18 | 3/9 | 0 | 510.2 |
+| A2 | 20261018-025850-ch07-anniversaire | 375 | 1 | 0 | 0 | 0 | 0 | 0 | 1 | 0.18 | 3/9 | 0 | 504.4 |
+| A2 | 20261018-033736-ch07-anniversaire | 291 | 4 | 0 | 1 | 0 | 0 | 0 | 0 | 0.22 | 3/9 | 0 | 721.7 |
+| A3x | 20261018-022422-ch07-anniversaire | 197 | 0 | 0 | 0 | 0 | 1 | 0 | 0 | 0.2 | 3/9 | 0 | 470.8 |
+| A3x | 20261018-030716-ch07-anniversaire | 115 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0.21 | 3/9 | 0 | 412.0 |
+| A3x | 20261018-035146-ch07-anniversaire | 211 | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 0.04 | 2/9 | 0 | 708.2 |
+| A3 | 20261018-085322-ch07-anniversaire | 136 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0.15 | 3/9 | 0 | 462.2 |
+| A3 | 20261018-090522-ch07-anniversaire | 212 | 0 | 0 | 2 | 0 | 0 | 0 | 0 | 0.09 | 3/9 | 0 | 477.7 |
+| A3 | 20261018-091321-ch07-anniversaire | 162 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0.19 | 3/9 | 1 | 1080.6 |
+| A4 | 20261018-023421-ch07-anniversaire | 624 | 1 | 0 | 1 | 0 | 1 | 1 | 0 | 0.15 | 0/0 | 0 | 481.9 |
+| A4 | 20261018-031409-ch07-anniversaire | 438 | 0 | 0 | 1 | 0 | 1 | 8 | 0 | 0.21 | 0/0 | 0 | 479.5 |
+| A4 | 20261018-040335-ch07-anniversaire | 331 | 0 | 0 | 0 | 0 | 0 | 7 | 0 | 0.28 | 0/0 | 0 | 437.4 |
+
+| arm | runs | veto defects (final) | mean words | mean litany |
+|---|---|---|---|---|
+| R | 3/3 | 5 | 326 | 0.14 |
+| A1 | 3/3 | 3 | 267 | 0.11 |
+| A2 | 3/3 | 7 | 316 | 0.19 |
+| A3x | 3/3 | 3 | 174 | 0.15 |
+| A3 | 3/3 | 2 | 170 | 0.14 |
+| A4 | 3/3 | 21 | 464 | 0.21 |
+

@@ -1,0 +1,117 @@
+id: 20261018-031409-ch07-anniversaire
+kind: run
+chapter: 7
+slug: anniversaire
+seed: 528559
+created: '2026-10-18T01:14:09.593954+00:00'
+commit: 8218bb6
+status: ready
+overrides: {}
+config:
+  author_model: mistral-nemo:12b-instruct-2407-q8_0
+  qa_model: qwen2.5:7b-instruct
+  embed_model: nomic-embed-text
+  num_ctx: 8192
+  gesture_model: ''
+  gesture_temperature: 0.3
+  beats_n: 3
+  pruning_enabled: true
+  switch_after_sentences: 2
+  audio_seconds: 165.0
+  audio_words_per_minute: 177.0
+  tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+  stage_budget_min: 25.0
+spec:
+  source: /Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory/experiments/runs/20261018-scaffold-ablation/specs/a4-single.yaml
+  canonical: /Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory/chapters/07-anniversaire/spec.yaml
+  diff: "--- /Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory/chapters/07-anniversaire/spec.yaml\n\
+    +++ /Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory/experiments/runs/20261018-scaffold-ablation/specs/a4-single.yaml\n\
+    @@ -101,7 +101,7 @@\n     gestures: true\n     # La capitulation lexicale, au\
+    \ mot près : manquée 3/3 par le modèle, posée par le code.\n     fall: \"Constat\
+    \ : anniversaire.\"\n-    strategy: beats\n+    strategy: single\n     # Les bornes\
+    \ sont du RÉGLAGE ; les libellés vivent dans le brief §7.\n     beats:\n     \
+    \  - {name: relève, num_predict: 150, sentences_max: 4}\n"
+timings:
+  monotonic_s: 479.5
+  wall_s: 479.5
+  sleep_s: 0.0
+collections:
+- auteur
+finished: '2026-10-18T01:22:09+00:00'
+metrics:
+  calls: 15
+  gen_toks: 3956
+  ctx_need_max: 0.58
+  ctx_truncated: 0
+scenes: 2
+warnings:
+- 'entrée 1#1 : fin coupée à la dernière phrase complète, 25 caractères retirés —
+  « Mes mains étaient froides »'
+- 'entrée 1 : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #2 score
+  3 ; #3 score -3'
+- 'entrée 1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) — le code compose
+  les en-têtes'
+- 'entrée 1 : bornée à 2 phrase(s) — 3 retirée(s), à partir de « J''ai supprimé la
+  playlist que nous avions créée pour cette journée, celle qui ré… »'
+- 'entrée 2 : fin coupée à la dernière phrase complète, 123 caractères retirés — «
+  Et pourtant, je ne parviens pas à me défaire de cette impression de malaise, de  »'
+- 'entrée 2 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) — le code compose
+  les en-têtes'
+- 'accumulation entrée 2, essai 1 : seuils non atteints — 19 phrases (un point à l''intérieur),
+  24 mots au lieu de 60, 2 virgules au lieu de 6 (candidat entier : 231 mots)'
+- 'accumulation entrée 2, essai 2 : seuils non atteints — 19 phrases (un point à l''intérieur),
+  22 mots au lieu de 60, 0 virgules au lieu de 6 (candidat entier : 231 mots)'
+- 'accumulation entrée 2 : ABANDONNÉE après 2 essais'
+- 'relecture entrée 2 : fin coupée à la dernière phrase complète, 36 caractères retirés
+  — « Je suis certaine de les avoir vus ce »'
+- 'assemblage entrée 1 : aucune accumulation à poser'
+- 'assemblage entrée 2 : paragraphe redit retiré (0.64) — « Je décide de vérifier
+  une dernière fois la cuisine. Peut-être ai-je manqué quelque chose. … »'
+- 'assemblage entrée 2 : paragraphe redit retiré (0.64) — « Constat : anniversaire.…
+  »'
+- 'assemblage entrée 2 : paragraphe redit retiré (1.0) — « Je décide de vérifier une
+  dernière fois la cuisine. Peut-être ai-je manqué quelque chose. … »'
+- 'assemblage entrée 2 : paragraphe redit retiré (0.83) — « Tout semble normal, tout
+  semble à sa place. Et pourtant, je ne parviens pas à me défaire d… »'
+- 'assemblage entrée 2 : paragraphe redit retiré (0.52) — « Je retourne à ma tâche
+  de correction, mais je ne parviens pas à me concentrer. Je décide d… »'
+- 'assemblage entrée 2 : ancre re-tamponné — le texte portait « "Neuf ans aujourd''hui
+  que je t''ai dit oui. J''ai mis deux couverts, exp »'
+- 'assemblage entrée 2 : chute imposée absente — posée par le code : « Constat : anniversaire.
+  »'
+- 'assemblage entrée 2 : aucune accumulation à poser'
+plan_report: plan FOURNI par le brief — nœud court-circuité (structure imposée, un
+  beat par entrée)
+coherence: 'FAIT 1 : tenu — La narratrice a 38 ans et a été correctrice depuis quinze
+  ans.
+
+  FAIT 2 : tenu — La narratrice ne cherchera jamais à joindre Romane ni à comprendre
+  pourquoi elle est partie.
+
+  FAIT 3 : tenu — La narratrice utilise une méthode de dater, relever et relire pour
+  se tenir debout.
+
+  FAIT 4 : tenu — La narratrice ne descend une marche que quand celle du dessus a
+  cédé.
+
+  FAIT 5 : tenu — La narratrice ne supprime jamais une ligne de ce qu''elle relit,
+  même si cela la blesse.
+
+  FAIT 6 : tenu — La narratrice envisage par moments de consulter une thérapeute mais
+  ne le fait jamais.
+
+  FAIT 7 : tenu — Personne d''autre n''entre dans la maison.
+
+  FAIT 8 : tenu — Aucun repas n''est partagé, aucune conversation n''a lieu.
+
+  FAIT 9 : tenu — Elle ne sort pas de la maison.'
+audio: null
+preflight_warnings:
+- 'Swap : 0.89 GB libres sur 12.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts
+  sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total`
+  au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les
+  durées restent interprétables.'
+- Pression mémoire élevée selon macOS (niveau 2). Fermer ce qui n'est pas nécessaire
+  avant de lancer.
+- 'Entretien macOS actif : mediaanalysisd 30 %. Surveiller — au-delà de 80 % ça fausse
+  toute mesure de temps.'

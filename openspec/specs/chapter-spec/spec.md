@@ -130,3 +130,42 @@ drift draw and is written to the run's frontmatter.
 #### Scenario: Replaying a run
 - **WHEN** a run is invoked with the seed of a previous run's frontmatter
 - **THEN** the drift draw picks the same approach
+
+### Requirement: Beat end condition
+
+A beat of an entry brief's §7 MAY carry a line starting `Finit quand :`; the
+loader SHALL read it into the beat's end condition and remove it from the
+instruction. Absent, the end condition SHALL be empty.
+
+#### Scenario: End conditions do not reach production
+- **WHEN** chapter 7 loads with `Finit quand :` lines in its brief
+- **THEN** each beat carries its end condition, the instructions are unchanged, and the
+  production prompts match the ch7 snapshot
+
+#### Scenario: Brief without end conditions
+- **WHEN** a brief has no `Finit quand :` line
+- **THEN** every beat's end condition is empty
+
+### Requirement: A run may use a variant spec
+
+`factory generate --spec-file PATH` SHALL load the chapter from a variant spec
+outside `chapters/`, with the same loader assertions as a canonical spec. The
+run directory SHALL hold a copy of the variant and the manifest SHALL record
+its source and its diff against the canonical spec of the same chapter. The
+canonical files under `chapters/` SHALL NOT be modified.
+
+#### Scenario: Entry 2 written in one call
+
+- **WHEN** a variant spec sets entry 2 of chapter 7 to `strategy: single`
+- **THEN** the run makes one write call for entry 2 and the manifest records `strategy: beats → single` in the spec diff
+
+### Requirement: Run options from the command line
+
+`factory generate --option KEY=VALUE` SHALL pass `rag`, `micro_nodes` and
+`segments` to `spec.state()` as keyword overrides, record them under
+`options:` in the manifest, and refuse any other key.
+
+#### Scenario: Unknown option
+
+- **WHEN** `--option strategy=single` is given
+- **THEN** the command exits with an error naming the allowed keys and no run is created

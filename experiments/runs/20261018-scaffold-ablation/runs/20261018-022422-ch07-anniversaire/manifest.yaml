@@ -1,0 +1,105 @@
+id: 20261018-022422-ch07-anniversaire
+kind: run
+chapter: 7
+slug: anniversaire
+seed: 395959
+created: '2026-10-18T00:24:22.489757+00:00'
+commit: 8218bb6
+status: ready
+overrides: {}
+config:
+  author_model: mistral-nemo:12b-instruct-2407-q8_0
+  qa_model: qwen2.5:7b-instruct
+  embed_model: nomic-embed-text
+  num_ctx: 8192
+  gesture_model: ''
+  gesture_temperature: 0.3
+  beats_n: 3
+  pruning_enabled: true
+  switch_after_sentences: 2
+  audio_seconds: 165.0
+  audio_words_per_minute: 177.0
+  tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+  stage_budget_min: 25.0
+options:
+  micro_nodes: false
+timings:
+  monotonic_s: 470.8
+  wall_s: 470.8
+  sleep_s: 0.0
+collections:
+- auteur
+finished: '2026-10-18T00:32:13+00:00'
+metrics:
+  calls: 21
+  gen_toks: 3124
+  ctx_need_max: 0.52
+  ctx_truncated: 0
+scenes: 2
+warnings:
+- 'entrée 1#2 : fin coupée à la dernière phrase complète, 62 caractères retirés —
+  « Je ne veux pas de ce jour, je ne veux pas de ces souvenirs qui »'
+- 'entrée 1 : best-of-3 — variant 2 retenu (score 3, propre) ; rejetés : #1 score
+  -3 ; #3 score -3'
+- 'entrée 1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) — le code compose
+  les en-têtes'
+- 'entrée 1 : bornée à 2 phrase(s) — 2 retirée(s), à partir de « J''ai supprimé la
+  playlist qu''on écoutait ensemble, celle qui me rappelait nos da… »'
+- 'entrée 2/relève#2 : fin coupée à la dernière phrase complète, 30 caractères retirés
+  — « Je suis pourtant certaine de l »'
+- 'entrée 2/relève#2 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) —
+  le code compose les en-têtes'
+- 'entrée 2 : bornée à 4 phrase(s) — 5 retirée(s), à partir de « J''ai relu la ligne
+  plusieurs fois, comme si la répétition pouvait raviver ma mém… »'
+- 'entrée 2/relève : best-of-3 — variant 2 retenu (score 3, propre) ; rejetés : #3
+  score 3 ; #1 score 0'
+- 'entrée 2/découverte#1 : fin coupée à la dernière phrase complète, 134 caractères
+  retirés — « Je me souviens avoir rangé la pièce hier matin, mais le lit est défait
+  et les or »'
+- 'entrée 2/découverte#1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s)
+  — le code compose les en-têtes'
+- 'entrée 2 : bornée à 5 phrase(s) — 5 retirée(s), à partir de « La musique était
+  en pause, l''écran de la chaîne hi-fi affichait l''heure en chiff… »'
+- 'entrée 2/découverte : best-of-3 — variant 1 retenu (score -5, redémarre (réveil
+  déjà servi)) ; rejetés : #2 score -5 ; #3 score -5'
+- 'entrée 2/doute#1 : fin coupée à la dernière phrase complète, 2 caractères retirés
+  — « Je »'
+- 'entrée 2/doute#1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) — le
+  code compose les en-têtes'
+- 'entrée 2 : bornée à 4 phrase(s) — 5 retirée(s), à partir de « Le coussin du canapé
+  est froissé, comme si quelqu''un s''était assis dessus. Je su… »'
+- 'entrée 2/doute : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #3
+  score 3 ; #2 score 0'
+plan_report: plan FOURNI par le brief — nœud court-circuité (structure imposée, un
+  beat par entrée)
+coherence: 'FAIT 1 : tenu — La narratrice ignore où est Romane et ne cherchera jamais
+  à la joindre.
+
+  FAIT 2 : tenu — La narratrice a perdu sa sœur dans un incendie il y a neuf mois.
+
+  FAIT 3 : tenu — La narratrice refuse de consulter une thérapeute malgré des pensées
+  de l''entretenir.
+
+  FAIT 4 : tenu — La narratrice travaille de domicile en tant que correctrice depuis
+  quinze ans.
+
+  FAIT 5 : tenu — La narratrice ne supprime jamais une ligne de ce qu''elle relit,
+  même si elle la trouve blessante.
+
+  FAIT 6 : tenu — La narratrice utilise une méthode de dater, relever et relire pour
+  gérer sa peine.
+
+  FAIT 7 : tenu — Personne d''autre n''entre dans la maison.
+
+  FAIT 8 : tenu — Aucun repas n''est partagé, aucune conversation n''a lieu.
+
+  FAIT 9 : tenu — Elle ne sort pas de la maison.'
+audio: null
+preflight_warnings:
+- 'Swap : 0.88 GB libres sur 12.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts
+  sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total`
+  au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les
+  durées restent interprétables.'
+variants:
+  drawn: 9
+  with_defects: 3

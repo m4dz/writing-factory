@@ -1,0 +1,80 @@
+id: 20261019-plan-state-beats
+kind: experiment
+change: openspec/changes/archive/2026-10-19-plan-state-beats
+chapter: 7
+question: Do code-capped beats stop inventing and recopying when each one sees the
+  entry with every time's state (done / current / next) and its end condition, with
+  a recopy gate in the selection? One variable against R.
+seeds:
+- 395959
+- 528559
+- 781771
+order: P only, by seed; R reused
+flags: --no-voice; preflight strict; narrative state on; old selection (detector-fixes
+  not merged)
+arms_definition:
+  R: production, drawn in 20261018-beats-see-movement, never read (symlinked under
+    runs/)
+  P: --override beat_context=plan
+smoke:
+  seed: 111111
+  run: 20261019-001202-ch07-anniversaire (under smoke/)
+  commit: f3e5ac6
+  result: FAILED, stop rule applied, P x 3 not run
+  observed:
+  - discovery 3/3 and doubt 3/3 variants recopy the entry (2-4 sentences); gate flags
+    all six, all-fail warning fires on both beats
+  - relève 2/3 variants recopy the quotation (excluded by the gate, as designed)
+  - plan list not echoed (no « je passe à », no marks in the text)
+  - 'final entry 2 short: _reattach strips the recopied sentences, so little new text
+    survives'
+arms:
+  R:
+  - 20261018-175333-ch07-anniversaire
+  - 20261018-181102-ch07-anniversaire
+  - 20261018-183817-ch07-anniversaire
+  P:
+  - 20261019-103008-ch07-anniversaire
+  - 20261019-103846-ch07-anniversaire
+  - 20261019-104812-ch07-anniversaire
+notes: []
+excluded:
+- run: 20261019-004931-ch07-anniversaire (under smoke-v2/)
+  arm: smoke v2
+  seed: 111111
+  reason: killed by the host under memory pressure (swap 23.5/24.6 GB), left in status
+    generating; not a result
+smoke_v2:
+  seed: 111111
+  run: 20261019-092937-ch07-anniversaire (under smoke-v2/)
+  commit: 695b197
+  result: FAILED, stop rule applied, P x 3 not run
+  observed:
+  - '6/9 beat variants empty: the begun answer ends on a full stop and nemo emits
+    end-of-sequence at once (gen_toks=1); all 3 discovery variants empty, so entry
+    2 has no discovery'
+  - 'empty variants scored 0, no defect: the selection does not see an empty beat'
+  - no recopy of the entry in the 3 non-empty variants
+  - the non-empty variants transpose the instruction into first person; the doubt
+    echoes the end condition (« Cela finit quand je repose le crayon. »)
+  - 'final entry: the accumulation paragraph resolves the doubt (she sets the two
+    places herself), as in smoke v1; not a beat'
+  probe_after: 'same served prompt (call 7, discovery), 3 calls each: begun answer
+    as is -> 3/3 empty; begun answer + blank line -> 3/3 written, no recopy, instruction
+    paraphrased (« Chaque objet une seule fois ; je ne fais pas le tour de la maison
+    »)'
+smoke_v3:
+  seed: 111111
+  run: 20261019-*-ch07-anniversaire (under smoke-v3/)
+  commit: fe88b0b
+  result: PASSED the mechanical checks; P x 3 launched
+  observed:
+  - 9/9 variants written, none empty; no recopy of the entry; end condition not written
+    into the text; no assistant-style reply
+  - 'the beats advance (relève, then tidying, then the living room) but the doubt
+    beat writes another discovery (photos), not the body and the pencil: for the reading'
+  - « je décide de » opens 6 of 9 variants (doctrine 8, measured on detector-fixes
+    only)
+  - relève variant 1 transposes the instruction in the third person
+  - partial remembering not caught by the checks (« je me souviens avoir préparé la
+    playlist hier soir »)

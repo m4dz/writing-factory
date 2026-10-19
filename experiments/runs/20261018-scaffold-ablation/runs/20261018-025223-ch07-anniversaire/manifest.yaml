@@ -1,0 +1,114 @@
+id: 20261018-025223-ch07-anniversaire
+kind: run
+chapter: 7
+slug: anniversaire
+seed: 528559
+created: '2026-10-18T00:52:23.208136+00:00'
+commit: 8218bb6
+status: ready
+overrides:
+  beats_n: 1
+config:
+  author_model: mistral-nemo:12b-instruct-2407-q8_0
+  qa_model: qwen2.5:7b-instruct
+  embed_model: nomic-embed-text
+  num_ctx: 8192
+  gesture_model: ''
+  gesture_temperature: 0.3
+  beats_n: 1
+  pruning_enabled: true
+  switch_after_sentences: 2
+  audio_seconds: 165.0
+  audio_words_per_minute: 177.0
+  tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+  stage_budget_min: 25.0
+timings:
+  monotonic_s: 386.3
+  wall_s: 386.3
+  sleep_s: 0.0
+collections:
+- auteur
+finished: '2026-10-18T00:58:49+00:00'
+metrics:
+  calls: 16
+  gen_toks: 2242
+  ctx_need_max: 0.52
+  ctx_truncated: 0
+scenes: 2
+warnings:
+- 'entrée 1#1 : fin coupée à la dernière phrase complète, 86 caractères retirés —
+  « Enfin, j''ai sorti le plat des grandes occasions du placard et je l''ai remis
+  à sa »'
+- 'entrée 1 : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #3 score
+  3 ; #2 score -3'
+- 'entrée 1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) — le code compose
+  les en-têtes'
+- 'entrée 1 : bornée à 2 phrase(s) — 3 retirée(s), à partir de « Je ne les ai pas
+  regardées, je les ai juste empilées et glissées hors de ma vue.… »'
+- 'entrée 2/relève#1 : fin coupée à la dernière phrase complète, 41 caractères retirés
+  — « C''est comme si la phrase avait été écrite »'
+- 'entrée 2/relève#1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) —
+  le code compose les en-têtes'
+- 'entrée 2 : bornée à 4 phrase(s) — 2 retirée(s), à partir de « C''est comme si ma
+  main avait agi seule, sans que mon esprit en soit conscient. J… »'
+- 'entrée 2/relève : best-of-1 — variant 1 retenu (score 3, propre) ; rejetés : '
+- 'entrée 2/découverte#1 : fin coupée à la dernière phrase complète, 80 caractères
+  retirés — « J''ai finalement posé le livre sur la table et je suis allée dans la
+  cuisine pour »'
+- 'entrée 2/découverte#1 : 1 point(s) de suspension produit(s) par le modèle, retiré(s)
+  — le marqueur est réservé au glissement, que le code compose'
+- 'entrée 2/découverte#1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s)
+  — le code compose les en-têtes'
+- 'entrée 2 : bornée à 5 phrase(s) — 6 retirée(s), à partir de « J''ai pris le livre
+  et j''ai commencé à lire. C''était une lettre, une lettre adres… »'
+- 'entrée 2/découverte : best-of-1 — variant 1 retenu (score -5, redémarre (réveil
+  déjà servi)) ; rejetés : '
+- 'entrée 2/doute#1 : fin coupée à la dernière phrase complète, 52 caractères retirés
+  — « Je suis retournée dans la cuisine pour vérifier si j »'
+- 'entrée 2/doute#1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) — le
+  code compose les en-têtes'
+- 'entrée 2 : bornée à 4 phrase(s) — 3 retirée(s), à partir de « Il était toujours
+  ouvert à la même page, avec l''écriture de mon épouse. J''ai déc… »'
+- 'entrée 2/doute : best-of-1 — variant 1 retenu (score 0, propre) ; rejetés : '
+- 'pruning : 2 phrase(s) retirée(s) — [sortie] Je me suis assise dans la cuisine et
+  j''ai rep | [résolution] Je n''ai pas rêvé."'
+- 'assemblage entrée 1 : aucune accumulation à poser'
+- 'assemblage entrée 2 : frontière « à la frontière du dernier objet — les couverts.
+  » introuvable dans le texte — repli sur le placement par offset'
+- 'assemblage entrée 2 : ancre ABSENT après réparation — reposé par le code'
+- 'assemblage entrée 2 : chute imposée absente — posée par le code : « Constat : anniversaire.
+  »'
+plan_report: plan FOURNI par le brief — nœud court-circuité (structure imposée, un
+  beat par entrée)
+coherence: 'FAIT 1 : tenu — La narratrice a 38 ans et est correctrice depuis quinze
+  ans.
+
+  FAIT 2 : tenu — La narratrice ne cherchera jamais à joindre Romane ni à comprendre
+  pourquoi elle est partie.
+
+  FAIT 3 : tenu — La narratrice utilise une méthode de dater, relever et relire pour
+  se tenir debout.
+
+  FAIT 4 : tenu — La narratrice ne descend une marche que quand celle du dessus a
+  cédé.
+
+  FAIT 5 : tenu — La narratrice ne supprime jamais une ligne de ce qu''elle relit,
+  même si cela la blesse.
+
+  FAIT 6 : tenu — La narratrice envisage par moments de consulter une thérapeute mais
+  ne le fait jamais.
+
+  FAIT 7 : tenu — Personne d''autre n''entre dans la maison.
+
+  FAIT 8 : tenu — Aucun repas n''est partagé, aucune conversation n''a lieu.
+
+  FAIT 9 : tenu — Elle ne sort pas de la maison.'
+audio: null
+preflight_warnings:
+- 'Swap : 0.78 GB libres sur 13.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts
+  sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total`
+  au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les
+  durées restent interprétables.'
+variants:
+  drawn: 3
+  with_defects: 1

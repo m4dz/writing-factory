@@ -1,0 +1,98 @@
+id: 20261018-175333-ch07-anniversaire
+kind: run
+chapter: 7
+slug: anniversaire
+seed: 395959
+created: '2026-10-18T15:53:33.354233+00:00'
+commit: 4b7af6a
+status: ready
+overrides: {}
+config:
+  author_model: mistral-nemo:12b-instruct-2407-q8_0
+  qa_model: qwen2.5:7b-instruct
+  embed_model: nomic-embed-text
+  num_ctx: 8192
+  gesture_model: ''
+  gesture_temperature: 0.3
+  beats_n: 3
+  pruning_enabled: true
+  accumulation_enabled: true
+  beats_see_movement: false
+  switch_after_sentences: 2
+  audio_seconds: 165.0
+  audio_words_per_minute: 177.0
+  tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+  stage_budget_min: 25.0
+timings:
+  monotonic_s: 575.1
+  wall_s: 575.1
+  sleep_s: 0.0
+collections:
+- auteur
+finished: '2026-10-18T16:03:08+00:00'
+metrics:
+  calls: 22
+  gen_toks: 3255
+  ctx_need_max: 0.53
+  ctx_truncated: 0
+scenes: 2
+warnings:
+- 'entrée 1#2 : fin coupée à la dernière phrase complète, 35 caractères retirés —
+  « Je ne veux pas de cette journée ici »'
+- 'entrée 1 : best-of-3 — variant 2 retenu (score 3, propre) ; rejetés : #3 score
+  3 ; #1 score -3'
+- 'entrée 1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) — le code compose
+  les en-têtes'
+- 'entrée 1 : bornée à 2 phrase(s) — 2 retirée(s), à partir de « J''ai supprimé la
+  playlist que nous écoutions en boucle, ces mélodies qui résonna… »'
+- 'entrée 2/relève#1 : fin coupée à la dernière phrase complète, 2 caractères retirés
+  — « En »'
+- 'entrée 2/relève#1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) —
+  le code compose les en-têtes'
+- 'entrée 2 : bornée à 4 phrase(s) — 2 retirée(s), à partir de « Et pourtant, c''est
+  écrit noir sur blanc dans mon cahier. Je me suis ensuite atta… »'
+- 'entrée 2/relève : best-of-3 — variant 1 retenu (score -5, décor interdit (1)) ;
+  rejetés : #2 score -5 ; #3 score -7'
+- 'entrée 2/découverte#1 : fin coupée à la dernière phrase complète, 28 caractères
+  retirés — « Je me suis assise sur le lit »'
+- 'entrée 2/découverte#1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s)
+  — le code compose les en-têtes'
+- 'entrée 2 : bornée à 5 phrase(s) — 7 retirée(s), à partir de « Je suis surprise
+  de voir qu''elle avait déjà commencé à emballer certaines de ses… »'
+- 'entrée 2/découverte : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés
+  : #2 score -2 ; #3 score -5'
+- 'entrée 2/doute#1 : fin coupée à la dernière phrase complète, 39 caractères retirés
+  — « Je les ai ramassées et je les ai jetées »'
+- 'entrée 2 : bornée à 4 phrase(s) — 2 retirée(s), à partir de « Je me suis approchée
+  de la fenêtre pour la refermer, et j''ai remarqué que le ven… »'
+- 'entrée 2/doute : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #3
+  score 3 ; #2 score 0'
+- 'entrée 2 : VÉTO décor — lave-vaisselle : …re les couverts sales dans le lave-vaisselle.
+  Je me souviens avo…'
+- 'pruning : rien à retirer'
+- 'assemblage entrée 1 : aucune accumulation à poser'
+- 'assemblage entrée 2 : chute imposée absente — posée par le code : « Constat : anniversaire.
+  »'
+plan_report: plan FOURNI par le brief — nœud court-circuité (structure imposée, un
+  beat par entrée)
+coherence: "FAIT 1 : tenu — La narratrice ignore où est Romane et ne cherchera jamais\
+  \ à la joindre.\nFAIT 2 : tenu — La narratrice a perdu sa sœur dans un incendie\
+  \ il y a neuf mois.\nFAIT 3 : tenu — La narratrice refuse de consulter une thérapeute,\
+  \ préférant se référer à des avis hypothétiques.\nFAIT 4 : tenu — La narratrice\
+  \ a 38 ans et est correctrice depuis quinze ans.\nFAIT 5 : tenu — La narratrice\
+  \ ne supprime jamais une ligne de ce qu'elle relit, même si cela la blesse.\nFAIT\
+  \ 6 : tenu — La narratrice utilise une méthode de dater, relever, relire pour se\
+  \ tenir debout.\nFAIT 7 : tenu — Personne d'autre n'entre dans la maison.\nFAIT\
+  \ 8 : tenu — Aucun repas n'est partagé, aucune conversation n'a lieu.\nFAIT 9 :\
+  \ tenu — Elle ne sort pas de la maison.\n\n[signalements écartés faute de citation\
+  \ vérifiable :]\n    fait 4, scène 1 : J'ai décidé cet après-midi d'effacer l'anniversaire\
+  \ de notre rencontre. [citation introuvable dans la scène]"
+audio: null
+preflight_warnings:
+- 'Swap : 1.23 GB libres sur 13.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts
+  sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total`
+  au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les
+  durées restent interprétables.'
+variants:
+  drawn: 9
+  with_defects: 5

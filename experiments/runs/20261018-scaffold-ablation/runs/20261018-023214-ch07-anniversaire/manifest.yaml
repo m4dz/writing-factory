@@ -1,0 +1,44 @@
+id: 20261018-023214-ch07-anniversaire
+kind: run
+chapter: 7
+slug: anniversaire
+seed: 395959
+created: '2026-10-18T00:32:14.594337+00:00'
+commit: 8218bb6
+status: error
+overrides: {}
+config:
+  author_model: mistral-nemo:12b-instruct-2407-q8_0
+  qa_model: qwen2.5:7b-instruct
+  embed_model: nomic-embed-text
+  num_ctx: 8192
+  gesture_model: ''
+  gesture_temperature: 0.3
+  beats_n: 3
+  pruning_enabled: true
+  switch_after_sentences: 2
+  audio_seconds: 165.0
+  audio_words_per_minute: 177.0
+  tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+  stage_budget_min: 25.0
+spec:
+  source: /Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory/experiments/runs/20261018-scaffold-ablation/specs/a4-single.yaml
+  canonical: /Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory/chapters/07-anniversaire/spec.yaml
+  diff: "--- /Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory/chapters/07-anniversaire/spec.yaml\n\
+    +++ /Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory/experiments/runs/20261018-scaffold-ablation/specs/a4-single.yaml\n\
+    @@ -101,7 +101,7 @@\n     gestures: true\n     # La capitulation lexicale, au\
+    \ mot près : manquée 3/3 par le modèle, posée par le code.\n     fall: \"Constat\
+    \ : anniversaire.\"\n-    strategy: beats\n+    strategy: single\n     # Les bornes\
+    \ sont du RÉGLAGE ; les libellés vivent dans le brief §7.\n     beats:\n     \
+    \  - {name: relève, num_predict: 150, sentences_max: 4}\n"
+timings:
+  monotonic_s: 5.7
+  wall_s: 5.7
+  sleep_s: 0.0
+collections: []
+finished: '2026-10-18T00:32:20+00:00'
+error: "préflight refusé : Préflight refusé :\n  - Entretien macOS en cours : corespotlightd\
+  \ 90 %, mediaanalysisd 43 %. Le processus de génération tourne à nice 5 et perdra\
+  \ l'arbitrage : trous de plusieurs minutes entre deux appels au modèle, budget de\
+  \ scène explosé. ATTENDRE que ça retombe (`ps -Ao %cpu,comm -r | head`) — après\
+  \ un redémarrage, l'analyse média peut tourner longtemps."

@@ -27,7 +27,7 @@ from langgraph.graph import StateGraph, START, END
 from factory.infra import progress
 from factory.eval.lint import (ENTRY_HEADER, MACHINERY,
                         MARKS, META_TERMS, material_forbidden)
-from factory.infra.ollama import chat, unload
+from factory.infra.ollama import chat, chat_continue, unload
 from factory.retrieval.context import REVIEW_STYLE, assemble_system_prompt
 from factory.text import delint, ends_mid_sentence, sentence_ends, trim_to_sentence
 from factory.pipeline.qa import repair, derive_facts, check_facts, check_plan
@@ -108,6 +108,7 @@ class ChapterState(TypedDict):
     imposed_plan: list     # one beat per entry, cut from the brief: the plan is not asked
     placed_fall: str      # last line imposed word for word — posed by the code
     served_prompts: list  # (segment, prompt) — deliverable, and the copy measurement
+    beat_variants: list   # every best-of variant drawn, scored, winner marked (variants.md)
     placed_header: str      # the header composed for the current entry — re-stamped
     placed_anchor: str      # the quotation anchor posed — re-stamped after repair
     seed: int           # drift draw, recorded in the run frontmatter
@@ -125,6 +126,7 @@ class ChapterState(TypedDict):
     artifacts_dir: str    # the run directory the render node writes into ("" : output/)
     preflight_warnings: list[str]
     render: bool          # write `chapitre.md` and render the WAV after coherence
+    voice: bool           # False: write `chapitre.md` but skip the synthesis
     assembly: dict        # kwargs of assembly.assemble (switch mode, imposed fall)
     chapter_md: str       # the assembled chapter, both markers, always produced
     audio: object         # TTS metrics dict, or None when the voice failed / was not asked
@@ -297,8 +299,8 @@ def _reattach(start: str, continuation: str) -> str:
 
 
 def _generate_whole(system: str, user: str, *, num_predict: int,
-                    temperature: float, label: str,
-                    keep_going: bool = True) -> tuple[str, list[dict], list[str]]:
+                    temperature: float, label: str, keep_going: bool = True,
+                    start: str = "") -> tuple[str, list[dict], list[str]]:
     """Generate a WHOLE text: relaunch if `num_predict` cut the generation.
 
     Ollama signals the amputation only through `done_reason: "length"` — the
@@ -311,8 +313,14 @@ def _generate_whole(system: str, user: str, *, num_predict: int,
     overflows. The net is never the first resort: it returns a scene that
     stops early, so without the final state the plan asked of it.
     """
-    text, m = chat(system, user, num_predict=num_predict, temperature=temperature,
-                   on_token=progress.token_sink())
+    if start:
+        # The answer is already begun: the model continues `start`, and only
+        # the new text comes back (plan-state-beats, served prompt v2).
+        text, m = chat_continue(system, user, start, num_predict=num_predict,
+                                temperature=temperature, on_token=progress.token_sink())
+    else:
+        text, m = chat(system, user, num_predict=num_predict, temperature=temperature,
+                       on_token=progress.token_sink())
     metrics = [m]
     warns: list[str] = []
 
@@ -708,6 +716,9 @@ def write_node(state: ChapterState) -> dict:
     # (« dump du prompt servi »), and what measures copying — the check draw 6
     # lacked.
     served_prompts: list[tuple[str, str]] = []
+    # Every variant drawn by the best-of, BEFORE selection and pruning: what
+    # the selection hides is measured, not presumed (scaffold-ablation).
+    drawn_variants: list[dict] = []
     if sheet.strategy == "beats" and sheet.beats:
         # STRUCTURAL CODE CAP (entry 2, v5). Each beat is a short call, served
         # ALONE (not the whole movement — see `_prompt_beat`), bounded in
@@ -725,14 +736,29 @@ def write_node(state: ChapterState) -> dict:
         for b in beats:
             name, num_predict, max_sentences, instruction = (
                 b.name, b.num_predict, b.sentences_max, b.instruction)
-            is_first = (name == first_name)
+            # The waking is served only once per DAY: by the first beat of the
+            # first entry. Chapter 7's entry 2 is written the same night,
+            # after entry 1 — « Je me suis réveillée ce matin » there is a
+            # restart, and the exemption let it win (scaffold-ablation, R, A1).
+            is_first = (name == first_name) and idx == 0
             already = f"{prefix}\n\n{text}".strip() if prefix else text.strip()
             block = (
                 "L'entrée est DÉJÀ COMMENCÉE par ce texte, que tu ne réécris "
                 f"PAS :\n---\n{already}\n---\n"
                 "Écris uniquement CE QUI SUIT, en enchaînant directement. Ne "
                 "répète rien de ce qui précède.\n" if already else "")
-            beat_user = _prompt_beat(instruction, block)
+            context = settings.beat_context
+            beat_user = _prompt_beat(
+                instruction, block,
+                _plan_state(sheet, name) if context == "plan"
+                else _movement_map(sheet, name) if context == "map" else "",
+                written_first=context == "plan")
+            # Plan (v2): the answer opens on the last paragraph already
+            # written; the model continues it instead of starting over.
+            # Ended on a blank line: after a bare full stop nemo closes the
+            # answer at once (smoke v2: 6/9 empty variants).
+            start = (already.split("\n\n")[-1].strip() + "\n\n"
+                     if context == "plan" else "")
             served_prompts.append((name, beat_user))
             # BEST-OF-N per beat. nemo's failures are CORRELATED (it resolves /
             # restarts in every draw, differently): N variants are drawn and
@@ -747,16 +773,25 @@ def write_node(state: ChapterState) -> dict:
                                i=idx + 1, n=len(state["plan"]))
                 seg, m, w = _generate_whole(
                     system, beat_user, num_predict=num_predict, temperature=0.7,
-                    label=f"entrée {idx + 1}/{name}#{k + 1}", keep_going=False)
+                    label=f"entrée {idx + 1}/{name}#{k + 1}", keep_going=False,
+                    start=start)
                 seg, wn = _clean_segment(seg, f"entrée {idx + 1}/{name}#{k + 1}")
                 seg, wb = _bound_sentences(seg, max_sentences, idx, "")
-                sc, defects = _score_beat(seg, is_first,
-                                           state.get("chapter") or 0)
+                sc, defects = _score_beat(
+                    seg, is_first, state.get("chapter") or 0,
+                    written=text if context != "blind" else "", quotation=anchor,
+                    min_sentences=2 if context == "plan" else 0,
+                    first_person=context == "plan")
                 variants.append({"score": sc, "k": k, "seg": seg,
                                   "defauts": defects, "m": m, "w": w + wn + wb})
             # Best score; ties go to the first drawn (stable, replayable).
             variants.sort(key=lambda v: (-v["score"], v["k"]))
             winner = variants[0]
+            drawn_variants += [
+                {"entry": idx + 1, "beat": name, "variant": v["k"] + 1,
+                 "score": v["score"], "defects": list(v["defauts"]),
+                 "winner": v is winner, "text": v["seg"]}
+                for v in sorted(variants, key=lambda v: v["k"])]
             seg = winner["seg"]
             wg += winner["w"]
             wg.append(
@@ -767,6 +802,11 @@ def write_node(state: ChapterState) -> dict:
                 + ") ; rejetés : "
                 + " ; ".join(f"#{v['k'] + 1} score {v['score']}"
                              for v in variants[1:]))
+            if winner["defauts"]:
+                # Re-plan without a loop: every draw failed a check; the least
+                # bad is kept and said so, never redrawn until it passes.
+                wg.append(f"entrée {idx + 1}/{name} : aucune des {beats_n} "
+                          "variantes n'est propre ; la moins mauvaise est gardée")
             text = _reattach(text, seg) if text else seg
             # Metrics of ALL variants — rejected tokens were spent (doctrine 5:
             # no figure without its clock).
@@ -952,6 +992,7 @@ def write_node(state: ChapterState) -> dict:
         "placed_anchor": anchor,
         "placed_fall": sheet.fall,
         "served_prompts": (state.get("served_prompts") or []) + served_prompts,
+        "beat_variants": (state.get("beat_variants") or []) + drawn_variants,
         "metrics": state["metrics"] + _tag(ms, f"write/{idx + 1}"),
         "warnings": state["warnings"] + wg
         + [f"entrée {idx + 1}: {x}" for x in w],
@@ -1086,12 +1127,23 @@ def _without_machinery(directive: str) -> str:
 # deterministic and falsifiable — never a judge of taste (doctrine 3: counting
 # is not reading). Prose is not graded; named defects that ten draws made
 # recurrent are REJECTED. The retained variant carries the fewest.
+# Narrowed against the 12 C5 draws, all held by the owner's reading
+# (tests/unit/test_resolution_check.py). Two false positives removed:
+# - « bien » / « parfaitement » resolve only when the memory is the gesture;
+#   remembering the evening itself is context:
+#   « je me souviens parfaitement de ma soirée »
+# - « me joue des tours » resolves as a statement, not as an open hypothesis:
+#   « je me demande si mon esprit me joue des tours »
 _BEAT_RESOLVES = re.compile(
     r"je\s+me\s+(?:souviens|rappelle)\s+(?:soudain|maintenant|enfin|"
-    r"à\s+nouveau|de\s+tout|de\s+chaque|bien|parfaitement)"
+    r"à\s+nouveau|de\s+tout|de\s+chaque|"
+    r"(?:bien|parfaitement)(?!\s+(?:de\s+)?(?:ma|la|cette|mon|ce)\s+"
+    r"(?:soirée|journée|veille|nuit|matinée|après-midi)))"
     r"|(?:cela|ça)\s+me\s+revient"
     r"|\bverdict\s*:\s*\w"
-    r"|(?:m'a\s+jou\w+\s+un|me\s+joue\s+(?:des?|un))\s+tours?"
+    r"|m'a\s+jou\w+\s+un\s+tours?"
+    r"|(?<!si mon esprit )(?<!si ma mémoire )(?<!si ma tête )"
+    r"me\s+joue\s+(?:des?|un)\s+tours?"
     r"|je\s+n'ai\s+pas\s+rêvé"
     r"|j'ai\s+bien\s+(?:mis|fait|noté)", re.IGNORECASE)
 _BEAT_DISMISS = re.compile(
@@ -1109,18 +1161,65 @@ _BEAT_RECURSION = re.compile(
     r"je\s+relis\s+(?:la|cette|ma|une|l')\s*(?:phrase|entrée)\s+"
     r"(?:d'hier|que\s+j'ai\s+[ée]crite?)"
     r"|je\s+rel[èe]ve\s+un\s+d[ée]tail\s+qui\s+me\s+trouble", re.IGNORECASE)
+# An open hypothesis is not a dismissal:
+# « peut-être l'ai-je fait sans y penser »
+# is the automatism step of the trajectory the brief serves, and the
+# scaffold-ablation draws counted it as a congé (A4, twice).
+_HYPOTHESIS = re.compile(r"peut-être|\?\s*$", re.IGNORECASE)
 _BEAT_WAKING = re.compile(
     r"je\s+me\s+suis\s+(?:réveillée|levée)|à\s+mon\s+réveil", re.IGNORECASE)
+# Presence is also PERCEIVED, and this named no noise and passed
+# (scaffold-ablation, A2):
+# « je me souviens maintenant avoir entendu la porte d'entrée se fermer »
+# The negations stay open: « je n'ai rien entendu » does not match.
 _BEAT_PRESENCE = re.compile(
     r"\b(?:un\s+bruit|une\s+sonnerie|des\s+pas|une\s+voix|quelqu'un"
-    r"|un\s+mouvement\s+qui\s+n'|surprendre)\b", re.IGNORECASE)
+    r"|un\s+mouvement\s+qui\s+n'|surprendre"
+    r"|j'(?:ai\s+)?(?:cru\s+)?entend(?:s|ue?s?|re)|avoir\s+entendu)\b", re.IGNORECASE)
+# DOCTRINE 8 in the selection: a character who states her intentions.
+# « Je décide de vérifier », « je décide de relever cette preuve » — seven to
+# nine times per chapter in the scaffold-ablation runs, every arm; no check of
+# the selection counted it.
+_BEAT_DECIDES = re.compile(r"\bje\s+décide\s+d(?:e\b|')", re.IGNORECASE)
 _BEAT_DOUBT = re.compile(
     r"je\s+ne\s+me\s+(?:souviens|rappelle)\s+pas|aucun\s+souvenir"
     r"|sans\s+(?:m'en\s+souvenir|le\s+savoir)", re.IGNORECASE)
 
 
-def _score_beat(variant: str, is_first: bool,
-                 chapter: int = 2) -> tuple[int, list[str]]:
+_FIRST_PERSON = re.compile(r"(?<!\w)(?:je|j['’]|me|m['’]|moi|mon|ma|mes)(?!\w)",
+                           re.IGNORECASE)
+_SHE = re.compile(r"\belle\b", re.IGNORECASE)
+
+
+def _sentences_norm(text: str) -> set[str]:
+    """Sentences of `text`, case, spaces and quotes normalized; short ones
+    (under four words) left out: « Je range. » may recur without recopying."""
+    out = set()
+    for s in re.split(r"(?<=[.!?…])\s+", text):
+        s = re.sub(r"[«»\"“”]", "", s).strip().lower()
+        s = re.sub(r"\s+", " ", s).strip(" .!?…")
+        if len(s.split()) >= 4:
+            out.add(s)
+    return out
+
+
+def _recopied(variant: str, written: str, quotation: str = "") -> int:
+    """How many sentences of the variant the entry already holds. The served
+    quotation is left out: the relève reads it, a later beat may quote it."""
+    return len((_sentences_norm(variant) & _sentences_norm(written))
+               - _sentences_norm(quotation))
+
+
+def _dismissals(variant: str) -> list[str]:
+    """The sentences that dismiss the doubt, open hypotheses left out."""
+    return [s for s in re.split(r"(?<=[.!?…»])\s+", variant)
+            if _BEAT_DISMISS.search(s) and not _HYPOTHESIS.search(s.strip())]
+
+
+def _score_beat(variant: str, is_first: bool, chapter: int = 2,
+                 written: str = "", quotation: str = "",
+                 min_sentences: int = 0,
+                 first_person: bool = False) -> tuple[int, list[str]]:
     """Score a beat variant by reading checks. Higher is better.
 
     Falsified both ways (doctrine 4): it MUST reject the resolution / presence
@@ -1130,10 +1229,27 @@ def _score_beat(variant: str, is_first: bool,
     """
     defects: list[str] = []
     score = 0
+    # TOO SHORT (plan, v3): a begun answer can come back empty; it carries no
+    # defect, so it would tie with a clean beat (smoke v2).
+    if min_sentences:
+        n = len([x for x in re.split(r"(?<=[.!?…])\s+", variant.strip()) if x])
+        if n < min_sentences:
+            score -= 10
+            defects.append(f"vide ou trop court ({n} phrase{'s' if n > 1 else ''})")
+    # THIRD PERSON (plan): the beat transposes its instruction, written with
+    # « elle », instead of writing as the narrator (E06 of plan-state-beats).
+    # On every beat variant drawn since 2026-10-18, the third-person ones
+    # carry no first-person mark and at least two « elle »; every other one
+    # carries a first-person mark (« Elle décrit les couverts », the line,
+    # stays legitimate next to a « je »).
+    if first_person and not _FIRST_PERSON.search(variant) \
+            and len(_SHE.findall(variant)) >= 2:
+        score -= 10
+        defects.append("troisième personne (la consigne transposée)")
     if _BEAT_RESOLVES.search(variant):
         score -= 10
         defects.append("résout (souvenir retrouvé / verdict rendu)")
-    if _BEAT_DISMISS.search(variant):
+    if _dismissals(variant):
         score -= 4
         defects.append("congédie (je dois me tromper / je me suis endormie)")
     if not is_first and _BEAT_WAKING.search(variant):
@@ -1145,6 +1261,12 @@ def _score_beat(variant: str, is_first: bool,
     if _BEAT_RECURSION.search(variant):
         score -= 6
         defects.append("récursion (re-lit sa propre ligne / gabarit répété)")
+    # A tie-breaker, not a veto: below every veto defect and below the open
+    # doubt's bonus. The owner's blind reading held E03, the best draw of
+    # scaffold-ablation, with eight « je décide de ».
+    if _BEAT_DECIDES.search(variant):
+        score -= 2
+        defects.append("décide (intention énoncée, doctrine 8)")
     # FORBIDDEN DECOR: the detector already exists (`material_forbidden`); it
     # is WIRED into the selection. A beat that names the television, the
     # dishwasher, the handbag… must never win (v14: it won).
@@ -1152,6 +1274,14 @@ def _score_beat(variant: str, is_first: bool,
     if forbidden:
         score -= 8
         defects.append(f"décor interdit ({len(forbidden)})")
+    # PROGRESS GATE (plan-state-beats): a beat that writes again what the
+    # entry already holds has not moved. Arm B recopied the previous beat
+    # whole (4/4 sentences); R's beats share 0–1. Only when the caller passes
+    # the entry written so far — off in `blind`, so production is unchanged.
+    recopied = _recopied(variant, written, quotation) if written else 0
+    if recopied >= 2:
+        score -= 10
+        defects.append(f"recopie ({recopied} phrases déjà écrites)")
     if _BEAT_DOUBT.search(variant):
         score += 3
     return score, defects
@@ -1187,7 +1317,75 @@ _BEAT_SUFFIX = (
 )
 
 
-def _prompt_beat(instruction: str, block: str) -> str:
+def _movement_map(sheet: EntrySpec, current: str) -> str:
+    """The whole entry, served to ONE beat as a map: where it starts, where it
+    goes, what is in the house, and which time is this call's.
+
+    scaffold-ablation: the owner's reading noted inventions on six of the
+    twelve beat entries and on none of the single-call ones, which saw the
+    whole movement. Blind beats fill what they cannot see. The trajectory
+    (the arc of the prose) is NOT served: re-serving it to each segment made
+    each one attempt the whole arc (« trois arcs »). The map gives the arc's
+    end points and the matter; the beat's own instruction stays the task.
+    """
+    lines = ["L'ENTRÉE ENTIÈRE, pour que tu saches d'où elle part et où elle "
+             "va. Tu n'en écris qu'un temps.",
+             f"Ce que l'entrée accomplit : {sheet.movement}"]
+    if sheet.material:
+        lines.append("Ce qui est là, à ta disposition, jamais une liste à "
+                     "épuiser :\n" + "\n".join(f"  - {_without_machinery(m)}"
+                                                  for m in sheet.material))
+    times = []
+    for n, b in enumerate(sheet.beats, 1):
+        first = re.split(r"(?<=[.!?])\s+", b.instruction.strip(), maxsplit=1)[0]
+        mark = "   ← CE TEMPS-CI" if b.name == current else ""
+        times.append(f"  {n}. {first}{mark}")
+    lines.append(f"Ses {len(times)} temps :\n" + "\n".join(times))
+    if sheet.vetos:
+        lines.append(f"Ce que le texte ne fait pas : {sheet.vetos}")
+    lines.append("Tu écris CE TEMPS-CI seulement, et tu t'arrêtes là où il "
+                 "finit : le temps suivant sera écrit ensuite.")
+    return "\n\n".join(lines)
+
+
+def _plan_state(sheet: EntrySpec, current: str) -> str:
+    """The map of the entry with each time's STATE, computed by the code from
+    the beat order, never from the model's output (plan-state-beats).
+
+    Arm B (the map without state) recopied the previous beat: it saw the
+    times, not which were already written. Done times are named by their
+    label only — their text is the prefix, served below; the next ones are
+    named so the call stops before them.
+    """
+    lines = ["L'ENTRÉE ENTIÈRE, pour que tu saches d'où elle part et où elle va.",
+             f"Ce que l'entrée accomplit : {sheet.movement}"]
+    if sheet.material:
+        lines.append("Ce qui est là, à ta disposition, jamais une liste à "
+                     "épuiser :\n" + "\n".join(f"  - {_without_machinery(m)}"
+                                                  for m in sheet.material))
+    names = [b.name for b in sheet.beats]
+    here = names.index(current)
+    times = []
+    for n, b in enumerate(sheet.beats):
+        label = re.split(r"(?<=[.!?])\s+", b.instruction.strip(), maxsplit=1)[0]
+        if n < here:
+            times.append(f"  ✓ {n + 1}. {label} — déjà écrit, plus haut ; ne le "
+                         "reprends pas")
+        elif n == here:
+            # The end condition lives in the state, not after the task: served
+            # last, nemo wrote it into the text (smoke v2).
+            ends = f" — il finit quand : {b.ends.strip()}" if b.ends else ""
+            times.append(f"  → {n + 1}. CE TEMPS-CI (ci-dessous){ends}")
+        else:
+            times.append(f"  ○ {n + 1}. {label} — écrit ensuite ; ne l'écris pas")
+    lines.append("Où tu en es :\n" + "\n".join(times))
+    if sheet.vetos:
+        lines.append(f"Ce que le texte ne fait pas : {sheet.vetos}")
+    return "\n\n".join(lines)
+
+
+def _prompt_beat(instruction: str, block: str, movement_map: str = "",
+                 written_first: bool = False) -> str:
     """Assemble the prompt of ONE beat — structural code cap of entry 2 (v5).
 
     Serves ONLY this beat and the common veto, NEVER the whole movement.
@@ -1202,8 +1400,13 @@ def _prompt_beat(instruction: str, block: str) -> str:
     Same entry guard as `_movement_prompt`: the served assembly must carry no
     workshop or machinery term.
     """
-    prompt = "\n\n".join(b for b in (instruction.strip(), block.strip(),
-                                     _BEAT_SUFFIX) if b)
+    task = (f"CE TEMPS-CI :\n{instruction.strip()}" if movement_map
+            else instruction.strip())
+    # `written_first` (plan, v2): the text already written comes BEFORE the
+    # task, so the task is the last thing read before the answer.
+    parts = ((movement_map.strip(), block.strip(), task, _BEAT_SUFFIX) if written_first
+             else (movement_map.strip(), task, block.strip(), _BEAT_SUFFIX))
+    prompt = "\n\n".join(b for b in parts if b)
     leaks = sorted({m.group(0).lower() for m in META_TERMS.finditer(prompt)}
                     | {m.group(0).lower() for m in MACHINERY.finditer(prompt)}
                     | set(re.findall(r"\b[\w-]+\.md\b", prompt)))
@@ -1453,6 +1656,10 @@ def accumulate_node(state: ChapterState) -> dict:
     if not state.get("micro_nodes") or not state["scenes"]:
         return {}
     if not _gestures_allowed(state):
+        return {}
+    # The accumulation alone can be switched off (scaffold-ablation, arm A3):
+    # `micro_nodes` also gates the drift, the fall and the pruning.
+    if not settings.accumulation_enabled:
         return {}
     # THE CONTEXT IS THE RECONSTRUCTION SEGMENT, not the whole entry.
     # `accumulate` had become stage C's famine channel: it got only the entry

@@ -1,0 +1,27 @@
+Samedi 14. Beau temps.
+
+J'ai pris la décision aujourd'hui de rayer une journée de mon calendrier. Je vais ranger les photos de nous deux, effacer la musique qui me rappelle nos moments heureux et laisser le plat des grandes occasions dans le placard.
+
+<!-- BASCULE -->
+
+Samedi 14. Beau temps.
+
+« Neuf ans aujourd'hui que je t'ai dit oui. J'ai mis deux couverts, exprès cette fois, et j'ai redit oui tout haut dans la cuisine. Je t'aime toujours. »
+
+J'allais poser le verdict quand la main s'est arrêtée. Neuf ans, et j'aurais dû demander, quand il était encore temps, ce qui l'a… La marge reste blanche. Le crayon ne biffe pas.
+
+Je relis la ligne que je viens de recopier. Je relève un écart : ce que la ligne décrit — les deux couverts mis — je les ai sous les yeux, mais je ne me souviens pas de l'avoir fait.
+
+Autour de moi, la maison est prête pour une fête que je n'avais pas prévue d'organiser : des photos sont étalées, de la musique joue, un plat cuit dans le four, et deux couverts sont mis. Je ne me souviens pas d'avoir préparé tout cela. Je décide de ranger, de remettre chaque chose à sa place, comme je le ferais avec un manuscrit : chaque objet une seule fois, sans faire le tour de la maison.
+
+Je commence par les photos. Elles sont posées sur la table du salon, certaines par terre, d'autres sur le canapé.
+
+Je les prends une à une, en prenant soin de les regarder attentivement. Je les replace ensuite dans l'album photos où elles étaient avant, en les classant par ordre chronologique. Je suis surprise de constater que certaines photos datent de plusieurs années et que je ne me souviens pas les avoir prises.
+
+Une fois que j'ai terminé de ranger les photos, je passe à la musique.
+
+Je rentre chez moi à 20h30, j'enlève mes chaussures, je pose mon sac sur la table de l'entrée, je vais dans le salon, je vois les photos étalées, je les range dans l'album, je vais dans la cuisine, je vois le plat qui cuit dans le four, je le sors, je le pose sur la table, je vois les deux couverts mis, je les enlève, je les range dans le tiroir, je vais dans ma chambre, je me déshabille, je me couche, sauf que la playlist continue de tourner dans ma tête.
+
+Constat : anniversaire.
+
+<!-- FIN AUDIO -->

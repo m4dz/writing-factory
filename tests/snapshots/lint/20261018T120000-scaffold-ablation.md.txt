@@ -1,0 +1,28 @@
+### 20261018T120000-scaffold-ablation.md
+274 mots [HORS CIBLE] · 7 paragraphes · 17 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✓ Tic d'IA
+- ✓ Point d'exclamation hors dialogue
+- ✓ Incise adverbiale (ou son équivalent prépositionnel)
+- ✓ Élision manquante
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✓ Phrase d'accumulation : exactement une
+    - `| bras | oui / partiel / non |
+|---|---|
+| R — production | 0 / 1 / 2 |
+| A1 — sans best-of | 0 / 2 / 1 |
+| A2 — sans pr…`
+- ✗ Phrase-couperet en fin de paragraphe → 0 (dont 2 couperets au total)
+- ✓ Heure ou quantité exacte → 4
+    - `Cinq bras`, `Huit couverts`, `quatre pièces`, `trois graines`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ✓ aucune forme non ambiguë détectée
+
+**Défauts nemo (hors grille du protocole)**
+- ⚠ anglais résiduel : ['of']
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.

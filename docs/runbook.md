@@ -149,6 +149,8 @@ repository). Defaults are the values below.
 | `GESTURE_TEMPERATURE` | `gesture_temperature` | `0.3` |
 | `BEATS_N` | `beats_n` | `3` |
 | `PRUNING` | `pruning_enabled` | `1` (`0` disables the assemble pass) |
+| `BEAT_CONTEXT` | `beat_context` | `blind` (each beat sees only its instruction; `map`: the whole entry as a map, its time marked; `plan`: the map with each time's state, done / current / next, the current one's end condition, and the recopy gate in the selection). The former override `beats_see_movement=true` reads as `map` |
+| `ACCUMULATION` | `accumulation_enabled` | `1` (`0` skips the accumulation sentence only; drift, fall and pruning stay) |
 | `CHROMA_HOST` / `CHROMA_PORT` | `chroma_host` / `chroma_port` | `localhost` / `8000` |
 | `CHROMA_COLLECTION` | `author_collection` | `auteur` |
 | `CHROMA_SESSIONS` | `sessions_collection` | `sessions` |

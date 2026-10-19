@@ -1,6 +1,6 @@
 # ADR-0020 — Chapter 7 entry 2: code-capped beats, best-of-N by reading criteria, deterministic pruning
 
-Date: 2026-08-29 to 2026-08-31. Status: accepted.
+Date: 2026-08-29 to 2026-08-31. Status: accepted; amended by ADR-0026 (2026-10-19).
 
 ## Context
 

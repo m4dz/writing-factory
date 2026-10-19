@@ -1,0 +1,41 @@
+Samedi 14. Beau temps.
+
+"Le temps est venu de mettre fin à cette mascarade," avait-elle écrit. Je me souviens de chaque mot, de chaque virgule. Mais ce n'est pas ce que dit ma mémoire.
+
+Je me suis assise dans la cuisine et j'ai repris les faits dans l'ordre, calmement, méthodiquement, le café de sept heures, le départ de sept heures quarante, la réunion, le déjeuner, le retour par la départementale à cause des travaux, le garage, la porte du garage, la porte de la buanderie, et à chaque étape je me suis revue avec une netteté parfaite, sauf une, une seule, un trou de quelques secondes entre le garage et la buanderie, quelques secondes pendant lesquelles quelqu'un a bien dû porter mes clés jusqu'à cette coupelle.
+
+Je ne comprends pas. Je ne me souviens pas d'avoir fait cela. Et pourtant, mes clés étaient bien là, sur la coupelle, à côté de la porte de la buanderie.
+
+C'est alors que j'ai compris. Ce n'est pas moi qui ai porté mes clés jusqu'à cette coupelle. quelqu'un d'autre l'a fait. Mais qui ? Et pourquoi ?
+
+Je n'ai pas rêvé. J'ai relu le passage plusieurs fois, et chaque fois, mes clés étaient bien sur la coupelle, à côté de la porte de la buanderie. Je ne comprends pas ce qui s'est passé, mais je sais que ce n'est pas un rêve.
+
+Je vais devoir reprendre mon relevé du soir. Je ne peux pas laisser passer cela sans explication. Il doit y avoir une erreur quelque part. Je vais devoir tout reprendre depuis le début, chaque étape, chaque minute, jusqu'à ce que je comprenne ce qui s'est passé.
+
+Je ne suis pas superstitieuse. Je ne crois pas aux fantômes ou aux esprits. Mais je ne peux pas expliquer ce qui s'est passé. Je vais devoir garder l'esprit ouvert, et accepter l'idée que quelque chose d'étrange s'est produit dans ma maison.
+
+<!-- BASCULE -->
+
+Samedi 14. Beau temps.
+
+« Neuf ans aujourd'hui que je t'ai dit oui. J'ai mis deux couverts, exprès cette fois, et j'ai redit oui tout haut dans la cuisine. Je t'aime toujours. »
+
+J'allais poser le verdict quand la main s'est arrêtée. Neuf ans, et j'aurais dû demander, quand il était encore temps, ce qui l'a… La marge reste blanche. Le crayon ne biffe pas.
+
+Elle relit la ligne qu'elle vient de recopier. Elle y relève un écart : les deux couverts mis — elle l'a sous les yeux, mais elle ne se souvient pas de l'avoir fait.
+
+Autour d'elle, la maison est dressée pour la fête qu'elle avait décidé de ne pas tenir : les photos étalées, la musique qui joue, le plat au four, les deux couverts. Elle ne se souvient d'avoir rien préparé. Elle se met à ranger — remettre chaque chose à sa place, c'est son métier. Chaque objet une seule fois ; ne fais pas le tour de la maison.
+
+Elle est rentrée à la maison à 19h30, a allumé la playlist, sorti le plat des anniversaires, mis la table avec les deux couverts, ouvert le cahier pour noter les préparatifs, mais la musique joue encore à minuit, seule dans la maison vide.
+
+Elle commence par les photos. Elle les rassemble, les empile soigneusement sur la table du salon. Elle les compte : il y en a seize, toutes les deux ensemble. Elle se souvient de chaque instant immortalisé sur ces clichés : leur premier voyage ensemble, leur premier anniversaire, leur mariage. Elle les replace dans l'album, à leur place habituelle.
+
+Elle se rend ensuite dans la cuisine. Elle retire le plat du four, le pose sur la table. Elle le couvre d'une cloche en verre pour le garder au chaud. Elle se souvient de l'avoir préparé, mais ne se rappelle pas avoir allumé le four.
+
+Elle retourne dans le salon, s'assoit sur le canapé. Elle se rend compte que la musique est en boucle depuis qu'elle est rentrée. Elle se lève pour l'éteindre. Elle se souvient avoir choisi cette playlist pour la fête, mais ne se rappelle pas l'avoir mise en marche.
+
+Elle se rend compte qu'elle est épuisée. Elle se couche sur le canapé, ferme les yeux. Elle se souvient avoir travaillé tard hier soir, mais ne se rappelle pas s'être couchée.
+
+Elle se rend compte qu'elle a perdu le compte du temps. Elle se lève pour regarder l'horloge. Il est minuit passé. Elle se souvient avoir regardé l'horloge il y a quelques heures, mais ne se rappelle pas à quelle heure exactement.
+
+<!-- FIN AUDIO -->

@@ -1,0 +1,11 @@
+=== 08:53:21 seed 395959 arm A3
+    exit 0 run 20261018-085322-ch07-anniversaire
+=== 09:01:05 seed 528559 arm A3
+    exit 1 run 20261018-090105-ch07-anniversaire (preflight refused)
+=== 09:03:11 seed 528559 arm A3
+    exit 1 run 20261018-090312-ch07-anniversaire (preflight refused)
+=== 09:05:22 seed 528559 arm A3
+    exit 0 run 20261018-090522-ch07-anniversaire
+=== 09:13:21 seed 781771 arm A3
+    exit 0 run 20261018-091321-ch07-anniversaire
+=== 09:31:22 done

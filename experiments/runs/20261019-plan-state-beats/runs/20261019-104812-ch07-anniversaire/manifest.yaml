@@ -1,0 +1,91 @@
+id: 20261019-104812-ch07-anniversaire
+kind: run
+chapter: 7
+slug: anniversaire
+seed: 781771
+created: '2026-10-19T08:48:12.398996+00:00'
+commit: d2c08b6
+status: ready
+overrides:
+  beat_context: plan
+config:
+  author_model: mistral-nemo:12b-instruct-2407-q8_0
+  qa_model: qwen2.5:7b-instruct
+  embed_model: nomic-embed-text
+  num_ctx: 8192
+  gesture_model: ''
+  gesture_temperature: 0.3
+  beats_n: 3
+  pruning_enabled: true
+  accumulation_enabled: true
+  beat_context: plan
+  switch_after_sentences: 2
+  audio_seconds: 165.0
+  audio_words_per_minute: 177.0
+  tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+  stage_budget_min: 25.0
+timings:
+  monotonic_s: 444.5
+  wall_s: 444.5
+  sleep_s: 0.0
+collections:
+- auteur
+finished: '2026-10-19T08:55:36+00:00'
+metrics:
+  calls: 23
+  gen_toks: 2984
+  ctx_need_max: 0.56
+  ctx_truncated: 0
+scenes: 2
+warnings:
+- 'entrée 1 : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #2 score
+  3 ; #3 score -3'
+- 'entrée 1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) — le code compose
+  les en-têtes'
+- 'entrée 1 : bornée à 2 phrase(s) — 5 retirée(s), à partir de « Ce jour n''aura pas
+  lieu, je l''efface. Je ne veux plus y penser, plus y être conf… »'
+- 'entrée 2/relève#2 : fin coupée à la dernière phrase complète, 4 caractères retirés
+  — « Pour »'
+- 'entrée 2 : bornée à 4 phrase(s) — 3 retirée(s), à partir de « Je me souviens pourtant
+  avoir décidé de ne pas célébrer cet anniversaire. Je me … »'
+- 'entrée 2/relève : best-of-3 — variant 2 retenu (score 3, propre) ; rejetés : #1
+  score 0 ; #3 score 0'
+- 'entrée 2/découverte#1 : fin coupée à la dernière phrase complète, 10 caractères
+  retirés — « Elle ouvre »'
+- 'entrée 2 : bornée à 5 phrase(s) — 6 retirée(s), à partir de « Elle sort le plat
+  du four et le met de côté pour le lendemain. Elle enlève les d… »'
+- 'entrée 2/découverte : best-of-3 — variant 1 retenu (score 0, propre) ; rejetés
+  : #2 score 0 ; #3 score 0'
+- 'entrée 2/doute : best-of-3 — variant 1 retenu (score 0, propre) ; rejetés : #2
+  score 0 ; #3 score 0'
+- 'accumulation entrée 2, essai 1 : trop longue (134 mots ; plafond 120)'
+- 'pruning : 1 phrase(s) retirée(s) — [résolution] Je n''ai pas rêvé.'
+- 'assemblage entrée 1 : aucune accumulation à poser'
+- 'assemblage entrée 2 : ancre re-tamponné — le texte portait « "Neuf ans aujourd''hui
+  que je t''ai dit oui. J''ai mis deux couverts, exp »'
+- 'assemblage entrée 2 : chute imposée absente — posée par le code : « Constat : anniversaire.
+  »'
+plan_report: plan FOURNI par le brief — nœud court-circuité (structure imposée, un
+  beat par entrée)
+coherence: "FAIT 1 : tenu — La narratrice a 38 ans et est correctrice depuis quinze\
+  \ ans.\nFAIT 2 : tenu — La narratrice ne cherchera jamais à joindre Romane ni à\
+  \ comprendre pourquoi elle est partie.\nFAIT 3 : tenu — La narratrice utilise une\
+  \ méthode de dater, relever, relire pour se tenir debout.\nFAIT 4 : tenu — La narratrice\
+  \ ne supprime jamais une ligne de ce qu'elle relit, même si elle la blesse.\nFAIT\
+  \ 5 : tenu — La narratrice ne consulte jamais de thérapeute, préférant se référer\
+  \ à des avis conditionnels.\nFAIT 6 : tenu — La narratrice ne cherche pas à entrer\
+  \ en contact avec Romane, ni à savoir pourquoi elle est partie.\nFAIT 7 : tenu —\
+  \ Personne d'autre n'entre dans la maison.\nFAIT 8 : tenu — Aucun repas n'est partagé,\
+  \ aucune conversation n'a lieu.\nFAIT 9 : tenu — Elle ne sort pas de la maison.\n\
+  \n[signalements écartés faute de citation vérifiable :]\n    fait 3, scène 1 : \"\
+  Je supprimerai les photos, je supprimerai la musique qu'elle aimait\" [citation\
+  \ introuvable dans la scène]"
+audio: null
+preflight_warnings:
+- 'Swap : 1.17 GB libres sur 12.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts
+  sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total`
+  au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les
+  durées restent interprétables.'
+variants:
+  drawn: 9
+  with_defects: 0

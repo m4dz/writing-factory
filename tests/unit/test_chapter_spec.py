@@ -142,3 +142,18 @@ def test_served_brief_drops_fabrication_notes():
     out = loader.strip_fabrication_notes(text)
     assert "fiche-romane" not in out and "objets.md" not in out
     assert out.startswith("ancre [CIT-2], fournie en matériau : une ligne")
+
+
+def test_beat_end_conditions_are_read_apart(tmp_path):
+    """« Finit quand : » is the beat's end condition, never its instruction."""
+    brief = tmp_path / "brief.md"
+    brief.write_text("## 7. Beats\n\n### Beat A — un\n\nElle relit.\n\nFinit quand : elle a lu.\n\n"
+                     "### Beat B — deux\n\nElle range.\n", encoding="utf-8")
+    assert loader.read_entry_brief(brief)["beats"] == [("Elle relit.", "elle a lu."),
+                                                ("Elle range.", "")]
+
+
+def test_chapter_7_beats_carry_their_end_conditions():
+    beats = load_chapter(7).entries[1].beats
+    assert all(b.ends for b in beats)
+    assert not any("Finit quand" in b.instruction for b in beats)

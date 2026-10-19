@@ -1,0 +1,96 @@
+id: 20261018-scaffold-ablation
+kind: experiment
+change: openspec/changes/archive/2026-10-19-scaffold-ablation
+chapter: 7
+commit: 8218bb6
+question: Which scaffolding of chapter 7 entry 2 still pays for itself once the verdict
+  skeleton is no longer served (C5)? One removal per arm against R.
+seeds:
+- 395959
+- 528559
+- 781771
+order: interleaved by seed (R A1 A2 A3 A4 for each seed)
+flags: --no-voice (render writes the chapter, no synthesis); preflight strict; narrative
+  state on
+arms_definition:
+  R: production
+  A1: --override beats_n=1 (no best-of)
+  A2: --override pruning_enabled=false
+  A3: --override accumulation_enabled=false (accumulation only; re-run)
+  A4: --spec-file specs/a4-single.yaml (entry 2 in one call)
+  A3x: '--option micro_nodes=false — INVALID: also drops drift, fall and pruning;
+    kept as material, out of the reading'
+arms:
+  R:
+  - 20261018-014804-ch07-anniversaire
+  - 20261018-024430-ch07-anniversaire
+  - 20261018-032210-ch07-anniversaire
+  A1:
+  - 20261018-020553-ch07-anniversaire
+  - 20261018-025223-ch07-anniversaire
+  - 20261018-033200-ch07-anniversaire
+  A2:
+  - 20261018-021344-ch07-anniversaire
+  - 20261018-025850-ch07-anniversaire
+  - 20261018-033736-ch07-anniversaire
+  A3x:
+  - 20261018-022422-ch07-anniversaire
+  - 20261018-030716-ch07-anniversaire
+  - 20261018-035146-ch07-anniversaire
+  A3:
+  - 20261018-085322-ch07-anniversaire
+  - 20261018-090522-ch07-anniversaire
+  - 20261018-091321-ch07-anniversaire
+  A4:
+  - 20261018-023421-ch07-anniversaire
+  - 20261018-031409-ch07-anniversaire
+  - 20261018-040335-ch07-anniversaire
+excluded:
+- run: 20261018-021237-ch07-anniversaire
+  arm: A2
+  seed: 395959
+  reason: preflight refused (mediaanalysisd 155 %)
+- run: 20261018-021243-ch07-anniversaire
+  arm: A3
+  seed: 395959
+  reason: preflight refused (mediaanalysisd 155 %)
+- run: 20261018-021249-ch07-anniversaire
+  arm: A4
+  seed: 395959
+  reason: preflight refused (mediaanalysisd 155 %)
+- run: 20261018-021256-ch07-anniversaire
+  arm: R
+  seed: 528559
+  reason: interrupted by the operator while the first script cascaded refusals
+- run: 20261018-022215-ch07-anniversaire
+  arm: A3
+  seed: 395959
+  reason: preflight refused
+- run: 20261018-023214-ch07-anniversaire
+  arm: A4
+  seed: 395959
+  reason: preflight refused
+- run: 20261018-024224-ch07-anniversaire
+  arm: R
+  seed: 528559
+  reason: preflight refused
+- run: 20261018-034939-ch07-anniversaire
+  arm: A3
+  seed: 781771
+  reason: preflight refused
+- run: 20261018-090105-ch07-anniversaire
+  arm: A3
+  seed: 528559
+  reason: preflight refused
+- run: 20261018-090312-ch07-anniversaire
+  arm: A3
+  seed: 528559
+  reason: preflight refused
+notes:
+- 'Seed 395959 arm R: one nemo call stalled at 0.4 tok/s (~9 min) under swap pressure
+  (swap 15.8/16.4 GB, browser ~13 GB resident). Timings of this experiment are not
+  interpretable (doctrine 5); time is not a criterion.'
+- A3 re-run on 2026-10-18 with the accumulation-only switch, same seeds, code commit
+  recorded per run; detector fixes deliberately AFTER it so the arms share the selection.
+- 'A3 re-run 08:53–09:31: 3 ready runs, 2 preflight refusals retried. Runs 2-3 record
+  commit 86e18d2 (untracks __pycache__ only; code identical to fd57830).'

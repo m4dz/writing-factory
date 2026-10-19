@@ -60,6 +60,8 @@ class Settings:
     gesture_temperature: float = 0.3
     beats_n: int = 3
     pruning_enabled: bool = True
+    accumulation_enabled: bool = True
+    beat_context: str = "blind"             # blind | map | plan (plan-state-beats)
 
     # --- vector store and bible -----------------------------------------------
     chroma_host: str = "localhost"
@@ -134,6 +136,8 @@ class Settings:
         "gesture_temperature": ("GESTURE_TEMPERATURE", float),
         "beats_n": ("BEATS_N", int),
         "pruning_enabled": ("PRUNING", _flag),
+        "accumulation_enabled": ("ACCUMULATION", _flag),
+        "beat_context": ("BEAT_CONTEXT", str),
         "chroma_host": ("CHROMA_HOST", str),
         "chroma_port": ("CHROMA_PORT", int),
         "author_collection": ("CHROMA_COLLECTION", str),
