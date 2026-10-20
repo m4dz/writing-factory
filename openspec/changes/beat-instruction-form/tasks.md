@@ -21,11 +21,11 @@
 
 ## 3. Run
 
-- [ ] Smoke F, seed 111111: mechanical checks (no « elle » copy, no empty
+- [x] Smoke F, seed 111111: mechanical checks (no « elle » copy, no empty
       variants, person held, guard).
-- [ ] R, F × 140419, 602237, 913085.
-- [ ] Table: recital, third person, short sentences, veto defects, words.
-- [ ] Blind set: entry 2 of the six chapters, shuffled, key closed.
+- [x] R, F × 140419, 602237, 913085.
+- [x] Table: recital, third person, short sentences, veto defects, words.
+- [x] Blind set: entry 2 of the six chapters, shuffled, key closed.
 
 ## 4. Conclude
 

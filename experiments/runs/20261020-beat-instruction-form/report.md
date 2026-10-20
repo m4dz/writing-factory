@@ -39,8 +39,59 @@ bras : la même graine reproduirait la même mort.
 
 ## Essai à blanc (graine 111111, F seul, non compté)
 
-_À compléter._
+Mécanique passée : pas de copie en « elle », aucune variante vide, la garde
+tient. Lu : la relève retenue EST la forme nominale (1,0, « aucun défaut ») —
+la sélection n'a pas de défaut pour une récitation sans personne. Découverte
+et doute perdent leur sujet (ni maison dressée, ni mains froides, ni crayon) ;
+« je décide » dans 5 variantes sur 6 ; une bascule en anglais (« fête.yet I
+have no memory… »), non retenue. Récitation 4/9.
 
 ## Résultats
 
-_À compléter._
+Six runs, aucun tué par la garde, aucun exclu. Récitation : `recital.py` sur les
+9 variantes tirées (≥ 0,50 contre l'une ou l'autre forme). Phrases courtes :
+≤ 6 mots, entrée 2 du chapitre (après la bascule).
+
+| graine | bras | récitent | 3ᵉ pers. (variantes) | phrases courtes / phrases | mots entrée 2 | défauts de véto tirés | retenus avec défaut |
+|---|---|---|---|---|---|---|---|
+| 140419 | R | 7/9 | 8 | 6/21 | 255 | 3ᵉ pers. ×8 | découverte, doute : 3ᵉ pers. |
+| 140419 | F | 3/9 | 0 | 7/24 | 361 | vide ×1, récursion ×1, décor interdit ×1 | — (décide ×2) |
+| 602237 | R | 6/9 | 4 | 7/23 | 310 | 3ᵉ pers. ×4, résout ×1 | — |
+| 602237 | F | 5/9 | 0 | 6/22 | 226 | présence perçue ×1 | — (décide ×1) |
+| 913085 | R | 6/9 | 1 | 6/28 | 340 | 3ᵉ pers. ×1, décor interdit ×2 | — (décide ×1) |
+| 913085 | F | 2/9 | 0 | 8/21 | 281 | redémarre ×2, récursion ×1, congédie ×1, présence perçue ×1, résout ×1 | découverte : redémarre |
+
+Ligne de base prose (xp-author-models, mêmes réglages, autres graines) :
+récitation 6, 6, 7/9 ; défauts de véto tirés : 3ᵉ pers. et résout seulement.
+
+Relève retenue de F : récitation 0,47 / 0,55 / **1,0** — à la graine 913085,
+la relève du chapitre est la forme nominale mot pour mot (comme à blanc).
+
+### Prédictions
+
+- **F1** réfutée en partie : F récite moins que R à chaque graine (3<7, 5<6,
+  2<6), mais ≤ 2/9 sur une graine seulement.
+- **F2** confirmée : F 0 ; R 8, 4, 1.
+- **F3** confirmée : F 21 phrases courtes contre 19 (+11 %), ≤ 1,5 × R à
+  chaque graine (7/6, 6/7, 8/6).
+- **F4** : en attente de la lecture aveugle.
+
+### Règle, avant lecture
+
+- moins de récitation que R sur les 3 graines : **oui** ;
+- phrases courtes ≤ 1,5 × R : **oui** ;
+- aucun défaut de véto absent de R : **non** — tirés : vide, récursion,
+  présence perçue, redémarre, congédie n'apparaissent jamais dans R (ni dans
+  la ligne de base) ; retenus : « redémarre » à 913085.
+
+F ne peut donc pas être adopté. Reste à la lecture de trancher entre rejeté
+(pire sur ≥ 2 graines) et non concluant.
+
+### Lecture aveugle
+
+`blind/E01–E06.md` (graine de mélange 419032), clé fermée dans
+`blind-key.yaml`. Non tout à fait aveugle : une relève nominale mot pour mot
+ou une consigne transposée (« c'est mon métier », « ne fais pas le tour ») se
+reconnaît.
+
+_À compléter après les verdicts._
