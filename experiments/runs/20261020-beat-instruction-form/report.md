@@ -94,4 +94,27 @@ F ne peut donc pas être adopté. Reste à la lecture de trancher entre rejeté
 ou une consigne transposée (« c'est mon métier », « ne fais pas le tour ») se
 reconnaît.
 
-_À compléter après les verdicts._
+Clé ouverte après les verdicts (`blind/verdicts.md`, 2026-10-20).
+
+| graine | R | F | F contre R |
+|---|---|---|---|
+| 140419 | E04 oui (« ton plutôt bon », densité faible) | E02 oui (« un des meilleurs tons obtenus ») | égal, ton meilleur |
+| 602237 | E01 partiel (personnage inventé : une fille) | E03 oui (le doute tient, densité faible) | meilleur |
+| 913085 | E06 partiel (tentative de résolution) | E05 partiel (le doute n'aboutit pas) | égal |
+
+R 1 / 2 / 0, F 2 / 1 / 0 (oui / partiel / non). F au moins égal sur 3
+graines, meilleur sur une (deux en comptant le ton).
+
+**F4 confirmée.**
+
+## Verdict (règle appliquée telle qu'écrite)
+
+**Non concluant.** Récitation et phrases courtes passent, la lecture passe,
+mais le critère « aucun défaut de véto absent de R » échoue (tirés : vide,
+récursion, présence perçue, redémarre, congédie ; retenu : redémarre à
+913085). Pas rejeté : la lecture n'est pire sur aucune graine. Conséquence
+écrite d'avance : la prose reste ; l'expérience modèles se fait sur la prose.
+
+Lecture : les relèves récitées ne sont pas punies par la lecture (E04, prose
+transposée, « oui » ; E05, forme nominale mot pour mot, « partiel » pour le
+doute, pas pour la relève).

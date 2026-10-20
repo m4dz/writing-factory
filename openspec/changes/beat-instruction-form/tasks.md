@@ -29,6 +29,6 @@
 
 ## 4. Conclude
 
-- [ ] Owner verdicts; rule applied; journal entry.
+- [x] Owner verdicts; rule applied (inconclusive); journal entry.
 - [ ] Conclusive → `xp-author-models` follow-up (Ministral and/or Mistral
       Small) on the winning form.
