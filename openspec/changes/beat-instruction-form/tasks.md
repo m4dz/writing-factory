@@ -30,5 +30,7 @@
 ## 4. Conclude
 
 - [x] Owner verdicts; rule applied (inconclusive); journal entry.
+- [ ] Replication (owner's order after the blind reading): R, F × 935325, 981791, 992103;
+      rule: the reading decides, defects reported (`20261020-beat-instruction-form-rep`).
 - [ ] Conclusive → `xp-author-models` follow-up (Ministral and/or Mistral
       Small) on the winning form.

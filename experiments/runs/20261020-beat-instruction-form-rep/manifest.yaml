@@ -1,0 +1,25 @@
+id: 20261020-beat-instruction-form-rep
+kind: experiment
+change: openspec/changes/beat-instruction-form
+chapter: 7
+question: 'Replication of 20261020-beat-instruction-form on fresh seeds, ordered by
+  the owner after a blind reading that favoured F: does F read at least as well as
+  R again?'
+author_model: mistral-nemo:12b-instruct-2407-q8_0
+seeds:
+- 935325
+- 981791
+- 992103
+order: by seed, R then F; models unloaded before each run
+flags: --no-voice; preflight strict; --override beat_context=plan; --override beat_form=prose|nominal
+arms_definition:
+  R: prose instructions of brief §7 (production text)
+  F: nominal forms of brief §7 (owner-validated, see proposal)
+smoke:
+  seed: null
+  result: not run (smoke done in the first series)
+arms:
+  R: []
+  F: []
+excluded: []
+notes: []
