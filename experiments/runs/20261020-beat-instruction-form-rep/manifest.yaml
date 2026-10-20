@@ -19,7 +19,16 @@ smoke:
   seed: null
   result: not run (smoke done in the first series)
 arms:
-  R: []
-  F: []
+  R:
+  - 20261020-195000-ch07-anniversaire
+  - 20261020-200248-ch07-anniversaire
+  - 20261020-201541-ch07-anniversaire
+  F:
+  - 20261020-195701-ch07-anniversaire
+  - 20261020-200934-ch07-anniversaire
+  - 20261020-202243-ch07-anniversaire
 excluded: []
+blind:
+  seed: 927832
+  key: blind-key.yaml (closed until verdicts)
 notes: []

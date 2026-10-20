@@ -42,4 +42,32 @@ suivante, pour les deux bras.
 
 ## Résultats
 
-_À compléter._
+Six runs, aucun tué par la garde, aucun exclu. Mêmes mesures que la première
+série.
+
+| graine | bras | récitent | 3ᵉ pers. (variantes) | phrases courtes / phrases | mots entrée 2 | défauts de véto tirés | retenus avec défaut de véto |
+|---|---|---|---|---|---|---|---|
+| 935325 | R | 6/9 | 1 | 6/43 | 609 | 3ᵉ pers. ×1, décor interdit ×1 | — |
+| 935325 | F | 6/9 | 0 | 6/19 | 325 | congédie ×1, décor interdit ×1 | — |
+| 981791 | R | 8/9 | 3 | 6/22 | 323 | 3ᵉ pers. ×3, présence perçue ×1 | — (décide ×1) |
+| 981791 | F | 6/9 | 0 | 6/23 | 284 | — | — |
+| 992103 | R | 6/9 | 1 | 7/24 | 419 | 3ᵉ pers. ×1, congédie ×1 | — (décide ×1) |
+| 992103 | F | 3/9 | 0 | 6/23 | 253 | — | — (décide ×2) |
+
+Relève retenue de F : récitation **1,0** / 0,40 / 0,49 — à la graine 935325,
+la relève du chapitre est encore la forme nominale mot pour mot.
+
+### Prédictions (hors lecture)
+
+- **P2** réfutée : égalité à 935325 (6/9 contre 6/9) ; moins aux deux autres.
+- **P3** confirmée : F 0 ; R 1, 3, 1.
+- **P4** réfutée : aucune variante de F ne redémarre ni n'invente de
+  présence (un « congédie ») ; rien de retenu.
+- **P1** : en attente de la lecture.
+
+### Lecture aveugle
+
+`blind/E01–E06.md`, clé fermée dans `blind-key.yaml`. Mêmes limites
+d'aveugle que la première série.
+
+_À compléter après les verdicts._
