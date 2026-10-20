@@ -1,0 +1,58 @@
+id: 20261020-xp-author-models-2
+kind: experiment
+change: openspec/changes/xp-author-models-2
+chapter: 7
+question: Under prose beats, plan-state context and the fixed term guard, does Ministral
+  3 14B or Mistral Small 3.2 24B write chapter 7 better than nemo, by the owner's
+  blind reading? One variable, the author tag.
+seeds:
+- 731667
+- 139026
+- 487914
+order: by seed, N then M then S; every author model unloaded before each run
+flags: --no-voice; preflight strict; --override beat_context=plan; QA qwen2.5:7b-instruct
+arms_definition:
+  N: mistral-nemo:12b-instruct-2407-q8_0 (reference)
+  M: xp-ministral3-14b-q5 = hf.co/mistralai/Ministral-3-14B-Instruct-2512-GGUF:Q5_K_M
+    under Modelfile.ministral3-14b-q5 (library template, no default system prompt)
+  S: xp-mistral-small32-24b-q3 = hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:Q3_K_M
+    (text weights only) under Modelfile.mistral-small32-24b-q3 (HF template, no default
+    system prompt, unsloth sampling defaults)
+digests:
+  mistral-nemo:12b-instruct-2407-q8_0: e9b8ba00d2a1
+  xp-ministral3-14b-q5: 87501e5270dc
+  xp-mistral-small32-24b-q3: 64c3ab80d273
+template_check:
+  S: 7 prompt tokens for « Dis bonjour. » (no default system); a begun answer is continued;
+    12 GB loaded, 100% GPU at 8k ctx; 7.4 tok/s on an 80-token continuation; Markdown
+    italics in the first line
+smoke:
+  seed: 111111
+  result: S ready, 592 s (nemo ~360 s in xp-author-models); recital 1/9, 0 kept; third
+    person 0; présence perçue x2 drawn, none kept; entry 2 215 words; French throughout;
+    entry 1 opens by quoting a brief-like sentence (« Elle efface l'anniversaire —
+    range les photos… »)
+smoke_runs:
+  S:
+  - 20261020-230504-ch07-anniversaire
+arms:
+  N:
+  - 20261020-231520-ch07-anniversaire
+  - 20261020-233625-ch07-anniversaire
+  - 20261020-235731-ch07-anniversaire
+  M:
+  - 20261020-232055-ch07-anniversaire
+  - 20261020-234157-ch07-anniversaire
+  - 20261021-000344-ch07-anniversaire
+  S:
+  - 20261020-232653-ch07-anniversaire
+  - 20261020-234809-ch07-anniversaire
+  - 20261021-000951-ch07-anniversaire
+excluded: []
+blind:
+  seed: 409024
+  entries: 9 (entry 2)
+  key: blind-key.yaml (closed until verdicts)
+notes:
+- branch cut from beat-guard-model-text (a1ec9c8), guard fix in
+- ChromaDB runs from the main checkout (factory/)

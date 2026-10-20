@@ -27,7 +27,7 @@ HEAD = re.compile(r"^## entrée 2 / (\w+) / variant (\d+)( — RETENU)?$", re.MU
 
 def forms() -> dict[str, list[str]]:
     beats = read_entry_brief(BRIEF)["beats"]
-    return {n: [s for f in (b[0], b[2]) for s in sentences(f) if len(s.split()) >= 4]
+    return {n: [s for f in (b[0], *b[2:3]) for s in sentences(f) if len(s.split()) >= 4]
             for n, b in zip(NAMES, beats)}
 
 

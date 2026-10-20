@@ -3,15 +3,15 @@
 ## 1. Setup
 
 - [x] Branch from `beat-guard-model-text` (guard fix in).
-- [ ] Pull Mistral Small 3.2 24B Q3_K_M; template checked (no default
+- [x] Pull Mistral Small 3.2 24B Q3_K_M; template checked (no default
       system prompt, begun answer continued); Modelfile if needed.
-- [ ] Smoke S, seed 111111.
+- [x] Smoke S, seed 111111.
 
 ## 2. Run
 
-- [ ] N, M, S × 731667, 139026, 487914.
-- [ ] Table: recital, third person, defects, words, time.
-- [ ] Blind set: entry 2 of the nine chapters, shuffled, key closed.
+- [x] N, M, S × 731667, 139026, 487914.
+- [x] Table: recital, third person, defects, words, time.
+- [x] Blind set: entry 2 of the nine chapters, shuffled, key closed.
 
 ## 3. Conclude
 
