@@ -752,7 +752,7 @@ def write_node(state: ChapterState) -> dict:
                 instruction, block,
                 _plan_state(sheet, name) if context == "plan"
                 else _movement_map(sheet, name) if context == "map" else "",
-                written_first=context == "plan")
+                written_first=context == "plan", model_text=text)
             # Plan (v2): the answer opens on the last paragraph already
             # written; the model continues it instead of starting over.
             # Ended on a blank line: after a bare full stop nemo closes the
@@ -839,7 +839,8 @@ def write_node(state: ChapterState) -> dict:
                 # Movement method: the brief carries everything, the segment
                 # instructions only carry the POSITION in the trajectory.
                 seg_user = _movement_prompt(
-                    sheet, target_words, TRAJECTORY_POSITION[name], block)
+                    sheet, target_words, TRAJECTORY_POSITION[name], block,
+                    model_text=text)
             else:
                 seg_user = (
                     f"Plan du chapitre (>> = l'entrée à écrire maintenant) :\n"
@@ -1385,7 +1386,7 @@ def _plan_state(sheet: EntrySpec, current: str) -> str:
 
 
 def _prompt_beat(instruction: str, block: str, movement_map: str = "",
-                 written_first: bool = False) -> str:
+                 written_first: bool = False, model_text: str = "") -> str:
     """Assemble the prompt of ONE beat — structural code cap of entry 2 (v5).
 
     Serves ONLY this beat and the common veto, NEVER the whole movement.
@@ -1398,7 +1399,8 @@ def _prompt_beat(instruction: str, block: str, movement_map: str = "",
     fall is posed downstream.
 
     Same entry guard as `_movement_prompt`: the served assembly must carry no
-    workshop or machinery term.
+    workshop or machinery term. `model_text` is the model's own prose re-served
+    inside `block`; the guard skips it (`_served_leaks`).
     """
     task = (f"CE TEMPS-CI :\n{instruction.strip()}" if movement_map
             else instruction.strip())
@@ -1407,16 +1409,30 @@ def _prompt_beat(instruction: str, block: str, movement_map: str = "",
     parts = ((movement_map.strip(), block.strip(), task, _BEAT_SUFFIX) if written_first
              else (movement_map.strip(), task, block.strip(), _BEAT_SUFFIX))
     prompt = "\n\n".join(b for b in parts if b)
-    leaks = sorted({m.group(0).lower() for m in META_TERMS.finditer(prompt)}
-                    | {m.group(0).lower() for m in MACHINERY.finditer(prompt)}
-                    | set(re.findall(r"\b[\w-]+\.md\b", prompt)))
+    leaks = _served_leaks(prompt, model_text)
     assert not leaks, (f"le prompt de beat porte des termes d'atelier ou de "
                         f"machinerie : {leaks}")
     return prompt
 
 
+def _served_leaks(prompt: str, model_text: str = "") -> list[str]:
+    """Workshop and machinery terms in what the CODE serves.
+
+    The guard was written when the assembly held only owner and code
+    material. Since the prefixing doctrine it also re-serves the model's own
+    prose, and the term lists overlap ordinary French: « la grille du four »
+    killed a run (xp-author-models, M/781771). The model's text is cut out of
+    the scan, never out of the prompt; the output lint still reports it.
+    """
+    scanned = (prompt.replace(model_text.strip(), "") if model_text.strip()
+               else prompt)
+    return sorted({m.group(0).lower() for m in META_TERMS.finditer(scanned)}
+                  | {m.group(0).lower() for m in MACHINERY.finditer(scanned)}
+                  | set(re.findall(r"\b[\w-]+\.md\b", scanned)))
+
+
 def _movement_prompt(sheet: EntrySpec, target_words: str, position: str,
-                      prefix_block: str) -> str:
+                      prefix_block: str, model_text: str = "") -> str:
     """Assemble the prompt of an entry under the movement method.
 
     STRICT order: intention → trajectory → matter → vetos. Nothing before the
@@ -1455,9 +1471,7 @@ def _movement_prompt(sheet: EntrySpec, target_words: str, position: str,
     # assembly is what is served. It already caught « matériau » (session 6)
     # and `fiche-romane.md` (session 7); widened to machinery, it catches the
     # nine terms §5 of the brief served as is.
-    leaks = sorted({m.group(0).lower() for m in META_TERMS.finditer(prompt)}
-                    | {m.group(0).lower() for m in MACHINERY.finditer(prompt)}
-                    | set(re.findall(r"\b[\w-]+\.md\b", prompt)))
+    leaks = _served_leaks(prompt, model_text)
     assert not leaks, (f"le prompt servi porte des termes d'atelier ou de "
                         f"machinerie : {leaks}")
     return prompt
