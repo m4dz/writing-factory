@@ -1,0 +1,26 @@
+### 20261020T190000-beat-instruction-form.md
+333 mots [HORS CIBLE] · 8 paragraphes · 16 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✓ Tic d'IA
+- ✓ Point d'exclamation hors dialogue
+- ✓ Incise adverbiale (ou son équivalent prépositionnel)
+- ✓ Élision manquante
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✓ Phrase d'accumulation : exactement une
+    - `|
+|---|---|---|---|
+| R — prose | 1 / 2 / 0 | 7, 6, 6 / 9 | 8, 4, 1 |
+| F — nominale | 2 / 1 / 0 | 3, 5, 2 / 9 | 0, 0, 0…`
+- ✓ Phrase-couperet en fin de paragraphe → 2 (dont 5 couperets au total)
+    - `La prose reste.`
+    - `## Erreurs de ma part`
+- ✓ Heure ou quantité exacte → 1
+    - `deux lectures`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ✓ aucune forme non ambiguë détectée
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.
