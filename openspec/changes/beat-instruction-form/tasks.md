@@ -2,9 +2,9 @@
 
 ## 1. Owner
 
-- [ ] Correct and validate the three nominal forms (proposal), then their
+- [x] Correct and validate the three nominal forms (proposal), then their
       writing into `brief-entree-2.md` §7 under each beat.
-- [ ] Validate the predictions and the decision rule (`report.md`).
+- [x] Validate the predictions and the decision rule (`report.md`).
 
 ## 2. Code
 

@@ -13,7 +13,7 @@ Variantes qui récitent la consigne (similarité phrase à phrase ≥ 0,50) :
 
 ## Prédictions (écrites avant le premier tirage, jamais modifiées)
 
-_Proposées par l'assistant, à valider par l'auteur avec les formes nominales._
+_Proposées par l'assistant ; validées par l'auteur le 2026-10-20, formes nominales corrigées (B : « fête non-désirée », « un métier » retiré)._
 
 - **F1 (récitation).** F récite dans au plus 2 variantes sur 9 par run, contre
   au moins 5 pour R, sur chaque graine.

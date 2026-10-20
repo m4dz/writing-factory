@@ -65,11 +65,11 @@ time's name.
 
 **Beat B — la découverte**
 
-> Nominal : La découverte. Autour, la maison dressée pour la fête décidée
-> annulée : photos étalées, musique qui joue, plat au four, deux couverts.
+> Nominal : La découverte. Autour, la maison dressée pour la fête non-désirée :
+> photos étalées, musique qui joue, plat au four, deux couverts.
 > Aucun souvenir d'avoir rien préparé. Le rangement commence : chaque chose
-> remise à sa place, un métier. Chaque objet trouvé une seule fois ; pas de
-> tour de la maison.
+> remise à sa place. Chaque objet trouvé une seule fois ; pas de tour de la
+> maison.
 >
 > Finit quand (nominal) : le rangement commencé ; les quatre objets trouvés,
 > chacun une fois.
