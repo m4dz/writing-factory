@@ -70,4 +70,19 @@ la relève du chapitre est encore la forme nominale mot pour mot.
 `blind/E01–E06.md`, clé fermée dans `blind-key.yaml`. Mêmes limites
 d'aveugle que la première série.
 
-_À compléter après les verdicts._
+Clé ouverte après les verdicts (`blind/verdicts.md`, 2026-10-20).
+
+| graine | R | F | F contre R |
+|---|---|---|---|
+| 935325 | E04 oui — « le meilleur tirage jusqu'ici » (609 mots) | E02 oui — « maigre densité » | à trancher par l'auteur : égal (oui/oui) ou pire |
+| 981791 | E05 partiel — « ton clinique ne pose pas le doute » | E06 non — « désordonné, erreurs, contre-sens » | pire |
+| 992103 | E01 partiel — « micro-dérapages » | E03 oui — « bonne tenue du doute », densité faible | meilleur |
+
+Réplication : R 1 / 2 / 0, F 2 / 0 / 1. Six paires : R 2 / 4 / 0, F 4 / 1 / 1.
+
+La règle bascule sur la paire 935325 : pire → F rejeté (pire sur 2 graines) ;
+égal → ni adopté (pire sur une graine) ni rejeté, l'auteur tranche sur les
+six paires.
+
+« Densité faible » revient sur trois des quatre « oui » de F, et sur un « oui »
+de R ; le meilleur tirage est le plus long (609 mots contre 225–420).
