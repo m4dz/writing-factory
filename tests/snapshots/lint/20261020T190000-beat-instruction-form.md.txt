@@ -1,5 +1,5 @@
 ### 20261020T190000-beat-instruction-form.md
-333 mots [HORS CIBLE] · 8 paragraphes · 16 phrases
+480 mots [OK] · 11 paragraphes · 24 phrases
 
 **Mécanique — EXACT (✗ = défaut présent)**
 - ✓ Lexique pastiche gothique
@@ -14,11 +14,12 @@
 |---|---|---|---|
 | R — prose | 1 / 2 / 0 | 7, 6, 6 / 9 | 8, 4, 1 |
 | F — nominale | 2 / 1 / 0 | 3, 5, 2 / 9 | 0, 0, 0…`
-- ✓ Phrase-couperet en fin de paragraphe → 2 (dont 5 couperets au total)
+- ✓ Phrase-couperet en fin de paragraphe → 3 (dont 7 couperets au total)
     - `La prose reste.`
     - `## Erreurs de ma part`
-- ✓ Heure ou quantité exacte → 1
-    - `deux lectures`
+    - `## Réplication et décision (2026-10-20)`
+- ✓ Heure ou quantité exacte → 3
+    - `Six paires`, `deux lectures`, `trois graines`
 
 **Passé simple — CANDIDATS, à confirmer à l'œil**
 - ✓ aucune forme non ambiguë détectée

@@ -34,3 +34,17 @@ récursion, vide), dont un retenu. La prose reste.
 - Le critère « aucun défaut de véto absent de R » ne précisait pas tirés ou
   retenus ; il échoue dans les deux lectures, mais la question aurait dû être
   tranchée avant les runs.
+
+## Réplication et décision (2026-10-20)
+
+L'auteur a écarté la règle mécanique (le ton est sa décision, la lecture est
+le juge) et commandé trois graines neuves (`20261020-beat-instruction-form-rep`).
+Réplication : R 1 / 2 / 0, F 2 / 0 / 1 ; F meilleur sur une graine, pire sur
+une, la troisième oppose le meilleur tirage à ce jour (R, 609 mots) à un « oui »
+maigre (F). Six paires : R 2 / 4 / 0, F 4 / 1 / 1. Décision de l'auteur :
+**R reste.**
+
+- Erreur de ma part : la première règle mettait un compte de défauts au rang
+  de la lecture. Corrigé dans la réplication ; à ne plus refaire.
+- « Densité faible » revient sur la plupart des « oui » ; le meilleur tirage
+  est le plus long. La densité est peut-être la variable qui compte.

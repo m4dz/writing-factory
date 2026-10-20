@@ -86,3 +86,10 @@ six paires.
 
 « Densité faible » revient sur trois des quatre « oui » de F, et sur un « oui »
 de R ; le meilleur tirage est le plus long (609 mots contre 225–420).
+
+## Verdict
+
+**F rejeté, R reste** (décision de l'auteur, 2026-10-20, sur les six paires).
+La prose en « elle » reste la forme servie ; l'expérience modèles se fait sur
+la prose. Le code `beat_form=nominal` et les formes nominales du brief restent
+en place, inertes par défaut (`prose`).
