@@ -1,0 +1,23 @@
+Samedi 14. Beau temps.
+
+J'ai décidé aujourd'hui d'effacer l'anniversaire. J'ai rangé les photos, supprimé la musique, et je n'ai pas sorti le plat des grandes occasions.
+
+<!-- BASCULE -->
+
+Samedi 14. Beau temps.
+
+« Neuf ans aujourd'hui que je t'ai dit oui. J'ai mis deux couverts, exprès cette fois, et j'ai redit oui tout haut dans la cuisine. Je t'aime toujours. »
+
+J'allais poser le verdict quand la main s'est arrêtée. Neuf ans, et j'aurais dû demander, quand il était encore temps, ce qui l'a… La marge reste blanche. Le crayon ne biffe pas.
+
+Je relis la ligne que je viens de recopier, et je relève un écart : les deux couverts mis, je les ai sous les yeux, mais j’ignore les avoir posés. Je suis pourtant certaine de ne pas avoir changé d’avis, de ne pas avoir décidé de faire une fête malgré tout. Comment expliquer cette contradiction entre ce que je vois et ce que je me souviens ? Je ne suis pas du genre à perdre la tête, à oublier ce que j’ai fait.
+
+Autour de moi, la maison est prête pour la fête que je n’avais pas prévu de tenir : les photos sont étalées, la musique joue en boucle, le plat est au four, et les deux couverts sont mis. Je ne me souviens pas d’avoir préparé tout cela. Je décide alors de ranger, de remettre chaque chose à sa place. Je commence par les photos, que je replace soigneusement dans l’album où elles étaient avant. Ensuite, je coupe la musique et range la playlist.
+
+Je passe à la cuisine, où le plat est en train de cuire. Je ne me souviens pas d’avoir mis le plat au four. Je décide de le sortir, mais en le touchant, je me brûle légèrement. Je retire ma main rapidement et la place sous l’eau froide pour soulager la douleur.
+
+Je rentre chez moi à 19h, je pose mes clés sur la console de l'entrée, je me dirige vers le salon, je vois les photos étalées sur la table basse, je les range dans l'album, je vais dans la cuisine, je coupe la musique qui joue en boucle, je range la playlist, je sors le plat du four, je me brûle en le touchant, je retire ma main rapidement et la place sous l'eau froide pour soulager la douleur, sauf une, une seule, la playlist qui tourne encore.
+
+Constat : anniversaire.
+
+<!-- FIN AUDIO -->

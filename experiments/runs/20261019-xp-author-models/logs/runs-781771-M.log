@@ -1,0 +1,29 @@
+  ⚠ le brief du chapitre 7 porte des termes d'atelier que le lint bannit en sortie : ['ancre', 'matériau'] — à arbitrer par l'auteur
+
+=== run 20261019-230515-ch07-anniversaire ===
+Traceback (most recent call last):
+  File "/Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory-xp-models/.venv/bin/factory", line 8, in <module>
+    sys.exit(main())
+  File "/Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory-xp-models/src/factory/cli.py", line 537, in main
+    return int(COMMANDS[command](rest) or 0)
+  File "/Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory-xp-models/src/factory/cli.py", line 251, in generate
+    return _run_one(state, chapter, slug, args, root, overrides=overrides, extra=extra)
+  File "/Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory-xp-models/src/factory/cli.py", line 193, in _run_one
+    final = build_graph().invoke(state, config={"recursion_limit": 50})
+  File "/Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory-xp-models/.venv/lib/python3.10/site-packages/langgraph/pregel/main.py", line 4001, in invoke
+    for chunk in self.stream(
+  File "/Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory-xp-models/.venv/lib/python3.10/site-packages/langgraph/pregel/main.py", line 3058, in stream
+    for _ in runner.tick(
+  File "/Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory-xp-models/.venv/lib/python3.10/site-packages/langgraph/pregel/_runner.py", line 208, in tick
+    run_with_retry(
+  File "/Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory-xp-models/.venv/lib/python3.10/site-packages/langgraph/pregel/_retry.py", line 617, in run_with_retry
+    return task.proc.invoke(task.input, config)
+  File "/Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory-xp-models/.venv/lib/python3.10/site-packages/langgraph/_internal/_runnable.py", line 707, in invoke
+    input = context.run(step.invoke, input, config, **kwargs)
+  File "/Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory-xp-models/.venv/lib/python3.10/site-packages/langgraph/_internal/_runnable.py", line 447, in invoke
+    ret = self.func(*args, **kwargs)
+  File "/Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory-xp-models/src/factory/pipeline/graph.py", line 751, in write_node
+    beat_user = _prompt_beat(
+  File "/Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory-xp-models/src/factory/pipeline/graph.py", line 1413, in _prompt_beat
+    assert not leaks, (f"le prompt de beat porte des termes d'atelier ou de "
+AssertionError: le prompt de beat porte des termes d'atelier ou de machinerie : ['grille']
