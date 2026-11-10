@@ -930,6 +930,8 @@ def write_node(state: ChapterState) -> dict:
                 to_score = (_bound_sentences(t_clean, phr, idx, "")[0]
                             if phr else t_clean)
                 sc, defects = scorers.score(to_score, sheet.best_of)
+                nb, nd = scorers.notebook(to_score, cites=sheet.citation != "")
+                sc, defects = sc + nb, defects + nd
                 cands.append({"score": sc, "k": k, "t": t, "m": m, "w": w,
                               "def": defects})
             cands.sort(key=lambda c: (-c["score"], c["k"]))
@@ -1201,9 +1203,8 @@ _BEAT_DOUBT = re.compile(
     r"|sans\s+(?:m'en\s+souvenir|le\s+savoir)", re.IGNORECASE)
 
 
-_FIRST_PERSON = re.compile(r"(?<!\w)(?:je|j['’]|me|m['’]|moi|mon|ma|mes)(?!\w)",
-                           re.IGNORECASE)
-_SHE = re.compile(r"\belle\b", re.IGNORECASE)
+_FIRST_PERSON = scorers.FIRST_PERSON
+_SHE = scorers.SHE
 
 
 def _sentences_norm(text: str) -> set[str]:

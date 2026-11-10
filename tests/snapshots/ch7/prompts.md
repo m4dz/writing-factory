@@ -94,14 +94,14 @@ Elle ne supprime jamais une ligne de ce qu'elle relit, même ce qui la blesse : 
 MOUVEMENT À ACCOMPLIR — Deux phrases, la porte fermée : elle efface l'anniversaire — range les photos, supprime la musique, écarte le plat — et rien d'autre.
 
 MATIÈRE DISPONIBLE — à ta disposition pour accomplir ce mouvement, jamais une liste à épuiser :
-  - Ce qu'elle a décidé cet après-midi : ce jour n'aura pas lieu, elle l'efface.
+  - Décision de l'après-midi : ce jour n'aura pas lieu, effacé.
   - Les gestes d'effacement, tenus en deux phrases : ranger les photos, supprimer la musique, ne pas sortir le plat des grandes occasions ; une journée ordinaire.
 
 CE QUE LE TEXTE NE FAIT PAS :
   - Longueur visée : 25 à 60 mots.
   - Aucun verdict ne se rend : la dernière ligne en tient lieu, et elle est déjà écrite ailleurs.
   - Pas de phrase-récapitulatif.
-  - Elle est seule, l'après-midi, et rien ne lui arrive : aucune voix, aucun bruit, personne ; elle décide, elle n'observe pas. Le mot du jour ne s'écrit pas.
+  - Seule, l'après-midi ; rien n'arrive : aucune voix, aucun bruit, personne. Décider, pas observer. Le mot du jour ne s'écrit pas.
 
 L'entrée est DÉJÀ COMMENCÉE par ce texte, que tu ne réécris PAS :
 ---
@@ -209,14 +209,14 @@ Elle ne supprime jamais une ligne de ce qu'elle relit, même ce qui la blesse : 
 MOUVEMENT À ACCOMPLIR — Deux phrases, la porte fermée : elle efface l'anniversaire — range les photos, supprime la musique, écarte le plat — et rien d'autre.
 
 MATIÈRE DISPONIBLE — à ta disposition pour accomplir ce mouvement, jamais une liste à épuiser :
-  - Ce qu'elle a décidé cet après-midi : ce jour n'aura pas lieu, elle l'efface.
+  - Décision de l'après-midi : ce jour n'aura pas lieu, effacé.
   - Les gestes d'effacement, tenus en deux phrases : ranger les photos, supprimer la musique, ne pas sortir le plat des grandes occasions ; une journée ordinaire.
 
 CE QUE LE TEXTE NE FAIT PAS :
   - Longueur visée : 25 à 60 mots.
   - Aucun verdict ne se rend : la dernière ligne en tient lieu, et elle est déjà écrite ailleurs.
   - Pas de phrase-récapitulatif.
-  - Elle est seule, l'après-midi, et rien ne lui arrive : aucune voix, aucun bruit, personne ; elle décide, elle n'observe pas. Le mot du jour ne s'écrit pas.
+  - Seule, l'après-midi ; rien n'arrive : aucune voix, aucun bruit, personne. Décider, pas observer. Le mot du jour ne s'écrit pas.
 
 L'entrée est DÉJÀ COMMENCÉE par ce texte, que tu ne réécris PAS :
 ---
@@ -324,14 +324,14 @@ Elle ne supprime jamais une ligne de ce qu'elle relit, même ce qui la blesse : 
 MOUVEMENT À ACCOMPLIR — Deux phrases, la porte fermée : elle efface l'anniversaire — range les photos, supprime la musique, écarte le plat — et rien d'autre.
 
 MATIÈRE DISPONIBLE — à ta disposition pour accomplir ce mouvement, jamais une liste à épuiser :
-  - Ce qu'elle a décidé cet après-midi : ce jour n'aura pas lieu, elle l'efface.
+  - Décision de l'après-midi : ce jour n'aura pas lieu, effacé.
   - Les gestes d'effacement, tenus en deux phrases : ranger les photos, supprimer la musique, ne pas sortir le plat des grandes occasions ; une journée ordinaire.
 
 CE QUE LE TEXTE NE FAIT PAS :
   - Longueur visée : 25 à 60 mots.
   - Aucun verdict ne se rend : la dernière ligne en tient lieu, et elle est déjà écrite ailleurs.
   - Pas de phrase-récapitulatif.
-  - Elle est seule, l'après-midi, et rien ne lui arrive : aucune voix, aucun bruit, personne ; elle décide, elle n'observe pas. Le mot du jour ne s'écrit pas.
+  - Seule, l'après-midi ; rien n'arrive : aucune voix, aucun bruit, personne. Décider, pas observer. Le mot du jour ne s'écrit pas.
 
 L'entrée est DÉJÀ COMMENCÉE par ce texte, que tu ne réécris PAS :
 ---
