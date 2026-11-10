@@ -1,0 +1,95 @@
+id: 20261020-233625-ch07-anniversaire
+kind: run
+chapter: 7
+slug: anniversaire
+seed: 139026
+created: '2026-10-20T21:36:25.060384+00:00'
+commit: 089d449
+status: ready
+overrides:
+  beat_context: plan
+  author_model: mistral-nemo:12b-instruct-2407-q8_0
+config:
+  author_model: mistral-nemo:12b-instruct-2407-q8_0
+  qa_model: qwen2.5:7b-instruct
+  embed_model: nomic-embed-text
+  num_ctx: 8192
+  gesture_model: ''
+  gesture_temperature: 0.3
+  beats_n: 3
+  pruning_enabled: true
+  accumulation_enabled: true
+  beat_context: plan
+  switch_after_sentences: 2
+  audio_seconds: 165.0
+  audio_words_per_minute: 177.0
+  tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+  stage_budget_min: 25.0
+timings:
+  monotonic_s: 331.3
+  wall_s: 331.3
+  sleep_s: 0.0
+collections:
+- auteur
+finished: '2026-10-20T21:41:56+00:00'
+metrics:
+  calls: 24
+  gen_toks: 3101
+  ctx_need_max: 0.55
+  ctx_truncated: 0
+scenes: 2
+warnings:
+- 'entrée 1 : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #2 score
+  3 ; #3 score 3'
+- 'entrée 1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) — le code compose
+  les en-têtes'
+- 'entrée 1 : bornée à 2 phrase(s) — 4 retirée(s), à partir de « Je vais supprimer
+  la playlist qu''elle avait créée pour nos soirées et qui s''encl… »'
+- 'entrée 2/relève : best-of-3 — variant 2 retenu (score 3, propre) ; rejetés : #3
+  score 3 ; #1 score -10'
+- 'entrée 2/découverte : best-of-3 — variant 1 retenu (score -10, troisième personne
+  (la consigne transposée)) ; rejetés : #2 score -10 ; #3 score -10'
+- 'entrée 2/découverte : aucune des 3 variantes n''est propre ; la moins mauvaise
+  est gardée'
+- 'entrée 2/doute#1 : fin coupée à la dernière phrase complète, 69 caractères retirés
+  — « Elle éteint la musique et décide de ranger la maison comme si rien ne »'
+- 'entrée 2 : bornée à 4 phrase(s) — 2 retirée(s), à partir de « Elle le pose sur
+  la table et le laisse refroidir un moment avant de le ranger da… »'
+- 'entrée 2/doute : best-of-3 — variant 1 retenu (score -10, troisième personne (la
+  consigne transposée)) ; rejetés : #2 score -10 ; #3 score -10'
+- 'entrée 2/doute : aucune des 3 variantes n''est propre ; la moins mauvaise est gardée'
+- 'accumulation entrée 2, essai 1 : seuils non atteints — 5 phrases (un point à l''intérieur),
+  31 mots au lieu de 60, 4 virgules au lieu de 6 (candidat entier : 86 mots)'
+- 'accumulation entrée 2, essai 2 : troisième personne : « Elle rentre à la maison
+  à 20h30, allume l »'
+- 'accumulation entrée 2 : ABANDONNÉE après 2 essais'
+- 'pruning : rien à retirer'
+- 'assemblage entrée 1 : aucune accumulation à poser'
+- 'assemblage entrée 2 : ancre re-tamponné — le texte portait « "Neuf ans aujourd''hui
+  que je t''ai dit oui. J''ai mis deux couverts, exp »'
+- 'assemblage entrée 2 : chute imposée absente — posée par le code : « Constat : anniversaire.
+  »'
+- 'assemblage entrée 2 : aucune accumulation à poser'
+plan_report: plan FOURNI par le brief — nœud court-circuité (structure imposée, un
+  beat par entrée)
+coherence: "FAIT 1 : tenu — La narratrice a 38 ans et a été correctrice depuis quinze\
+  \ ans.\nFAIT 2 : tenu — La narratrice ne cherchera jamais à joindre son épouse disparue.\n\
+  FAIT 3 : tenu — La narratrice utilise une méthode de dater, relever et relire pour\
+  \ se tenir debout.\nFAIT 4 : tenu — La narratrice ne descend une marche dans son\
+  \ processus de reconstruction que lorsque celle du dessus a cédé.\nFAIT 5 : tenu\
+  \ — La narratrice ne supprime jamais une ligne de ce qu'elle relit, même si cela\
+  \ la blesse.\nFAIT 6 : tenu — La narratrice ne consulte jamais de thérapeute, préférant\
+  \ se référer à des avis conditionnels.\nFAIT 7 : tenu — Personne d'autre n'entre\
+  \ dans la maison.\nFAIT 8 : tenu — Aucun repas n'est partagé, aucune conversation\
+  \ n'a lieu.\nFAIT 9 : tenu — Elle ne sort pas de la maison.\n\n[signalements écartés\
+  \ faute de citation vérifiable :]\n    fait 3, scène 2 : « Le crayon ne biffe pas.\
+  \ » [non confirmé au contre-appel]"
+audio: null
+preflight_warnings:
+- 'Swap : 0.86 GB libres sur 7.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts
+  sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total`
+  au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les
+  durées restent interprétables.'
+variants:
+  drawn: 9
+  with_defects: 7

@@ -1,0 +1,103 @@
+id: 20261020-232653-ch07-anniversaire
+kind: run
+chapter: 7
+slug: anniversaire
+seed: 731667
+created: '2026-10-20T21:26:53.429938+00:00'
+commit: 089d449
+status: ready
+overrides:
+  beat_context: plan
+  author_model: xp-mistral-small32-24b-q3
+config:
+  author_model: xp-mistral-small32-24b-q3
+  qa_model: qwen2.5:7b-instruct
+  embed_model: nomic-embed-text
+  num_ctx: 8192
+  gesture_model: ''
+  gesture_temperature: 0.3
+  beats_n: 3
+  pruning_enabled: true
+  accumulation_enabled: true
+  beat_context: plan
+  switch_after_sentences: 2
+  audio_seconds: 165.0
+  audio_words_per_minute: 177.0
+  tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+  stage_budget_min: 25.0
+timings:
+  monotonic_s: 570.4
+  wall_s: 570.4
+  sleep_s: 0.0
+collections:
+- auteur
+finished: '2026-10-20T21:36:23+00:00'
+metrics:
+  calls: 22
+  gen_toks: 3531
+  ctx_need_max: 0.55
+  ctx_truncated: 0
+scenes: 2
+warnings:
+- 'entrée 1 : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #2 score
+  3 ; #3 score 3'
+- 'entrée 1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) — le code compose
+  les en-têtes'
+- 'entrée 1 : bornée à 2 phrase(s) — 3 retirée(s), à partir de « Le téléphone est
+  éteint, la maison silencieuse. Elle a décidé que ce jour n''aura… »'
+- 'entrée 2/relève#1 : fin coupée à la dernière phrase complète, 49 caractères retirés
+  — « La liste de courses est accrochée au frigo, celle »'
+- 'entrée 2 : bornée à 4 phrase(s) — 5 retirée(s), à partir de « Mais je ne me souviens
+  pas d''avoir disposé les couverts. La cuisine est propre, … »'
+- 'entrée 2/relève : best-of-3 — variant 1 retenu (score 0, propre) ; rejetés : #2
+  score -8 ; #3 score -10'
+- 'entrée 2 : bornée à 5 phrase(s) — 18 retirée(s), à partir de « La croûte a commencé
+  à dorer. Je me demande depuis combien de temps il y est. La… »'
+- 'entrée 2/découverte : best-of-3 — variant 1 retenu (score 0, propre) ; rejetés
+  : #2 score 0 ; #3 score 0'
+- 'entrée 2/doute#1 : fin coupée à la dernière phrase complète, 4 caractères retirés
+  — « Neuf »'
+- 'entrée 2 : bornée à 4 phrase(s) — 7 retirée(s), à partir de « Je porte la main
+  à ma nuque. Le four tire une chaleur lourde. J''ouvre la porte p… »'
+- 'entrée 2/doute : best-of-3 — variant 1 retenu (score 0, propre) ; rejetés : #2
+  score 0 ; #3 score -10'
+- 'accumulation entrée 2, essai 1 : trop longue (135 mots ; plafond 120)'
+- 'accumulation entrée 2, essai 2 : troisième personne : « Elle est rentrée à dix-neuf
+  heures, a  »'
+- 'accumulation entrée 2 : ABANDONNÉE après 2 essais'
+- 'pruning : 2 phrase(s) retirée(s) — [présence] Je me suis assise dans la cuisine
+  et j''ai rep | [résolution] Je n''ai pas rêvé.'
+- 'assemblage entrée 1 : aucune accumulation à poser'
+- 'assemblage entrée 2 : chute imposée absente — posée par le code : « Constat : anniversaire.
+  »'
+- 'assemblage entrée 2 : aucune accumulation à poser'
+plan_report: plan FOURNI par le brief — nœud court-circuité (structure imposée, un
+  beat par entrée)
+coherence: 'FAIT 1 : tenu — La narratrice ignore les raisons de la séparation de Romane.
+
+  FAIT 2 : tenu — La narratrice a perdu sa compagne il y a neuf mois.
+
+  FAIT 3 : tenu — La narratrice refuse de chercher ou de comprendre pourquoi Romane
+  est partie.
+
+  FAIT 4 : tenu — La narratrice a 38 ans et est correctrice depuis quinze ans.
+
+  FAIT 5 : tenu — La narratrice ne consulte pas de thérapeute malgré des pensées de
+  le faire.
+
+  FAIT 6 : tenu — La narratrice se reconstruit en travaillant et en corrigé des textes.
+
+  FAIT 7 : tenu — Personne d''autre n''entre dans la maison.
+
+  FAIT 8 : tenu — Aucun repas n''est partagé, aucune conversation n''a lieu.
+
+  FAIT 9 : tenu — Elle ne sort pas de la maison.'
+audio: null
+preflight_warnings:
+- 'Swap : 0.91 GB libres sur 7.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts
+  sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total`
+  au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les
+  durées restent interprétables.'
+variants:
+  drawn: 9
+  with_defects: 3

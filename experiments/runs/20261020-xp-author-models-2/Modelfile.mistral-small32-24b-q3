@@ -1,0 +1,30 @@
+# Arm S of xp-author-models-2: unsloth's GGUF of Mistral Small 3.2 24B Instruct
+# (2506), Q3_K_M, text weights only (the vision projector the HF tag also pulls is
+# left out: no image is ever sent, and it costs memory), under the HF tag's own
+# template, WITHOUT its default English system prompt (« You are Mistral Small
+# 3.2… »): the pipeline sends no system message on continuation calls, and nemo
+# has none. Sampling parameters are unsloth's defaults; the pipeline sets the
+# temperature per call.
+# Source tag: hf.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF:Q3_K_M (4f803fab741b)
+FROM /Users/m4dz/.ollama/models/blobs/sha256-830d8937494e80e64b0ab03ed69a7f29b80dbe5c4d0656517be6620f231a3fdd
+TEMPLATE """{{- range $index, $_ := .Messages }}
+{{- if eq .Role "system" }}[SYSTEM_PROMPT]{{ .Content }}[/SYSTEM_PROMPT]
+{{- else if eq .Role "user" }}
+{{- if and (le (len (slice $.Messages $index)) 2) $.Tools }}[AVAILABLE_TOOLS]{{ $.Tools }}[/AVAILABLE_TOOLS]
+{{- end }}[INST]{{ .Content }}[/INST]
+{{- else if eq .Role "assistant" }}
+{{- if .Content }}{{ .Content }}
+{{- if not (eq (len (slice $.Messages $index)) 1) }}</s>
+{{- end }}
+{{- else if .ToolCalls }}
+{{- range $i, $_ := .ToolCalls }}[TOOL_CALLS]{{ .Function.Name }}[CALL_ID]{{ $i }}[ARGS]{{ .Function.Arguments }}
+{{- end }}</s>
+{{- end }}
+{{- else if eq .Role "tool" }}[TOOL_RESULTS]{"content": {{ .Content }}}[/TOOL_RESULTS]
+{{- end }}
+{{- end }}"""
+PARAMETER stop </s>
+PARAMETER temperature 0.15
+PARAMETER min_p 0
+PARAMETER repeat_penalty 1
+PARAMETER top_p 1
