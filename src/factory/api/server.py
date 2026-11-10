@@ -3,8 +3,9 @@
 
     factory serve            # listens at settings.api_host:settings.api_port
 
-    POST /generate {chapter, seed?, overrides?}   202 {run_id}; queued, never refused
-    GET  /runs/<id>/status|events|chapter|audio|prompts|manifest
+    POST /generate {chapter, seed?, overrides?, prepared?}
+                                                  202 {run_id}; queued, never refused
+    GET  /runs/<id>/status|events|chapter|audio|prompts|manifest|plan
     POST /runs/<id>/cancel                        `/runs/latest/…` aliases the newest
     POST /chat, GET /characters, /sessions, /session/<c>/<ts>, /acteur, /health
 
@@ -38,6 +39,7 @@ from factory import runs as run_registry
 from factory.chapter_spec import ChapterSpecError, chapter_dirs, load_chapter
 from factory.infra.ollama import client as model_client
 from factory.retrieval import context as retrieval
+from factory.pipeline import checkpoint
 from factory.pipeline.graph import build_graph
 from factory.infra.preflight import PreflightError, report
 from factory.runs import Run
@@ -178,6 +180,7 @@ class Worker:
         retrieval.clear_routing()
         final: dict | None = None
         status, error = "error", None
+        prepared_from = run.manifest.get("prepared_from")
         try:
             # Preflight is the FIRST NODE of the graph; its refusal becomes an
             # `error` state the deck reads as not ready. `timer=True`: the
@@ -186,15 +189,27 @@ class Worker:
             # `render=True`: the last node writes `chapitre.md` then the WAV
             # into the run directory; a voice failure leaves the chapter
             # served (ADR-0012).
+            # A run resumed from a prepared plan starts at `live_preflight`
+            # (the same strict, timed gate) once its fingerprint holds; the
+            # prepared run is read, never consumed.
             with run_registry.open_checkpointer(run) as saver:
-                final = build_graph(checkpointer=saver).invoke(
-                    {**load_chapter(run.chapter).state(seed=run.seed),
-                     "preflight": {"strict": True, "timer": True},
-                     "narrative_state": True,
-                     "render": True,
-                     "artifacts_dir": str(run.dir)},
-                    config=run_registry.run_config(run), durability="sync",
-                )
+                graph, config = build_graph(checkpointer=saver), run_registry.run_config(run)
+                if prepared_from:
+                    prepared = run_registry.resolve_prepared(prepared_from, run.chapter,
+                                                             run.dir.parent)
+                    final = checkpoint.resume_prepared(
+                        graph, config, prepared,
+                        {"preflight": {"strict": True, "timer": True}, "render": True,
+                         "artifacts_dir": str(run.dir), "seed": run.seed})
+                else:
+                    final = graph.invoke(
+                        {**load_chapter(run.chapter).state(seed=run.seed),
+                         "preflight": {"strict": True, "timer": True},
+                         "narrative_state": True,
+                         "render": True,
+                         "artifacts_dir": str(run.dir)},
+                        config=config, durability="sync",
+                    )
             status = "ready"
             progress.note("chapitre prêt")
             notify.ready(int(time.time() - self.started_at),
@@ -211,6 +226,13 @@ class Worker:
             error = f"préflight refusé : {exc}"
             lines = str(exc).splitlines()
             self._fail(error, kind="préflight",
+                       short=lines[1].strip(" -") if len(lines) > 1 else str(exc))
+        except run_registry.FingerprintError as exc:
+            # The plan was prepared against another machine state. Its items
+            # name configuration keys, models and files, never the work.
+            error = f"empreinte refusée : {exc}"
+            lines = str(exc).splitlines()
+            self._fail(error, kind="empreinte",
                        short=lines[1].strip(" -") if len(lines) > 1 else str(exc))
         except Exception as exc:                       # noqa: BLE001
             # Deliberately broad: onstage an unexpected exception must produce
@@ -267,7 +289,8 @@ class Worker:
         snap = {**base, "state": state,
                 # `phase` and `ready` are the two fields of the deck's GenStatus contract.
                 "phase": {"ready": "ready", "error": "error", "cancelled": "idle",
-                          "queued": "queued"}.get(state, "generating"),
+                          "queued": "queued", "preparing": "idle",
+                          "prepared": "idle"}.get(state, "generating"),
                 "ready": state == "ready" and run.chapter_path.exists(),
                 "progress": 1.0 if state == "ready" else 0.0,
                 "label": "", "detail": "", "gen_toks": (m.get("metrics") or {}).get("gen_toks", 0),
@@ -587,11 +610,14 @@ class Handler(BaseHTTPRequestHandler):
     _LEGACY = ("/generate", "/status", "/events", "/chapter", "/audio", "/cancel")
 
     def _generate(self) -> None:
-        """`POST /generate {chapter, seed?, overrides?}` → 202 {run_id}.
+        """`POST /generate {chapter, seed?, overrides?, prepared?}` → 202 {run_id}.
 
         The payload is MANDATORY: the chapter names an existing spec, the
         seed is random by default and recorded, the overrides are a whitelist
-        of configuration keys (ADR-0005).
+        of configuration keys (ADR-0005). `prepared` (a run id or `latest`,
+        the newest prepared run of that chapter) resumes a prepared plan in a
+        NEW run whose configuration is the prepared one: overrides are
+        refused. The API never prepares: approval happens at the terminal.
         """
         payload_dict = self._json_body()
         if not payload_dict or "chapter" not in payload_dict:
@@ -609,10 +635,18 @@ class Handler(BaseHTTPRequestHandler):
         if seed is not None and not isinstance(seed, int):
             self._json(400, {"error": "seed : entier attendu"})
             return
+        seed = seed if seed is not None else random.randrange(1, 10**6)
         try:
-            run = run_registry.create_run(
-                chapter, spec.slug, seed=seed if seed is not None else random.randrange(1, 10**6),
-                overrides=payload_dict.get("overrides") or {})
+            if "prepared" in payload_dict:
+                if payload_dict.get("overrides"):
+                    raise run_registry.RunError(
+                        "overrides refusés avec prepared : la configuration est celle de la "
+                        "préparation")
+                prepared = run_registry.resolve_prepared(payload_dict["prepared"], chapter)
+                run = run_registry.create_resumed_run(prepared, seed=seed)
+            else:
+                run = run_registry.create_run(chapter, spec.slug, seed=seed,
+                                              overrides=payload_dict.get("overrides") or {})
         except run_registry.RunError as exc:
             self._json(400, {"error": str(exc)})
             return
@@ -637,8 +671,8 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self._json(200, {"runs": [
                 {"run_id": r.id, "chapter": r.chapter, "seed": r.seed,
-                 "state": WORKER.snapshot(r)["state"], "created": r.created}
-                for r in run_registry.list_runs()]})
+                 "state": snap["state"], "ready": snap["ready"], "created": r.created}
+                for r in run_registry.list_runs() for snap in (WORKER.snapshot(r),)]})
             return
         token, rest = pieces[0], pieces[1:]
         if token != "latest" and not self._RUN_ID.match(token):
@@ -667,6 +701,10 @@ class Handler(BaseHTTPRequestHandler):
             self._file(run.audio_path, "audio/wav")
         elif leaf == "prompts":
             self._file(run.prompts_path, "text/markdown; charset=utf-8")
+        elif leaf == "plan":
+            # The approved plan alone (never its check report), from the
+            # prepared run or the copy a resumed run carries; 204 otherwise.
+            self._file(run.plan_path, "text/markdown; charset=utf-8")
         elif leaf == "manifest":
             self._file(run.dir / "manifest.yaml", "application/yaml; charset=utf-8")
         else:

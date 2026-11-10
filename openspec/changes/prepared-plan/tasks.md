@@ -44,12 +44,12 @@
 
 ## 5. API
 
-- [ ] `POST /generate` accepts `prepared` (id or `latest`); `400` cases
+- [x] `POST /generate` accepts `prepared` (id or `latest`); `400` cases
       tested; seed random unless given.
-- [ ] `state: prepared` in listings and status.
-- [ ] `plan.md` (plan alone) and `plan-report.md`; copy into resumed runs;
+- [x] `state: prepared` in listings and status.
+- [x] `plan.md` (plan alone) and `plan-report.md`; copy into resumed runs;
       `GET /runs/<id>/plan` (`200` prepared and resumed, `204` otherwise).
-- [ ] Fingerprint refusal → `state: error`, operator notified.
+- [x] Fingerprint refusal → `state: error`, operator notified.
 
 ## 5b. Talk repository (separate change, depends on this one)
 

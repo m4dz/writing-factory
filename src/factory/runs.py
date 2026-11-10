@@ -15,6 +15,7 @@ and `plan-report.md` (its check report); a run resumed from it records
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import subprocess
 import time
@@ -366,9 +367,13 @@ def write_manifest(run: Run, **fields) -> None:
     run.manifest.update(fields)
     if "status" in fields:
         run.status = fields["status"]
-    (run.dir / "manifest.yaml").write_text(
-        yaml.safe_dump(_plain(run.manifest), allow_unicode=True, sort_keys=False),
-        encoding="utf-8")
+    # Atomic: the API reads manifests while the worker writes them, and a
+    # truncated file read mid-write made a live run answer 404.
+    target = run.dir / "manifest.yaml"
+    partial = run.dir / ".manifest.yaml.partial"
+    partial.write_text(yaml.safe_dump(_plain(run.manifest), allow_unicode=True, sort_keys=False),
+                       encoding="utf-8")
+    os.replace(partial, target)
 
 
 def _plain(value):
