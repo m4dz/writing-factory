@@ -11,6 +11,7 @@ run id). The API reads runs from disk and holds no chapter in memory;
 
 from __future__ import annotations
 
+import hashlib
 import re
 import subprocess
 import time
@@ -48,6 +49,21 @@ TERMINAL = ("ready", "error", "cancelled")
 
 class RunError(ValueError):
     """Bad run id, unknown run, or an override outside the whitelist."""
+
+
+class FingerprintError(RuntimeError):
+    """A prepared plan's dependencies changed since its approval.
+
+    Raised before any node of the resumed run, handled where `PreflightError`
+    is: CLI exit code 1, API `state: error`. `items` names each difference
+    (`commit`, `dirty`, `chapter`, `config.<key>`, `models.<name>`,
+    `narrative_state`); the message says it in the operator's words.
+    """
+
+    def __init__(self, differences: list[tuple[str, str]]):
+        self.items = [item for item, _ in differences]
+        super().__init__("le plan préparé ne correspond plus à cette machine :\n"
+                         + "\n".join(f"  - {line}" for _, line in differences))
 
 
 @dataclass
@@ -133,6 +149,15 @@ def validate_options(options: dict | None) -> dict:
     return out
 
 
+def _git(*args: str) -> str | None:
+    try:
+        out = subprocess.run(["git", *args], cwd=paths.REPO_ROOT, capture_output=True,
+                             timeout=10, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return out.stdout.decode("utf-8", "replace") if out.returncode == 0 else None
+
+
 def git_commit() -> str:
     try:
         return subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=paths.REPO_ROOT,
@@ -150,6 +175,140 @@ def resolved_config(overrides: dict | None = None) -> dict:
     conf = {k: getattr(settings, k) for k in keys}
     conf.update(overrides or {})
     return conf
+
+
+# --- prepared-plan fingerprint ------------------------------------------------
+#
+# What a prepared state depends on and the checkpoint does not hold. A plan
+# resumed against changed code, chapter, configuration, models or index would
+# report a run that never existed as such (doctrine 5): the resume recomputes
+# the fingerprint and refuses on any difference, naming it.
+
+CODE_DIR = "src/factory"
+
+
+def code_dirty() -> str:
+    """sha256 of the uncommitted changes to the package: tracked diffs and
+    untracked files. A rehearsal-day fix not yet committed changes it."""
+    digest = hashlib.sha256()
+    digest.update((_git("diff", "HEAD", "--", CODE_DIR) or "").encode())
+    for name in sorted((_git("ls-files", "--others", "--exclude-standard", "--", CODE_DIR)
+                        or "").splitlines()):
+        path = paths.REPO_ROOT / name
+        if path.is_file():
+            digest.update(name.encode() + b"\0" + path.read_bytes())
+    return digest.hexdigest()
+
+
+def chapter_files(chapter: int) -> dict:
+    """``{relative path: sha256}`` of every file of the chapter directory
+    (spec, brief, storyboard): the refusal can name the file that moved."""
+    from factory.chapter_spec import chapter_dirs
+    directory = chapter_dirs().get(chapter)
+    if directory is None:
+        return {}
+    return {p.relative_to(directory).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in sorted(directory.rglob("*"))
+            if p.is_file() and "__pycache__" not in p.parts and not p.name.startswith(".")}
+
+
+def _ollama_tags() -> dict:
+    """The body of Ollama's `/api/tags`."""
+    import httpx
+    resp = httpx.get(f"{settings.ollama_url}/api/tags", timeout=10)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def model_digests(config: dict) -> dict:
+    """``{model: digest}`` for the models the run names (author, QA, gesture,
+    probe); ``None`` for a model Ollama does not have. A re-pulled model is
+    another model."""
+    names = [config.get("author_model"), config.get("qa_model"),
+             config.get("gesture_model") or config.get("author_model"), settings.probe_model]
+    try:
+        tags = _ollama_tags()
+    except Exception as exc:                            # noqa: BLE001
+        raise FingerprintError([("models", f"Ollama injoignable ({type(exc).__name__}) : "
+                                           "empreintes des modèles illisibles")]) from exc
+    known = {}
+    for m in tags.get("models") or []:
+        for key in (m.get("name"), m.get("model")):
+            if key:
+                known[key] = m.get("digest")
+    out = {}
+    for name in dict.fromkeys(n for n in names if n):
+        out[name] = known.get(name, known.get(f"{name}:latest"))
+    return out
+
+
+def narrative_chunk_id(chapter: int) -> str:
+    from factory.chapter_spec.narrative_state import NARRATOR_DOC_ID
+    from factory.retrieval.context import STATE_SECTION
+    return f"{NARRATOR_DOC_ID}::{STATE_SECTION}::ch{chapter:02d}"
+
+
+def narrative_chunk(chapter: int) -> str | None:
+    """sha256 of the chapter's narrative-state chunk in Chroma, None if absent."""
+    from factory.retrieval import context as retrieval
+    got = retrieval._collection().get(ids=[narrative_chunk_id(chapter)], include=["documents"])
+    docs = got.get("documents") or []
+    return hashlib.sha256(docs[0].encode()).hexdigest() if docs else None
+
+
+def fingerprint(run: Run, state: dict) -> dict:
+    """The fingerprint of a prepared run's final state. The narrative-state
+    chunk counts only when the prep indexed one (`narrative_state_path`)."""
+    config = resolved_config(run.overrides)
+    return {
+        "commit": (_git("rev-parse", "HEAD") or "unknown").strip(),
+        "dirty": code_dirty(),
+        "chapter": chapter_files(run.chapter),
+        "config": config,
+        "models": model_digests(config),
+        "narrative_state": (narrative_chunk(run.chapter)
+                            if state.get("narrative_state_path") else None),
+    }
+
+
+def check_fingerprint(prepared: Run, state: dict) -> None:
+    """Recompute the prepared run's fingerprint; raise `FingerprintError`
+    naming every difference."""
+    recorded = prepared.manifest.get("fingerprint") or {}
+    if not recorded:
+        raise FingerprintError([("fingerprint", f"run {prepared.id} : aucune empreinte "
+                                                "consignée (préparation non approuvée ?)")])
+    now = fingerprint(prepared, state)
+    diff: list[tuple[str, str]] = []
+    if now["commit"] != recorded.get("commit"):
+        diff.append(("commit", f"commit : {str(recorded.get('commit'))[:12]} → "
+                               f"{now['commit'][:12]}"))
+    if now["dirty"] != recorded.get("dirty"):
+        diff.append(("dirty", f"code non commité sous {CODE_DIR} : modifié depuis la préparation"))
+    was = recorded.get("chapter") or {}
+    moved = sorted(k for k in set(was) | set(now["chapter"])
+                   if was.get(k) != now["chapter"].get(k))
+    if moved:
+        diff.append(("chapter", f"chapitre {prepared.chapter} : {', '.join(moved)} "
+                                "modifié(s) depuis la préparation"))
+    was = recorded.get("config") or {}
+    for key in sorted(set(was) | set(now["config"])):
+        if was.get(key) != now["config"].get(key):
+            diff.append((f"config.{key}", f"configuration « {key} » : {was.get(key)!r} → "
+                                          f"{now['config'].get(key)!r}"))
+    was = recorded.get("models") or {}
+    for name in sorted(set(was) | set(now["models"])):
+        before, after = was.get(name), now["models"].get(name)
+        if before != after:
+            what = ("absent d'Ollama" if after is None
+                    else f"empreinte {str(before)[:19]} → {str(after)[:19]}")
+            diff.append((f"models.{name}", f"modèle {name} : {what}"))
+    if now["narrative_state"] != recorded.get("narrative_state"):
+        what = "absent de Chroma" if now["narrative_state"] is None else "modifié"
+        diff.append(("narrative_state", f"état narratif {narrative_chunk_id(prepared.chapter)} : "
+                                        f"{what}"))
+    if diff:
+        raise FingerprintError(diff)
 
 
 def create_run(chapter: int, slug: str, *, seed: int, overrides: dict | None = None,

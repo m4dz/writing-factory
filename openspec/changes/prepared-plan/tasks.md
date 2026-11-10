@@ -28,8 +28,8 @@
 
 ## 3. Fingerprint
 
-- [ ] `factory.runs.fingerprint(run, state)` and `FingerprintError`.
-- [ ] Falsified both ways: unchanged passes; changed config key, edited
+- [x] `factory.runs.fingerprint(run, state)` and `FingerprintError`.
+- [x] Falsified both ways: unchanged passes; changed config key, edited
       chapter file, differing digest (fake `/api/tags`), missing chunk each
       refuse and name the item.
 
