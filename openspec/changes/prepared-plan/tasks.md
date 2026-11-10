@@ -20,9 +20,9 @@
 
 ## 2. Gate and split
 
-- [ ] `leader_node` (interrupt only with `prepare`), `route_after_leader`.
-- [ ] `live_preflight_node` (acts only with `prepared_from`).
-- [ ] State fields: `prepare`, `prepared_from`, `leader`.
+- [x] `leader_node` (interrupt only with `prepare`), `route_after_leader`.
+- [x] `live_preflight_node` (acts only with `prepared_from`).
+- [x] State fields: `prepare`, `prepared_from`, `leader`.
 - [ ] Tests: unsplit run unchanged; prepared thread has no `write` call;
       refusal → `cancelled`; no second probe on an unsplit run.
 
