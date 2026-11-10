@@ -8,6 +8,12 @@ the request:
 - ``True``: strict, timing mode (the stage path);
 - a dict ``{"strict": bool, "timer": bool}``: explicit.
 
+``live_preflight_node`` runs the same gate again after the leader gate, on a
+run resumed from a prepared plan only (``prepared_from`` in the state): the
+machine that matters is the one on stage, not the one on prep day. On any
+other run the first node already checked the machine, and the generation
+probe (up to 120 s) never runs twice.
+
 A refusal raises ``PreflightError`` out of ``graph.invoke``; the caller (API,
 CLI) turns it into an error state or an exit code. Non-blocking warnings are
 returned in ``preflight_warnings`` and noted for the operator, exactly as the
@@ -40,3 +46,9 @@ def preflight_node(state: dict) -> dict:
     for w in warnings:
         progress.note(f"préflight : {w}")
     return {"preflight_warnings": list(warnings)}
+
+
+def live_preflight_node(state: dict) -> dict:
+    if not state.get("prepared_from"):
+        return {}
+    return preflight_node(state)

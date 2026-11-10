@@ -34,7 +34,8 @@ from factory.pipeline.qa import repair, derive_facts, check_facts, check_plan
 from factory.chapter_spec.model import EMPTY_ENTRY, BeatSpec, EntrySpec
 from factory.pipeline import scorers
 from factory.pipeline.nodes.narrative_state import narrative_state_node
-from factory.pipeline.nodes.preflight import preflight_node
+from factory.pipeline.nodes.leader import leader_node, route_after_leader
+from factory.pipeline.nodes.preflight import live_preflight_node, preflight_node
 from factory.pipeline.nodes.render import render_node
 from factory.settings import settings
 from factory.pipeline.gestures import (assemble, compose_drift, passage_valid,
@@ -137,6 +138,10 @@ class ChapterState(TypedDict):
     assembly: dict        # kwargs of assembly.assemble (switch mode, imposed fall)
     chapter_md: str       # the assembled chapter, both markers, always produced
     audio: object         # TTS metrics dict, or None when the voice failed / was not asked
+    # --- prep / live split (prepared-plan) -----------------------------------
+    prepare: bool         # stop at the leader gate: the run prepares a plan, never writes
+    prepared_from: str    # id of the prepared run this run resumes ("" : not resumed)
+    leader: dict          # the owner's decision at the gate {approved, by, at}
 
 
 # --- Nodes -------------------------------------------------------------------
@@ -2322,7 +2327,10 @@ def coherence_node(state: ChapterState) -> dict:
 
 # --- Graph assembly ----------------------------------------------------------
 
-def build_graph():
+def build_graph(checkpointer=None):
+    """The compiled chapter graph. `checkpointer`: the run's saver
+    (`factory.pipeline.checkpoint`); `None` keeps the plain graph that tests,
+    calibration and `stage_runner` run."""
     g = StateGraph(ChapterState)
     # The machine gate opens the graph (ADR-0002, item 5): a throttled machine
     # is refused before any model call, from the API and the CLI alike.
@@ -2341,7 +2349,15 @@ def build_graph():
     g.add_edge("narrative_state", "plan")
     g.add_node("accumulate", accumulate_node)
     g.add_node("drift", drift_node)
-    g.add_edge("plan", "write")
+    # The leader gate closes the PREP section (gather, plan; later the
+    # storyboard and its veto, between `plan` and `leader`): a prepared run
+    # ends there. `live_preflight` opens the LIVE section and checks the stage
+    # machine on a resumed run only. Both pass through on an unsplit run.
+    g.add_node("leader", leader_node)
+    g.add_node("live_preflight", live_preflight_node)
+    g.add_edge("plan", "leader")
+    g.add_conditional_edges("leader", route_after_leader, ["live_preflight", END])
+    g.add_edge("live_preflight", "write")
     # The gestures are assembled INSIDE the loop, one pass per entry: they
     # work over a closed entry, not a chapter.
     g.add_edge("write", "accumulate")
@@ -2364,4 +2380,4 @@ def build_graph():
     g.add_node("render", render_node)
     g.add_edge("coherence", "render")
     g.add_edge("render", END)
-    return g.compile()
+    return g.compile(checkpointer=checkpointer)

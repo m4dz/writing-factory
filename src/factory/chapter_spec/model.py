@@ -15,7 +15,17 @@ drift.
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
+
+
+def _restore_tuples(spec) -> None:
+    """A checkpoint stores sequences as msgpack arrays and gives lists back:
+    restore the declared tuples, so a spec read from a checkpoint equals (and
+    hashes like) the one the loader built."""
+    for f in fields(spec):
+        value = getattr(spec, f.name)
+        if isinstance(value, list):
+            object.__setattr__(spec, f.name, tuple(value))
 
 
 @dataclass(frozen=True)
@@ -35,6 +45,9 @@ class BestOf:
     criterion: str = ""           # scorer name in ``factory.pipeline.scorers``
     names: tuple[str, ...] = ()   # terms the served text must name (keyword scorer)
     drift: tuple[str, ...] = ()   # terms that mark a drift away from the entry
+
+    def __post_init__(self) -> None:
+        _restore_tuples(self)
 
 
 @dataclass(frozen=True)
@@ -62,6 +75,9 @@ class EntrySpec:
     form: dict = field(default_factory=dict)   # {"accumulation": absent|allowed, "verdict": absent|...}
     fall: str = ""
     drift: Drift | None = None
+
+    def __post_init__(self) -> None:
+        _restore_tuples(self)
 
     def uses_segments(self, default: bool) -> bool:
         return self.strategy == "segments" if self.strategy else bool(default)

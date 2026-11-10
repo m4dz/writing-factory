@@ -5,11 +5,13 @@ pyyaml>=6
 
 [pipeline]
 langgraph>=1.0
+langgraph-checkpoint-sqlite>=3.0
 
 [test]
 pytest>=8
 ruff>=0.6
 langgraph>=1.0
+langgraph-checkpoint-sqlite>=3.0
 
 [tts]
 mlx-audio>=0.4

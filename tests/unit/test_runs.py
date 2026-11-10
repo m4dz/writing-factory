@@ -65,3 +65,27 @@ def test_record_result_closes_the_manifest_and_writes_prompts_and_lint(tmp_path)
     runs.record_result(run, None, clocks={}, calls=None, collections=[], status="error",
                        error="boom")
     assert runs.load_run(run.dir).manifest["error"] == "boom"
+
+
+def test_a_manifest_read_during_a_write_always_finds_the_run(tmp_path):
+    """The API polls status while the worker rewrites the manifest: a reader
+    must never see a truncated file (it answered 404 for a live run)."""
+    import threading
+
+    run = runs.create_run(7, "x", seed=1, root=tmp_path)
+    stop = threading.Event()
+
+    def writer():
+        n = 0
+        while not stop.is_set():
+            n += 1
+            runs.write_manifest(run, status="generating", n=n)
+
+    t = threading.Thread(target=writer)
+    t.start()
+    try:
+        misses = sum(runs.find_run(run.id, tmp_path) is None for _ in range(5000))
+    finally:
+        stop.set()
+        t.join()
+    assert misses == 0 and [p.name for p in run.dir.iterdir()] == ["manifest.yaml"]

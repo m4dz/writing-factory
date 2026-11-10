@@ -220,3 +220,119 @@ def test_misc_routes(server):
     assert [c["id"] for c in json.loads(body)["characters"]] == ["judith"]
     assert call(server, "OPTIONS", "/generate")[0] == 204
     assert call(server, "POST", "/nope")[0] == 404
+
+
+# --- prepared plans (prepared-plan) ------------------------------------------
+
+TAGS = {"models": [{"name": "mistral-nemo:12b-instruct-2407-q8_0", "digest": "sha256:aaaa"},
+                   {"name": "qwen2.5:7b-instruct", "digest": "sha256:bbbb"}]}
+
+
+@pytest.fixture
+def prepared(server, monkeypatch):
+    """Prepare chapter 7 at the terminal (the API never prepares), approved;
+    returns a function that prepares one more."""
+    import builtins
+    import copy
+
+    from factory import cli
+    from factory import runs as run_registry
+
+    tags = copy.deepcopy(TAGS)
+    monkeypatch.setattr(run_registry, "_ollama_tags", lambda: tags)
+    monkeypatch.setattr(builtins, "input", lambda prompt="": "o")
+
+    def prepare_one() -> str:
+        before = {r.id for r in run_registry.list_runs()}
+        assert cli.main(["prepare", "--chapter", "7", "--no-preflight", "--quiet"]) == 0
+        (new,) = [r for r in run_registry.list_runs() if r.id not in before]
+        assert new.status == "prepared"
+        return new.id
+
+    prepare_one.tags = tags
+    return prepare_one
+
+
+def test_generate_with_prepared_answers_400_with_the_reason(server, prepared):
+    prep_id = prepared()
+    status, _, body = call(server, "POST", "/generate", {"chapter": 7, "seed": 1})
+    ready_id = json.loads(body)["run_id"]
+    wait_terminal(server, ready_id)
+    cases = [
+        ({"chapter": 7, "prepared": "20990101-000000-ch07-prep"}, "inconnu"),
+        ({"chapter": 7, "prepared": "../etc"}, "invalide"),
+        ({"chapter": 7, "prepared": 12}, "attendu"),
+        ({"chapter": 7, "prepared": ready_id}, "non préparé"),
+        ({"chapter": 2, "prepared": prep_id}, "chapitre 7, pas 2"),
+        ({"chapter": 2, "prepared": "latest"}, "aucun run préparé pour le chapitre 2"),
+        ({"chapter": 7, "prepared": prep_id, "overrides": {"beats_n": 1}}, "overrides refusés"),
+    ]
+    for payload, reason in cases:
+        status, _, body = call(server, "POST", "/generate", payload)
+        assert status == 400 and reason in json.loads(body)["error"], payload
+
+
+def test_a_prepared_run_is_listed_never_ready_and_serves_its_plan(server, prepared):
+    prep_id = prepared()
+    status, _, body = call(server, "GET", "/runs")
+    (listed,) = json.loads(body)["runs"]
+    assert listed["run_id"] == prep_id and listed["state"] == "prepared"
+    assert listed["ready"] is False
+    snap = json.loads(call(server, "GET", f"/runs/{prep_id}/status")[2])
+    assert snap["state"] == "prepared" and snap["ready"] is False and snap["phase"] == "idle"
+    assert call(server, "GET", f"/runs/{prep_id}/chapter")[0] == 204
+    status, ctype, body = call(server, "GET", f"/runs/{prep_id}/plan")
+    assert status == 200 and ctype.startswith("text/markdown")
+    assert body.decode().startswith("# Plan — chapitre 7") and b"Contr" not in body
+    # The event stream closes on a prepared run instead of polling forever.
+    status, _, body = call(server, "GET", f"/runs/{prep_id}/events")
+    assert status == 200 and body.count(b"data: ") == 1
+
+
+def test_resume_latest_creates_a_new_run_with_the_plan_and_leaves_the_prepared_one(server,
+                                                                                    prepared):
+    older, newer = prepared(), prepared()
+    status, _, body = call(server, "POST", "/generate", {"chapter": 7, "prepared": "latest"})
+    assert status == 202
+    accepted = json.loads(body)
+    run_id = accepted["run_id"]
+    assert run_id not in (older, newer) and isinstance(accepted["seed"], int)
+    # The plan is served as soon as the run exists, while it generates.
+    status, _, plan = call(server, "GET", f"/runs/{run_id}/plan")
+    assert status == 200
+    assert plan == (settings.runs_dir / newer / "plan.md").read_bytes()
+    snap = wait_terminal(server, run_id)
+    assert snap["state"] == "ready" and snap["ready"] is True
+    manifest = (settings.runs_dir / run_id / "manifest.yaml").read_text(encoding="utf-8")
+    assert f"prepared_from: {newer}" in manifest and "prepared_seed:" in manifest
+    assert call(server, "GET", f"/runs/{run_id}/chapter")[0] == 200
+    states = {r["run_id"]: r["state"]
+              for r in json.loads(call(server, "GET", "/runs")[2])["runs"]}
+    assert states[older] == states[newer] == "prepared"
+    # A run that was never prepared has no plan to show.
+    status, _, body = call(server, "POST", "/generate", {"chapter": 7, "seed": 1})
+    plain = json.loads(body)["run_id"]
+    wait_terminal(server, plain)
+    assert call(server, "GET", f"/runs/{plain}/plan")[0] == 204
+
+
+def test_a_fingerprint_refusal_is_an_error_state_with_the_operator_notified(server, prepared,
+                                                                           monkeypatch,
+                                                                           fake_model):
+    failures: list[tuple[str, str]] = []
+    monkeypatch.setattr(api.notify, "failure", lambda kind, reason: failures.append((kind, reason)))
+    prep_id = prepared()
+    prepared.tags["models"][0]["digest"] = "sha256:re-pulled"
+    fake_model.calls.clear()
+    status, _, body = call(server, "POST", "/generate", {"chapter": 7, "prepared": prep_id})
+    assert status == 202
+    run_id = json.loads(body)["run_id"]
+    snap = wait_terminal(server, run_id)
+    assert snap["state"] == "error" and snap["ready"] is False
+    assert "mistral-nemo:12b-instruct-2407-q8_0" in snap["error"]
+    assert "empreinte" in snap["error"] and fake_model.calls == []
+    assert failures and failures[0][0] == "empreinte"
+    assert "mistral-nemo" in failures[0][1]
+    for leaf in ("chapter", "audio"):
+        assert call(server, "GET", f"/runs/{run_id}/{leaf}")[0] == 204
+    assert json.loads(call(server, "GET", f"/runs/{prep_id}/status")[2])["state"] == "prepared"

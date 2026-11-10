@@ -5,6 +5,8 @@
     factory query "les deux couverts"   retrieval smoke test
     factory generate [--chapter 7]      one run per chapter under experiments/runs/
     factory generate --chapters 2,7     several chapters back to back
+    factory prepare --chapter 7         the plan, approved before the event
+    factory generate --from <run>       a new run resuming a prepared plan
     factory runs                        the runs, newest first
     factory promote <run>               a generated chapter becomes canon (bible/scenes/)
     factory calibrate --stage S7        calibration stages (run files)
@@ -46,6 +48,9 @@ def _generate_parser() -> argparse.ArgumentParser:
     what.add_argument("--spec-file", default=None,
                       help="Spec variante d'expérience, hors chapters/ (pointeurs résolus "
                            "dans le dossier canonique du chapitre ; diff consigné)")
+    what.add_argument("--from", dest="from_run", default=None, metavar="RUN",
+                      help="Reprend un plan préparé (factory prepare) dans un NOUVEAU run : "
+                           "id du run préparé, ou « latest »")
     p.add_argument("--characters", nargs="+", default=["judith"],
                    help="doc_ids des personnages présents (mode --brief)")
     p.add_argument("--seed", type=int, default=None,
@@ -155,16 +160,70 @@ def _generate_state(args, options: dict | None = None) -> dict:
     return state
 
 
-def _run_one(state: dict, chapter: int, slug: str, args, root, *,
-             overrides: dict | None = None, extra: dict | None = None) -> int:
-    """One run: directory, graph, manifest, report. Returns the exit code."""
-    import random
+def _execute(run, args, overrides: dict, drive, *, running: str = "generating",
+             done=lambda final: "ready"):
+    """Drive one run's checkpointed graph and close its manifest.
+
+    ``drive(graph, config)`` returns the final state; ``done(final)`` its
+    status. Refusals (preflight, fingerprint) and a cancellation become the
+    run's status, never a traceback. Returns ``(final, exit code)``.
+    """
     from factory import runs as run_registry
     from factory.infra import progress
     from factory.infra.ollama import client
     from factory.infra.preflight import PreflightError
     from factory.pipeline.graph import build_graph
     from factory.retrieval import context as retrieval
+
+    tracking = progress.Progress(active=not args.quiet, budget_min=args.budget)
+    progress.install(tracking)
+    run_registry.write_manifest(run, status=running)
+    client.recording = []
+    retrieval.clear_routing()
+    clocks = run_registry.Clocks()
+    final, status, error, code = None, "error", None, 1
+    # Overrides hold for this run only, as in the API worker.
+    saved = {k: getattr(settings, k) for k in overrides}
+    for k, v in overrides.items():
+        setattr(settings, k, v)
+    try:
+        with run_registry.open_checkpointer(run) as saver:
+            final = drive(build_graph(checkpointer=saver), run_registry.run_config(run))
+        status, code = done(final), 0
+    except PreflightError as exc:
+        error = f"préflight refusé : {exc}"
+        print(f"\n{exc}\n\n  (--skip-preflight pour outrepasser)", file=sys.stderr)
+    except run_registry.FingerprintError as exc:
+        error = f"empreinte refusée : {exc}"
+        print(f"\n{exc}\n\n  (préparer à nouveau : factory prepare --chapter {run.chapter})",
+              file=sys.stderr)
+    except progress.Cancelled:
+        status, error = "cancelled", "annulé"
+    finally:
+        for k, v in saved.items():
+            setattr(settings, k, v)
+        calls, client.recording = client.recording, None
+        tracking.end()
+        run_registry.record_result(run, final, clocks=clocks.read(), calls=calls,
+                                   collections=retrieval.routing(), status=status, error=error)
+    return final, code
+
+
+def _report(final: dict | None, run, args, t0: float) -> None:
+    if not final:
+        return
+    _print_report(final, time.time() - t0)
+    print(f"\n  run      : {run.dir}")
+    if not args.no_render:
+        print(f"  chapitre : {run.chapter_path}")
+        print(f"  audio    : {run.audio_path if final.get('audio') else 'absent (voir notes)'}")
+
+
+def _run_one(state: dict, chapter: int, slug: str, args, root, *,
+             overrides: dict | None = None, extra: dict | None = None) -> int:
+    """One run: directory, graph, manifest, report. Returns the exit code."""
+    import random
+    from factory import runs as run_registry
 
     seed = state.get("seed")
     if seed is None:
@@ -177,39 +236,38 @@ def _run_one(state: dict, chapter: int, slug: str, args, root, *,
                                            encoding="utf-8")
     state["artifacts_dir"] = str(run.dir)
     print(f"\n=== run {run.id} ===", file=sys.stderr)
-    tracking = progress.Progress(active=not args.quiet, budget_min=args.budget)
-    progress.install(tracking)
-    run_registry.write_manifest(run, status="generating")
-    client.recording = []
-    retrieval.clear_routing()
-    clocks = run_registry.Clocks()
-    final, status, error, code = None, "error", None, 1
     t0 = time.time()
-    # Overrides hold for this run only, as in the API worker.
-    saved = {k: getattr(settings, k) for k in overrides}
-    for k, v in overrides.items():
-        setattr(settings, k, v)
+    final, code = _execute(run, args, overrides,
+                           lambda graph, config: graph.invoke(state, config, durability="sync"))
+    _report(final, run, args, t0)
+    return code
+
+
+def _resume(args, root) -> int:
+    """`factory generate --from <run>`: a NEW run from a prepared plan. The seed
+    is drawn fresh unless `--seed` pins one (owner, 2026-10-19)."""
+    import random
+    from factory import runs as run_registry
+    from factory.pipeline import checkpoint
+
+    if args.override or args.option:
+        raise SystemExit("--from : la configuration est celle de la préparation, "
+                         "--override et --option sont refusés")
     try:
-        final = build_graph().invoke(state, config={"recursion_limit": 50})
-        status, code = "ready", 0
-    except PreflightError as exc:
-        error = f"préflight refusé : {exc}"
-        print(f"\n{exc}\n\n  (--skip-preflight pour outrepasser)", file=sys.stderr)
-    except progress.Cancelled:
-        status, error = "cancelled", "annulé"
-    finally:
-        for k, v in saved.items():
-            setattr(settings, k, v)
-        calls, client.recording = client.recording, None
-        tracking.end()
-        run_registry.record_result(run, final, clocks=clocks.read(), calls=calls,
-                                   collections=retrieval.routing(), status=status, error=error)
-    if final:
-        _print_report(final, time.time() - t0)
-        print(f"\n  run      : {run.dir}")
-        if state.get("render"):
-            print(f"  chapitre : {run.chapter_path}")
-            print(f"  audio    : {run.audio_path if final.get('audio') else 'absent (voir notes)'}")
+        prepared = run_registry.resolve_prepared(args.from_run, None, root)
+    except run_registry.RunError as exc:
+        raise SystemExit(str(exc))
+    seed = args.seed if args.seed is not None else random.randrange(1, 10**6)
+    run = run_registry.create_resumed_run(prepared, seed=seed, root=root)
+    requests = _machine_requests(args)
+    live = {"preflight": requests["preflight"], "render": requests["render"],
+            "voice": requests["voice"], "artifacts_dir": str(run.dir), "seed": seed}
+    print(f"\n=== run {run.id} (plan préparé {prepared.id}) ===", file=sys.stderr)
+    t0 = time.time()
+    final, code = _execute(
+        run, args, dict(prepared.overrides),
+        lambda graph, config: checkpoint.resume_prepared(graph, config, prepared, live))
+    _report(final, run, args, t0)
     return code
 
 
@@ -218,6 +276,8 @@ def generate(argv: list[str]) -> int:
     from pathlib import Path
 
     root = Path(args.runs_dir) if args.runs_dir else None
+    if args.from_run:
+        return _resume(args, root)
     overrides, options = _run_settings(args)
     extra = {"options": options} if options else {}
     if args.chapters:
@@ -249,6 +309,113 @@ def generate(argv: list[str]) -> int:
         from factory.chapter_spec import load_chapter
         slug = load_chapter(chapter).slug
     return _run_one(state, chapter, slug, args, root, overrides=overrides, extra=extra)
+
+
+# --- prepare -----------------------------------------------------------------
+
+def _prepare_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="factory prepare",
+                                description="Prépare le plan d'un chapitre avant l'événement : "
+                                            "état narratif, plan, contrôle, approbation. Le run "
+                                            "s'arrête à la porte du plan ; la scène le reprend "
+                                            "par factory generate --from <run>.")
+    p.add_argument("--chapter", type=int, default=7,
+                   help="Chapitre à préparer (chapters/NN-slug/spec.yaml ; défaut 7)")
+    p.add_argument("--seed", type=int, default=None,
+                   help="Graine consignée de la préparation (chaque reprise tire la sienne)")
+    p.add_argument("--override", action="append", default=[], metavar="CLÉ=VALEUR",
+                   help="Réglage machine pour ce plan et toutes ses reprises, consigné")
+    p.add_argument("--no-preflight", action="store_true",
+                   help="Aucune sonde machine (tests ; la reprise sonde la machine de scène)")
+    p.add_argument("--no-narrative-state", action="store_true",
+                   help="Sans régénération ni indexation de l'état narratif (sans Chroma)")
+    p.add_argument("--quiet", action="store_true", help="Sans progression")
+    p.add_argument("--runs-dir", default=None,
+                   help="Racine des dossiers de run (défaut : experiments/runs)")
+    p.set_defaults(budget=None, option=[])
+    return p
+
+
+def _show_plan(gate: dict) -> None:
+    bar = "#" * 78
+    print(f"\n{bar}\nPLAN À APPROUVER\n{bar}")
+    for i, beat in enumerate(gate.get("plan") or [], 1):
+        print(f"  {i}. {beat}")
+    if gate.get("plan_report"):
+        print("\n  contrôle du plan :\n"
+              + "\n".join(f"  {l}" for l in gate["plan_report"].splitlines()))
+
+
+def _approve() -> bool:
+    """Only an explicit yes approves; anything else, end of input included,
+    refuses: the stage never resumes a plan nobody read."""
+    try:
+        answer = input("\nApprouver ce plan ? [o/N] ")
+    except EOFError:
+        return False
+    return answer.strip().lower() in ("o", "oui", "y", "yes")
+
+
+def prepare(argv: list[str]) -> int:
+    """The PREP section before the event: gather and plan, stop at the leader
+    gate, ask the owner. Approved: `prepared`, with its fingerprint, `plan.md`
+    and `plan-report.md`. Refused: `cancelled`. Amending the plan is out of
+    scope: change the brief or the storyboard and prepare again."""
+    args = _prepare_parser().parse_args(argv)
+    import random
+    from datetime import datetime, timezone
+
+    from langgraph.types import Command
+
+    from factory import runs as run_registry
+    from factory.chapter_spec import ChapterSpecError, load_chapter
+    from factory.pipeline import checkpoint
+
+    root = Path(args.runs_dir) if args.runs_dir else None
+    overrides, _ = _run_settings(args)
+    try:
+        spec = load_chapter(args.chapter)
+    except ChapterSpecError as exc:
+        raise SystemExit(str(exc))
+    seed = args.seed if args.seed is not None else random.randrange(1, 10**6)
+    run = run_registry.create_run(spec.chapter, "prep", seed=seed, root=root,
+                                  overrides=overrides, extra={"kind": "prepared"})
+    # The prep machine is not the stage machine: a lenient, untimed gate here,
+    # the strict one in `live_preflight` at every resume.
+    state = {**spec.state(seed=seed), "prepare": True, "render": False,
+             "preflight": None if args.no_preflight else {"strict": False, "timer": False},
+             "narrative_state": not args.no_narrative_state,
+             "artifacts_dir": str(run.dir)}
+    decision: dict = {}
+
+    def drive(graph, config):
+        from factory.infra import progress
+        graph.invoke(state, config, durability="sync")
+        gate = checkpoint.gate(graph, config)
+        progress.SINK.end()
+        _show_plan(gate)
+        decision.update(approved=_approve(), by="owner",
+                        at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+        final = graph.invoke(Command(resume=dict(decision)), config, durability="sync")
+        fields: dict = {"leader": dict(decision)}
+        if decision["approved"]:
+            # The plan files and the fingerprint exist before the status says
+            # `prepared`: nothing reads a prepared run without its plan.
+            fields["fingerprint"] = run_registry.fingerprint(run, final)
+            run_registry.write_plan(run, final)
+        run_registry.write_manifest(run, **fields)
+        return final
+
+    print(f"\n=== préparation {run.id} ===", file=sys.stderr)
+    _, code = _execute(run, args, overrides, drive, running="preparing",
+                       done=lambda final: "prepared" if decision["approved"] else "cancelled")
+    if code == 0:
+        if decision["approved"]:
+            print(f"\n  plan approuvé : {run.id}\n  reprise      : "
+                  f"factory generate --from {run.id}")
+        else:
+            print(f"\n  plan refusé : {run.id} annulé")
+    return code
 
 
 def _print_report(final: dict, total: float) -> None:
@@ -520,6 +687,7 @@ def _eval(argv: list[str]) -> int:
 
 COMMANDS = {
     "doctor": doctor, "index": _index, "query": _query, "generate": generate,
+    "prepare": prepare,
     "calibrate": _calibrate, "eval": _eval, "serve": _serve, "chat": _chat,
     "promote": promote, "runs": _runs,
 }
