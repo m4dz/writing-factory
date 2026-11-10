@@ -52,7 +52,7 @@ def _path(value: str) -> Path:
 class Settings:
     # --- Ollama and models ----------------------------------------------------
     ollama_url: str = "http://localhost:11434"
-    author_model: str = "mistral-nemo:12b-instruct-2407-q8_0"
+    author_model: str = "ministral3-14b-q5"           # ADR-0029
     qa_model: str = "qwen2.5:7b-instruct"
     embed_model: str = "nomic-embed-text"
     num_ctx: int = 8192

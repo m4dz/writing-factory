@@ -78,6 +78,13 @@ MAX_GESTURE_ATTEMPTS = 2
 
 # --- Graph state -------------------------------------------------------------
 
+
+def _author() -> str:
+    """The author model as the progress labels name it (the tag, without its
+    variant): the deck receives it, and it changed with ADR-0029."""
+    return settings.author_model.split(":")[0]
+
+
 class ChapterState(TypedDict):
     brief: str            # chapter objective (human input)
     characters: list[str] # doc_ids of the characters present
@@ -504,7 +511,7 @@ def plan_node(state: ChapterState) -> dict:
     feedback = ""
     for attempt in range(1, MAX_PLAN_ATTEMPTS + 1):
         progress.phase("Plan d'entrées",
-                       f"(nemo, tentative {attempt}/{MAX_PLAN_ATTEMPTS})")
+                       f"({_author()}, tentative {attempt}/{MAX_PLAN_ATTEMPTS})")
         # The plan is structure, not prose: it gets the preamble and the rule
         # of the narrative, not the style contract — serving *Narration* and
         # *Interdits* to a planner inflates the prompt and frames nothing.
@@ -616,7 +623,7 @@ def write_node(state: ChapterState) -> dict:
     # the rest of the pipeline is then unchanged.
     spec = state.get("entry_specs") or []
     sheet: EntrySpec = spec[idx] if idx < len(spec) else EMPTY_ENTRY
-    progress.phase("Écriture", f"entrée {idx + 1}/{len(state['plan'])} (nemo)",
+    progress.phase("Écriture", f"entrée {idx + 1}/{len(state['plan'])} ({_author()})",
                    i=idx + 1, n=len(state["plan"]))
     system = assemble_system_prompt(
         characters=state["characters"], scene_brief=beat,
@@ -2085,7 +2092,7 @@ def review_node(state: ChapterState) -> dict:
     )
     for i, scene in enumerate(state["scenes"]):
         progress.phase("Relecture",
-                       f"entrée {i + 1}/{len(state['scenes'])} (nemo)",
+                       f"entrée {i + 1}/{len(state['scenes'])} ({_author()})",
                        i=i + 1, n=len(state["scenes"]))
         # ~3.5 characters per token in French; aim at 1.6x the scene length,
         # bounded, to leave room for a complete rewrite.
@@ -2145,11 +2152,11 @@ def repair_node(state: ChapterState) -> dict:
     repaired: list[str] = []
     metrics = list(state["metrics"])
     warns = list(state["warnings"])
-    progress.phase("Bascule des modèles", "nemo déchargé, Qwen prend la main")
+    progress.phase("Bascule des modèles", f"{_author()} déchargé, Qwen prend la main")
     if not unload():
-        warns.append("QA : déchargement de nemo refusé par Ollama (co-résidence "
-                     "nemo + Qwen, pression mémoire)")
-        progress.note("déchargement de nemo REFUSÉ — pression mémoire")
+        warns.append(f"QA : déchargement de {_author()} refusé par Ollama (co-résidence "
+                     f"{_author()} + Qwen, pression mémoire)")
+        progress.note(f"déchargement de {_author()} REFUSÉ — pression mémoire")
     for i, scene in enumerate(state["reviewed"]):
         progress.phase("Réparation linguistique",
                        f"entrée {i + 1}/{len(state['reviewed'])} (Qwen)",

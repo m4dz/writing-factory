@@ -51,7 +51,7 @@ the timed calibration stages), where the duration is the object. Remedy, in
 order:
 
 ```bash
-ollama stop mistral-nemo:12b-instruct-2407-q8_0   # returns memory AND shrinks the swap
+ollama stop ministral3-14b-q5   # returns memory AND shrinks the swap
 sysctl vm.swapusage
 sudo purge                                         # if not enough
 ```
@@ -79,10 +79,11 @@ launchctl print gui/$(id -u)/local.ollama | grep -E "OLLAMA_(HOST|MAX_LOADED)"
 curl -s localhost:11434/api/ps
 ```
 
-Models (~18 GB):
+Models (~15 GB):
 
 ```bash
-ollama pull mistral-nemo:12b-instruct-2407-q8_0   # author + actor
+ollama pull hf.co/mistralai/Ministral-3-14B-Instruct-2512-GGUF:Q5_K_M
+ollama create ministral3-14b-q5 -f docker/Modelfile.ministral3-14b-q5   # author + actor (ADR-0029)
 ollama pull qwen2.5:7b-instruct                   # QA / coherence
 ollama pull nomic-embed-text                      # embeddings
 ```
@@ -141,7 +142,7 @@ repository). Defaults are the values below.
 | Variable | Field | Default |
 |---|---|---|
 | `OLLAMA_URL` | `ollama_url` | `http://localhost:11434` |
-| `AUTHOR_MODEL` | `author_model` | `mistral-nemo:12b-instruct-2407-q8_0` |
+| `AUTHOR_MODEL` | `author_model` | `ministral3-14b-q5` (ADR-0029; the former `mistral-nemo:12b-instruct-2407-q8_0` stays a valid override) |
 | `QA_MODEL` | `qa_model` | `qwen2.5:7b-instruct` |
 | `EMBED_MODEL` | `embed_model` | `nomic-embed-text` |
 | `NUM_CTX` | `num_ctx` | `8192` |

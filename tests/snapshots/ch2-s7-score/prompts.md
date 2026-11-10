@@ -420,7 +420,7 @@ LA DERNIÈRE LIGNE REFERME, ELLE NE CONSOLE PAS : aucune promesse au lendemain, 
 Prose seule, sans titre, sans en-tête, sans méta-commentaire. Montre la tension sans la nommer.
 ```
 
-## call 4 — accumulate — model=mistral-nemo:12b-instruct-2407-q8_0 num_predict=300 temperature=0.3
+## call 4 — accumulate — model=ministral3-14b-q5 num_predict=300 temperature=0.3
 
 ### system
 

@@ -3,8 +3,8 @@
 
 One warm model serves both roles of the project (author / actor): instances
 are not multiplied, coherence comes from the shared external memory
-(ADR-0006). The author model was settled by benchmark: mistral-nemo Q8_0
-(ADR-0008).
+(ADR-0006). The author model was settled by benchmark, mistral-nemo Q8_0
+(ADR-0008), then by blind reading, Ministral 3 14B Q5 (ADR-0029).
 
 The French guard is PREPENDED to every system prompt: the benchmark showed
 nemo leaking an English word now and then (« Suddenly »), and an explicit
