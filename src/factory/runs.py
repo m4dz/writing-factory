@@ -233,10 +233,12 @@ def _ollama_tags() -> dict:
 
 def model_digests(config: dict) -> dict:
     """``{model: digest}`` for the models the run names (author, QA, gesture,
-    probe); ``None`` for a model Ollama does not have. A re-pulled model is
-    another model."""
+    embeddings, probe); ``None`` for a model Ollama does not have. A re-pulled
+    model is another model. The embedding model counts: retrieval runs while
+    writing, on stage, against an index built with the prep's vectors."""
     names = [config.get("author_model"), config.get("qa_model"),
-             config.get("gesture_model") or config.get("author_model"), settings.probe_model]
+             config.get("gesture_model") or config.get("author_model"),
+             config.get("embed_model"), settings.probe_model]
     try:
         tags = _ollama_tags()
     except Exception as exc:                            # noqa: BLE001

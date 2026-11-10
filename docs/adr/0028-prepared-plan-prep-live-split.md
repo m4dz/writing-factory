@@ -53,7 +53,7 @@ those primitives are for (openspec change `prepared-plan`).
 6. **A fingerprint guards the resume.** The prep records what its state
    depends on and the checkpoint does not hold: commit, uncommitted changes
    under `src/factory`, the chapter directory file by file, the resolved
-   configuration, the Ollama digests of the author, QA, gesture and probe
+   configuration, the Ollama digests of the author, QA, gesture, embedding and probe
    models, the narrative-state chunk. A resume recomputes it before any
    node and refuses on any difference, naming each item: CLI exit 1, API
    `state: error` with the operator notified, as a preflight refusal.

@@ -141,7 +141,7 @@ seed never reproduced a text, but a fresh one removes the last shared draw.
 | `dirty` | sha256 of `git diff HEAD -- src/` | a rehearsal-day fix not yet committed |
 | `chapter` | sha256 over `chapters/NN-slug/` files | spec, brief, storyboard |
 | `config` | `runs.resolved_config(overrides)` | models, beats, bounds |
-| `models` | Ollama `/api/tags` digest of author, QA, gesture, probe models | a re-pulled model is another model |
+| `models` | Ollama `/api/tags` digest of author, QA, gesture, embedding, probe models | a re-pulled model is another model; retrieval runs on stage against the prep-time index (embedding model added on the owner's go, 2026-11-10) |
 | `narrative_state` | the chunk id is present in Chroma | the prep indexed it; the live run serves it |
 
 Refusal is a `FingerprintError`, handled where `PreflightError` is: CLI exit

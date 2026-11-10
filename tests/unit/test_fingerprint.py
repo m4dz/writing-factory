@@ -16,8 +16,9 @@ from factory import paths, runs
 from factory.retrieval import context as retrieval
 from factory.settings import settings
 
-DIGESTS = {"mistral-nemo:12b-instruct-2407-q8_0": "sha256:aaaa",
-           "qwen2.5:7b-instruct": "sha256:bbbb"}
+DIGESTS = {settings.author_model: "sha256:aaaa",
+           settings.qa_model: "sha256:bbbb",
+           settings.embed_model: "sha256:eeee"}
 
 
 @pytest.fixture
@@ -74,10 +75,16 @@ def test_an_edited_chapter_file_refuses_and_names_it(prepared):
 def test_a_repulled_model_refuses_and_names_it(prepared, tags):
     tags["models"][0]["digest"] = "sha256:cccc"
     err = _refusal(prepared)
-    name = "mistral-nemo:12b-instruct-2407-q8_0"
+    name = settings.author_model
     assert err.items == [f"models.{name}"] and name in str(err)
     tags["models"].pop(0)
     assert "absent d'Ollama" in str(_refusal(prepared))
+
+
+def test_a_repulled_embedding_model_refuses_and_names_it(prepared, tags):
+    tags["models"][2]["digest"] = "sha256:ffff"
+    err = _refusal(prepared)
+    assert err.items == [f"models.{settings.embed_model}"]
 
 
 def test_a_missing_narrative_chunk_refuses_and_names_it(prepared):
