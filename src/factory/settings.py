@@ -63,6 +63,15 @@ class Settings:
     accumulation_enabled: bool = True
     beat_context: str = "blind"             # blind | map | plan (plan-state-beats)
     beat_form: str = "prose"                # prose | nominal (beat-instruction-form)
+    # Sampling of the WRITING calls (single call, segments, beats, best-of
+    # variants). The temperature was a constant 0.7 in node code; the other
+    # three are sent to Ollama only when set, so the default request is
+    # byte-identical to the measured one. Plan, review, QA and gestures keep
+    # their own sampling.
+    write_temperature: float = 0.7
+    min_p: float | None = None
+    top_p: float | None = None
+    repeat_penalty: float | None = None
 
     # --- vector store and bible -----------------------------------------------
     chroma_host: str = "localhost"
@@ -119,6 +128,11 @@ class Settings:
     xp_temperature: float = 0.7
     xp_num_predict: int = 300
 
+    def sampling_options(self) -> dict:
+        """The optional Ollama sampling options of the writing calls, only those set."""
+        return {k: v for k, v in (("min_p", self.min_p), ("top_p", self.top_p),
+                                  ("repeat_penalty", self.repeat_penalty)) if v is not None}
+
     @property
     def effective_gesture_model(self) -> str:
         return self.gesture_model or self.author_model
@@ -140,6 +154,10 @@ class Settings:
         "accumulation_enabled": ("ACCUMULATION", _flag),
         "beat_context": ("BEAT_CONTEXT", str),
         "beat_form": ("BEAT_FORM", str),
+        "write_temperature": ("WRITE_TEMPERATURE", float),
+        "min_p": ("MIN_P", float),
+        "top_p": ("TOP_P", float),
+        "repeat_penalty": ("REPEAT_PENALTY", float),
         "chroma_host": ("CHROMA_HOST", str),
         "chroma_port": ("CHROMA_PORT", int),
         "author_collection": ("CHROMA_COLLECTION", str),
