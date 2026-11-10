@@ -83,11 +83,11 @@ entries:
     # Matière d'entrée 1 : la résolution d'effacement. Nommer les objets est
     # VOULU — la liste d'effacement EST les deux phrases.
     material:
-      - "Ce qu'elle a décidé cet après-midi : ce jour n'aura pas lieu, elle l'efface."
+      - "Décision de l'après-midi : ce jour n'aura pas lieu, effacé."
       - "Les gestes d'effacement, tenus en deux phrases : ranger les photos, supprimer la musique, ne pas sortir le plat des grandes occasions ; une journée ordinaire."
     vetos: >-
-      Elle est seule, l'après-midi, et rien ne lui arrive : aucune voix, aucun bruit,
-      personne ; elle décide, elle n'observe pas. Le mot du jour ne s'écrit pas.
+      Seule, l'après-midi ; rien n'arrive : aucune voix, aucun bruit, personne.
+      Décider, pas observer. Le mot du jour ne s'écrit pas.
     form: {accumulation: absent, verdict: absent}
 
   # La nuit : l'entrée pleine, ancrée sur [CIT-2], servie en trois beats bornés

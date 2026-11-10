@@ -11,8 +11,9 @@
 
 ## 2. Matter (A, owner)
 
-- [ ] Owner: choose and write the entry-1 matter and vetos without « elle »
-      (`entree-1-proposal.md`); regenerate the `ch7` snapshot, name it.
+- [x] Owner: form 2 (nominal) chosen 2026-11-10, applied verbatim from
+      `entree-1-proposal.md`; `ch7` snapshot regenerated (the three entry-1
+      calls: material 1 and vetos).
 
 ## 3. Measure
 

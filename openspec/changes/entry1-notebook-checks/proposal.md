@@ -32,13 +32,15 @@ that recites less than nemo still transposes it.
   beat in the first person only through elisions, with two « elle », was
   counted as third person. Fixed; it can change a beat selection under a
   real model, never a served prompt.
-- **A (owner).** The entry-1 matter and vetos rewritten without « elle »
-  (`entree-1-proposal.md`, two forms). Owner material: proposed, not edited.
+- **A (owner).** The entry-1 matter and vetos rewritten without « elle »:
+  the owner chose form 2, nominal, without person (`entree-1-proposal.md`),
+  applied verbatim on the owner's instruction.
 
 ## Variable moved
 
-Selection only for B: no served prompt moves, snapshots byte-identical. A
-moves the entry-1 served prompt; the snapshot is regenerated then, and named.
+B moves no served prompt. A moves the entry-1 served prompt: in the `ch7`
+snapshot, material 1 and the vetos of the three entry-1 calls (best-of-3);
+nothing else.
 
 ## Non-goals
 
