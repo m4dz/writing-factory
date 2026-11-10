@@ -65,14 +65,26 @@ Elle relit la ligne qu'elle vient de recopier. Elle y relève un écart : ce que
 
 Finit quand : elle a nommé l'écart — la ligne dit qu'elle a mis les couverts, elle ne s'en souvient pas.
 
+Nominal : La relève. La ligne tout juste recopiée, relue. Un écart relevé entre la ligne et la mémoire : les deux couverts mis, décrits par la ligne, sous les yeux ; aucun souvenir de les avoir mis.
+
+Finit quand (nominal) : l'écart nommé — la ligne dit les couverts mis, la mémoire n'en garde rien.
+
 ### Beat B — la découverte
 
 Autour d'elle, la maison est dressée pour la fête qu'elle avait décidé de ne pas tenir : les photos étalées, la musique qui joue, le plat au four, les deux couverts. Elle ne se souvient d'avoir rien préparé. Elle se met à ranger — remettre chaque chose à sa place, c'est son métier. Chaque objet une seule fois ; ne fais pas le tour de la maison.
 
 Finit quand : elle a commencé à ranger ; les quatre objets ont été trouvés, chacun une fois.
 
+Nominal : La découverte. Autour, la maison dressée pour la fête non-désirée : photos étalées, musique qui joue, plat au four, deux couverts. Aucun souvenir d'avoir rien préparé. Le rangement commence : chaque chose remise à sa place. Chaque objet trouvé une seule fois ; pas de tour de la maison.
+
+Finit quand (nominal) : le rangement commencé ; les quatre objets trouvés, chacun une fois.
+
 ### Beat C — le doute (le corps, pas la pensée)
 
 Elle ne cherche plus le verdict. Ses mains sont froides, sa nuque raide, la page relue trois fois. Elle repose le crayon.
 
 Finit quand : elle repose le crayon.
+
+Nominal : Le doute, dans le corps. Plus de verdict cherché. Mains froides, nuque raide, la page relue trois fois. Le crayon reposé.
+
+Finit quand (nominal) : le crayon reposé.

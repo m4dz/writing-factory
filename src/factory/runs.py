@@ -27,12 +27,12 @@ RUN_ID = re.compile(r"^\d{8}-\d{6}-ch\d{2}-[a-z0-9-]{1,40}$")
 # Configuration keys a payload may override for one run: knobs of the machine,
 # never spec fields (ADR-0005). Applied for the run's duration only.
 OVERRIDABLE = ("author_model", "qa_model", "gesture_model", "num_ctx", "gesture_temperature",
-               "beats_n", "pruning_enabled", "accumulation_enabled", "beat_context",
+               "beats_n", "pruning_enabled", "accumulation_enabled", "beat_context", "beat_form",
                "audio_seconds", "switch_after_sentences",
                "stage_budget_min")
 
 # Overrides that take one of a closed set of values.
-CHOICES = {"beat_context": ("blind", "map", "plan")}
+CHOICES = {"beat_context": ("blind", "map", "plan"), "beat_form": ("prose", "nominal")}
 
 # Former override names, still accepted so earlier runs replay: name → (key, value).
 ALIASES = {("beats_see_movement", True): ("beat_context", "map"),
@@ -140,7 +140,7 @@ def git_commit() -> str:
 def resolved_config(overrides: dict | None = None) -> dict:
     keys = ("author_model", "qa_model", "embed_model", "num_ctx", "gesture_model",
             "gesture_temperature", "beats_n", "pruning_enabled", "accumulation_enabled",
-            "beat_context", "switch_after_sentences",
+            "beat_context", "beat_form", "switch_after_sentences",
             "audio_seconds", "audio_words_per_minute", "tts_model", "stage_budget_min")
     conf = {k: getattr(settings, k) for k in keys}
     conf.update(overrides or {})

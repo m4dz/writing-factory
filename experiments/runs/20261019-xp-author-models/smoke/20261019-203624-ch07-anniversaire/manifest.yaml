@@ -1,0 +1,34 @@
+id: 20261019-203624-ch07-anniversaire
+kind: run
+chapter: 7
+slug: anniversaire
+seed: 111111
+created: '2026-10-19T18:36:24.874001+00:00'
+commit: 487fcf0
+status: error
+overrides:
+  beat_context: plan
+  author_model: xp-ministral3-14b-q5
+config:
+  author_model: xp-ministral3-14b-q5
+  qa_model: qwen2.5:7b-instruct
+  embed_model: nomic-embed-text
+  num_ctx: 8192
+  gesture_model: ''
+  gesture_temperature: 0.3
+  beats_n: 3
+  pruning_enabled: true
+  accumulation_enabled: true
+  beat_context: plan
+  switch_after_sentences: 2
+  audio_seconds: 165.0
+  audio_words_per_minute: 177.0
+  tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+  stage_budget_min: 25.0
+timings:
+  monotonic_s: 9.5
+  wall_s: 9.5
+  sleep_s: 0.0
+collections:
+- auteur
+finished: '2026-10-19T18:36:34+00:00'
