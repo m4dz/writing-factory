@@ -39,3 +39,9 @@ experiments/runs/**/*.wav
 # Generated narrative state (derived from the pilot table by the narrative_state
 # node, regenerated at every run): never versioned, always reindexable.
 bible/generated/
+
+# Owner-local assets: demo interview variants, ad-hoc chapter renders, the
+# August nemo fiche (cited by the 2026-08-09 journals, kept on disk only).
+outillage/
+runs-ch7/
+Modelfile.auteur-test
