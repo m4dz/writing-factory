@@ -224,8 +224,9 @@ def test_misc_routes(server):
 
 # --- prepared plans (prepared-plan) ------------------------------------------
 
-TAGS = {"models": [{"name": "mistral-nemo:12b-instruct-2407-q8_0", "digest": "sha256:aaaa"},
-                   {"name": "qwen2.5:7b-instruct", "digest": "sha256:bbbb"}]}
+TAGS = {"models": [{"name": settings.author_model, "digest": "sha256:aaaa"},
+                   {"name": settings.qa_model, "digest": "sha256:bbbb"},
+                   {"name": settings.embed_model, "digest": "sha256:eeee"}]}
 
 
 @pytest.fixture
@@ -329,10 +330,10 @@ def test_a_fingerprint_refusal_is_an_error_state_with_the_operator_notified(serv
     run_id = json.loads(body)["run_id"]
     snap = wait_terminal(server, run_id)
     assert snap["state"] == "error" and snap["ready"] is False
-    assert "mistral-nemo:12b-instruct-2407-q8_0" in snap["error"]
+    assert settings.author_model in snap["error"]
     assert "empreinte" in snap["error"] and fake_model.calls == []
     assert failures and failures[0][0] == "empreinte"
-    assert "mistral-nemo" in failures[0][1]
+    assert settings.author_model in failures[0][1]
     for leaf in ("chapter", "audio"):
         assert call(server, "GET", f"/runs/{run_id}/{leaf}")[0] == 204
     assert json.loads(call(server, "GET", f"/runs/{prep_id}/status")[2])["state"] == "prepared"
