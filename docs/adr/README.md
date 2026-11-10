@@ -36,3 +36,4 @@ notes, and dated at the time they were taken.
 | 0024 | [Operational arbitrations of the API and the machine layer](0024-operational-arbitrations.md) | 2026-09-13 | accepted |
 | 0025 | [Served constants that remain in code](0025-served-constants-in-code.md) | 2026-09-13 | accepted |
 | 0026 | [Chapter 7 entry 2 scaffolding after the ablation](0026-entry-2-scaffolding-after-the-ablation.md) | 2026-10-18 → 19 | accepted |
+| 0028 | [Prepared plan: a prep/live split, resumed as new runs](0028-prepared-plan-prep-live-split.md) | 2026-10-19 → 2026-11-10 | accepted |

@@ -25,9 +25,10 @@ src/factory/
   paths.py           repository paths, resolved once (FACTORY_ROOT override)
   settings.py        one Settings object; every knob, env overrides, read at use
   cli.py             the `factory` command: doctor, index, query, generate,
-                     runs, promote, calibrate, eval, serve, chat
+                     prepare, runs, promote, calibrate, eval, serve, chat
   runs.py            the run registry: one directory per generation under
-                     experiments/runs/, manifest, prompts, lint
+                     experiments/runs/, manifest, prompts, lint; prepared
+                     runs, resumed runs and the prep fingerprint
   text.py            French guard, delint, sentence detection
   infra/             ollama.py (OllamaClient, one `client`, metrics), preflight.py (machine
                      gate), tts.py (cloned voice, lazy mlx import),
@@ -36,8 +37,10 @@ src/factory/
                      prompt), indexer.py (bible → chunks → ChromaDB),
                      query.py (retrieval smoke test)
   pipeline/          graph.py (state, writing nodes, strategies, wiring),
-                     nodes/preflight.py, nodes/narrative_state.py and
-                     nodes/render.py (the machine nodes), scorers.py
+                     nodes/preflight.py, nodes/narrative_state.py,
+                     nodes/leader.py and nodes/render.py (the machine
+                     nodes), checkpoint.py (per-run SQLite saver,
+                     restricted serializer, prepare/resume), scorers.py
                      (best-of criteria by name),
                      gestures.py (validators, drift draw, placement),
                      assembly.py (audio switch, excerpt bound),
@@ -73,12 +76,24 @@ the deck reads.
 ## The graph
 
 ```
-preflight ──▶ narrative_state ──▶ plan ──▶ write ──▶ accumulate ──▶ drift ───┐
-                                   ▲                                         │ more entries?
-                                   └─────────────────────────────────────────┘
-                                                                             ▼ no
+           ┌──────────────── PREP ────────────────┐
+preflight ──▶ narrative_state ──▶ plan ──▶ leader ──(prepare)──▶ END
+                                             │
+                                             ▼ otherwise
+    ┌──────────────────────────── LIVE ───────────────────────────────────────┐
+    live_preflight ──▶ write ──▶ accumulate ──▶ drift ───┐
+                        ▲                                │ more entries?
+                        └────────────────────────────────┘
+                                                         ▼ no
                     review ──▶ repair ──▶ assemble ──▶ place_gestures ──▶ coherence ──▶ render
 ```
+
+Two sections (ADR-0028). PREP is workshop preparation: it can run before the
+event, at the terminal, and stop at the leader gate (`factory prepare`).
+LIVE is what the stage shows. An unsplit run goes straight through both;
+`leader` and `live_preflight` then do nothing and the served prompts are
+those of a graph without them. XP B's `storyboard` node and its plan veto
+will sit between `plan` and `leader`.
 
 - **preflight** (no model): the machine gate of ADR-0016, run when the state
   asks for it (`preflight: {strict, timer}`; the API and `factory generate`
@@ -94,6 +109,15 @@ preflight ──▶ narrative_state ──▶ plan ──▶ write ──▶ acc
   under those facts, verifies the plan by violation questions, replans once.
   Short-circuited for a single-entry brief or when the brief imposes its own
   entries (chapter 7).
+- **leader** (no model): with `prepare` in the state, interrupts with the
+  plan and its check report; the owner's answer is stored in `leader` and the
+  thread ends there: a prepared thread never writes. Otherwise passes
+  through. It holds nothing but the interrupt, which LangGraph re-executes
+  on resume.
+- **live_preflight** (no model): on a run resumed from a prepared plan only
+  (`prepared_from`), the same gate as `preflight`, strict and timed by
+  default: the stage machine is checked, not the prep machine. An unsplit
+  run never probes twice.
 - **write** (nemo): one entry per pass, header and anchor prefixed by code.
   Three strategies selected per entry: a single call, three segments
   (opening, reconstruction with stations, closing), or code-capped beats with
@@ -149,6 +173,22 @@ preflight ──▶ narrative_state ──▶ plan ──▶ write ──▶ acc
   `lint.md`. The API serves artifacts from disk and holds no chapter in
   memory; calibration runs (`factory calibrate`) write their frontmatter
   Markdown under `experiments/runs/` as before.
+- **Checkpoints.** Every run of `factory generate`, `factory prepare` and the
+  API compiles the graph with a SQLite saver on
+  `<run dir>/checkpoints.sqlite` (thread = run id, durability `sync`), with a
+  serializer that constructs only the chapter-spec dataclasses and never
+  unpickles. Tests, calibration and `stage_runner` run the plain graph.
+- **Prepared plans.** `factory prepare --chapter N` creates a run
+  (`kind: prepared`, slug `prep`), runs PREP to the gate, asks the owner;
+  approved, it records the fingerprint (commit, uncommitted code, chapter
+  files, resolved configuration, model digests, narrative-state chunk) and
+  writes `plan.md` and `plan-report.md`, status `prepared`; refused,
+  `cancelled`. `factory generate --from <id|latest>` and `POST /generate
+  {chapter, prepared}` create a NEW run beside it (`prepared_from`, the
+  prepared configuration, a copy of `plan.md`, a fresh seed unless pinned),
+  read the prepared state read-only, refuse on a fingerprint difference,
+  seed the new thread as if `leader` had just run, and run LIVE. The
+  prepared run is never consumed. `GET /runs/<id>/plan` serves the plan.
 - **Promotion.** `factory promote <run>` copies a run's chapter into
   `bible/scenes/ch-NN-<run>.md` (`type: scene`, `chapter`, `promoted_from`)
   and indexes it; only promoted scenes enter semantic retrieval.
@@ -177,6 +217,10 @@ not either (`factory.paths`). The variable table is in the runbook, §1.6.
 - Machine boundary: preflight probes, TTS synthesizer, Telegram, faked; the
   two machine nodes are tested with those fakes, and `factory doctor` runs
   the real probes on the owner's machine.
+- Split boundary: the scenario `ch7-prepared` prepares, approves and resumes
+  chapter 7; its served prompts equal the `ch7` golden file byte for byte.
+  The fingerprint is falsified both ways against a fake `/api/tags` and a
+  copy of the chapter directory.
 
 ## Target
 

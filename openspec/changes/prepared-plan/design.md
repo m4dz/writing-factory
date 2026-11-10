@@ -183,6 +183,49 @@ operator notified, artifact routes `204`.
 - **API**: `POST /generate` with an unknown, non-prepared or other-chapter
   `prepared` id answers `400` with the reason.
 
+## Implementation notes (2026-11-10)
+
+Where the implementation departs from or adds to the text above, and why.
+
+- **Fingerprint check inside the new run.** The resume creates the new run
+  first, then checks the fingerprint as the first act of its execution
+  (before any node). A refusal is recorded in that run's manifest
+  (`status: error`, the items in `error`), as a preflight refusal is; for
+  the API this is what the spec asks (`202`, then `state: error`). Nothing
+  of a refused resume is thrown away.
+- **`dirty`** hashes `git diff HEAD -- src/factory` plus the untracked files
+  under `src/factory` (a rehearsal-day fix may be a new module). `src/`
+  as a whole would include `writing_factory.egg-info`, which `pip install
+  -e` rewrites without any code change.
+- **`chapter`** is recorded file by file (`{path: sha256}`), so the refusal
+  names the file that moved (`brief.md`), not only "chapter".
+- **`narrative_state`** records a hash of the chunk's document, not its
+  mere presence: a regenerated chunk with other content is another served
+  prompt. A missing chunk is still reported as "absent de Chroma". Recorded
+  only when the prep indexed one (`narrative_state_path`).
+- **`models`**: an unreachable Ollama is itself a refusal (item `models`);
+  at approval it fails the prep (`error`), since no digest can be recorded.
+  The embedding model is not in the list, as in the table above.
+- **Prep flags.** `factory prepare` also takes `--no-preflight`,
+  `--no-narrative-state`, `--quiet`, `--runs-dir` (tests, a machine without
+  Chroma). The run is `preparing` while it runs; `kind: prepared` manifests
+  are listed by the registry like `kind: run`.
+- **Live gate request.** `live_preflight` runs the run's `preflight`
+  request: the API and a plain `generate --from` ask strict and timed;
+  `--skip-preflight` / `--no-preflight` lower it on the command line for
+  development, as for any `generate`.
+- **Prepared run untouched.** It is read through a `mode=ro` SQLite
+  connection: its database, `-wal`, manifest and plan files are
+  byte-identical after two resumes. SQLite's `-shm` (shared-memory read
+  marks) is updated by any reader of a WAL database and is not data; the
+  test excludes it.
+- **`TERMINAL`** includes `prepared`: a prepared run never moves again, and
+  its event stream must close.
+- **Atomic manifest writes.** The API tests exposed a race older than this
+  change: a status poll reading `manifest.yaml` mid-rewrite saw an empty
+  file and answered `404` for a live run. `write_manifest` now writes a
+  temporary file and renames it.
+
 ## Decisions (owner, 2026-10-19)
 
 1. Stage seed: fresh at every resume; pinned only on demand.

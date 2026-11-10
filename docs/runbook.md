@@ -253,6 +253,40 @@ A chapter is generated from its `chapters/NN-slug/spec.yaml`; chapters 2 and
 7 have one. When the owner's brief carries workshop vocabulary the lint bans
 in output, the command reports it and goes on: the brief is the author's.
 
+### Prepare the plan before the event, resume it on stage
+
+The plan is workshop preparation (ADR-0028): gather, plan, check and approve
+it the day before, then let the stage generate from exactly that plan.
+
+```bash
+factory prepare --chapter 7                  # narrative state, plan, check; asks « Approuver ce plan ? [o/N] »
+factory generate --from latest               # rehearsal: a NEW run from the newest prepared plan
+factory generate --from 20261109-201500-ch07-prep --seed 424242   # pinned seed: experiments only
+```
+
+`factory prepare` stops at the leader gate and prints the plan and its
+check report. Only `o` / `oui` approves: the run becomes `prepared`, with
+`plan.md` (what the deck shows), `plan-report.md` and a fingerprint in its
+manifest. Anything else, or no terminal, leaves it `cancelled`. To change
+the plan, change the brief and prepare again; the gate does not edit.
+The prep runs a lenient, untimed preflight; the strict, timed one runs at
+every resume, on the machine that will generate.
+
+Each resume is a new run (`prepared_from` in its manifest, a copy of
+`plan.md`); the prepared run is never consumed, so rehearsals and the stage
+resume the same plan. The seed is drawn fresh at every resume. `--override`
+belongs to `prepare` and holds for every resume; `generate --from` refuses
+it. The same `--no-preflight`, `--skip-preflight`, `--no-render`,
+`--no-voice` flags apply to the resume.
+
+**A resume is refused when anything the plan depends on moved since the
+approval**: a new commit, uncommitted code under `src/factory`, a file of
+the chapter directory, a configuration value, a re-pulled model (Ollama
+digest), the narrative-state chunk missing from ChromaDB. The refusal names
+each item (exit 1; through the API, `state: error` and the beeper). It is
+not a bug to work around: either undo the change, or prepare again and get
+the new plan approved.
+
 ### Promote a chapter
 
 Generated chapters are candidates. After reading one, the owner promotes it:
@@ -302,6 +336,9 @@ curl  http://MACHINE:8420/runs/<run_id>/audio   -o chapitre.wav
 curl  http://MACHINE:8420/runs/<run_id>/prompts            # every prompt served to the model
 curl -X POST http://MACHINE:8420/runs/<run_id>/cancel      # emergency exit
 curl  http://MACHINE:8420/runs/latest/status               # `latest` aliases the newest run
+curl -X POST http://MACHINE:8420/generate -H 'Content-Type: application/json' \
+     -d '{"chapter": 7, "prepared": "latest"}'             # resume the newest prepared plan
+curl  http://MACHINE:8420/runs/<run_id>/plan               # the approved plan (204 without one)
 ```
 
 The payload is mandatory: `chapter` names a spec, `seed` (optional) is
@@ -311,6 +348,14 @@ during a run is queued, not refused: the machine holds one model, runs
 execute one after the other. The keynote's singleton routes (`/status`,
 `/chapter`, `/audio`, `/events`, `/cancel`) answer `410` with the pointer to
 `/runs/…` (ADR-0005; the deck is updated by the owner).
+
+`prepared` (a run id, or `latest` for the newest prepared run of that
+chapter) resumes a prepared plan in a new run; `overrides` are refused with
+it, `seed` stays random unless given. An unknown, unprepared or
+other-chapter run answers `400` with the reason. The API never prepares:
+approval is at the terminal. Prepared runs are listed with `state:
+prepared`, `ready: false`; their `/plan` answers `200`, their `/chapter`
+`204`.
 
 Live P90 at the keynote: ~6 min for chapter 7. Rehearsal measured 7.6 min
 end to end (5 min generation, 2.6 min voice, cold engine at 0.60× real time).
@@ -350,12 +395,13 @@ curl http://localhost:8420/runs/latest/audio   -o public/fallback/chapitre.wav
 | When | What |
 |---|---|
 | D-1 | Fallback assets produced, roleplay sessions curated, `caffeinate` tested |
+| D-1 | `factory prepare --chapter 7`, read the plan, approve; one rehearsal `factory generate --from latest`. Change nothing after |
 | H-60 | **Reboot the Mac.** Let macOS maintenance finish (§0) |
 | H-30 | Backends: Ollama, podman + ChromaDB, index up to date, seal re-proved |
 | H-20 | `caffeinate -is &`, then `factory doctor`: all green |
 | H-15 | `factory serve` in the FOREGROUND, Telegram variables exported; preheat the TTS |
 | H-10 | Blank test: `POST /chat` on a character, one reply must come back |
-| Section 3 | The deck sends `POST /generate {chapter: 7}` and keeps the `run_id`. The countdown starts |
+| Section 3 | The deck sends `POST /generate {chapter: 7, prepared: "latest"}` and keeps the `run_id`; it shows `/runs/<id>/plan` (once the deck speaks the run contract: talk-side change, `prepared-plan` task 5b). The countdown starts |
 | During | The watch receives the beats. On `❌ ÉCHEC`, prepare plan B |
 | Section 7 | The deck collects `/runs/<id>/chapter` and `/runs/<id>/audio` by itself |
 | After | `POST /runs/<id>/cancel` if a generation lingers (it would block the actor mode) |
@@ -376,6 +422,8 @@ collection.
 | `/runs/<id>/audio` 204 but chapter present | TTS failed; the chapter stays valid | Deck falls back to embedded audio; nothing to do |
 | `POST /chat` 409 | A chapter is generating | Wait for collection, or `POST /runs/<id>/cancel` |
 | `POST /generate` 400 | No payload, or a chapter without spec | `{"chapter": 7}`; `GET /health` lists the chapters |
+| `POST /generate` 400 with `prepared` | No prepared run of that chapter, or the id names a run not `prepared` | `GET /runs`; `factory prepare --chapter 7` and approve |
+| Resumed run in `error`, « empreinte refusée » | Code, chapter, config, model or narrative state changed since the approval; the error names it | Undo the change, or prepare again and approve |
 | ChromaDB unreachable | Podman machine stopped after reboot | `podman machine start`, `podman-compose up -d chromadb` |
 | Run reports 374 s of compute for 45 min of wall time | Machine slept (battery Maintenance Sleep) | Plug in; the run is NOT COMPARABLE, redo it |
 

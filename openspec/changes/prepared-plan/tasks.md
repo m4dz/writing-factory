@@ -61,8 +61,8 @@
 
 - [ ] One real chapter-7 prep + resume on the stage machine: time saved,
       `checkpoints.sqlite` size, served prompts equal to an unsplit run's.
-- [ ] ADR: prep/live split, resume as a new run, fingerprint.
-- [ ] `docs/architecture.md` (graph, sections), `docs/runbook.md`
+- [x] ADR: prep/live split, resume as a new run, fingerprint (ADR-0028).
+- [x] `docs/architecture.md` (graph, sections), `docs/runbook.md`
       (prepare the day before; resume on stage; what a refusal means).
 - [ ] `storyboard-density` design: place the `storyboard` node between
       `plan` and `leader` (owner's go on that edit).
