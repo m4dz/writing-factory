@@ -77,3 +77,21 @@ def test_ch7_structure_is_the_stage_structure(fake_model, fake_chroma, quiet_pro
     before, after = chapter.split(assembly.SWITCH)
     assert before.count("Samedi 14.") == 1 and after.count("Samedi 14.") == 1
     assert after.split(assembly.AUDIO_END)[0].rstrip().endswith("Constat : anniversaire.")
+
+
+@pytest.mark.snapshot
+def test_ch7_prepared_serves_the_ch7_prompts_byte_for_byte(fake_model, fake_chroma,
+                                                            quiet_progress, tmp_path):
+    """Scenario ``ch7-prepared``: compared to ``ch7``'s golden files, never
+    written (``--update-snapshots`` does not apply to it)."""
+    sc = scenarios.all_scenarios()[0]
+    final = scenarios.run_prepared(sc, fake_model, tmp_path)
+    folder = HERE / "ch7"
+    prompts = scenarios.render_prompts(fake_model.calls)
+    assert prompts == (folder / "prompts.md").read_text(encoding="utf-8")
+    chapter = assembly.assemble(final["repaired"], **sc.assembly)
+    assert chapter == (folder / "chapter.md").read_text(encoding="utf-8")
+    warnings = "\n".join(final.get("warnings") or []) + "\n"
+    assert warnings == (folder / "warnings.txt").read_text(encoding="utf-8")
+    assert final["prepared_from"] == "prep" and final["leader"]["approved"] is True
+    assert final["prepare"] is False

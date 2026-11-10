@@ -12,6 +12,13 @@ Three scenarios cover every writing strategy and both plan paths:
 - ``ch2-s7-chapter``: same stage, the full chapter (run S7-C): three entries,
   plan node with fact derivation and plan check, coherence over three scenes.
 
+And one scenario with no golden file of its own:
+
+- ``ch7-prepared``: ``ch7`` split at the leader gate. Prepared and approved
+  in one checkpointed thread, resumed with the same seed in a new one. Its
+  served prompts and chapter SHALL equal ``ch7``'s byte for byte: the single
+  test that the prep/live split moves nothing.
+
 Both states come from ``chapters/NN-slug/spec.yaml`` through the loader
 (step 5); the golden files were produced by the former Python constructions
 and did not move.
@@ -58,6 +65,31 @@ def run(scenario: Scenario, fake_model) -> dict:
     fake_model.calls.clear()
     final = build_graph().invoke(scenario.state, config={"recursion_limit": 50})
     return final
+
+
+def run_prepared(scenario: Scenario, fake_model, directory) -> dict:
+    """Prepare, approve and resume ``scenario`` through the production resume
+    path (``factory.pipeline.checkpoint``), minus the fingerprint, which has
+    its own tests. The fake model records both sections' calls in order."""
+    from langgraph.types import Command
+
+    from factory.pipeline import checkpoint
+    from factory.pipeline.graph import build_graph
+
+    fake_model.calls.clear()
+    prep_path, live_path = directory / "prep.sqlite", directory / "live.sqlite"
+    prep, live = checkpoint.thread_config("prep"), checkpoint.thread_config("live")
+    with checkpoint.open_saver(prep_path) as saver:
+        graph = build_graph(checkpointer=saver)
+        graph.invoke({**scenario.state, "prepare": True}, prep, durability="sync")
+        graph.invoke(Command(resume={"approved": True, "by": "owner", "at": "t"}), prep,
+                     durability="sync")
+    values = checkpoint.prepared_values(prep_path, "prep")
+    with checkpoint.open_saver(live_path) as saver:
+        graph = build_graph(checkpointer=saver)
+        checkpoint.seed_resumed(graph, live, values, prepared_from="prep",
+                                live={"seed": scenario.seed})
+        return graph.invoke(None, live, durability="sync")
 
 
 def render_prompts(calls) -> str:

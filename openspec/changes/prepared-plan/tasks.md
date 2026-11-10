@@ -23,7 +23,7 @@
 - [x] `leader_node` (interrupt only with `prepare`), `route_after_leader`.
 - [x] `live_preflight_node` (acts only with `prepared_from`).
 - [x] State fields: `prepare`, `prepared_from`, `leader`.
-- [ ] Tests: unsplit run unchanged; prepared thread has no `write` call;
+- [x] Tests: unsplit run unchanged; prepared thread has no `write` call;
       refusal → `cancelled`; no second probe on an unsplit run.
 
 ## 3. Fingerprint
@@ -35,12 +35,12 @@
 
 ## 4. Commands
 
-- [ ] `factory prepare --chapter N [--seed] [--override]`: run, show the
+- [x] `factory prepare --chapter N [--seed] [--override]`: run, show the
       plan, ask, write `plan.md`, fingerprint, status.
-- [ ] `factory generate --from <id> [--seed]`: checks, new run,
+- [x] `factory generate --from <id> [--seed]`: checks, new run,
       `update_state(as_node="leader")`, `invoke(None)`.
-- [ ] Snapshot scenario `ch7-prepared` (fake model): prompts equal `ch7`'s.
-- [ ] Two resumes of one prepared run: two runs, prepared run unchanged.
+- [x] Snapshot scenario `ch7-prepared` (fake model): prompts equal `ch7`'s.
+- [x] Two resumes of one prepared run: two runs, prepared run unchanged.
 
 ## 5. API
 

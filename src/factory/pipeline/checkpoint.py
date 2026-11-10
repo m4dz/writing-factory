@@ -51,3 +51,40 @@ def open_saver(path: Path, *, read_only: bool = False):
 
 def thread_config(thread_id: str) -> dict:
     return {"configurable": {"thread_id": thread_id}, "recursion_limit": 50}
+
+
+# --- prepare and resume --------------------------------------------------------
+
+def gate(graph, config: dict) -> dict:
+    """The payload a prepared thread stopped with at the leader gate."""
+    pending = graph.get_state(config).interrupts
+    if not pending:
+        raise RuntimeError("le run n'est pas arrêté à la porte du plan")
+    return pending[0].value
+
+
+def prepared_values(path: Path, thread_id: str) -> dict:
+    """The final state of a prepared thread, read without write access."""
+    from factory.pipeline.graph import build_graph
+    with open_saver(path, read_only=True) as saver:
+        return dict(build_graph(checkpointer=saver).get_state(thread_config(thread_id)).values)
+
+
+def seed_resumed(graph, config: dict, values: dict, *, prepared_from: str, live: dict) -> None:
+    """Start a NEW thread from a prepared state, as if `leader` had just run:
+    `route_after_leader` reads `prepare: False` and the next node is
+    `live_preflight`. `live` carries the stage requests (preflight, render,
+    voice, artifacts_dir, seed)."""
+    graph.update_state(config, {**values, **live, "prepare": False,
+                                "prepared_from": prepared_from}, as_node="leader")
+
+
+def resume_prepared(graph, config: dict, prepared, live: dict) -> dict:
+    """Resume a prepared run in the thread of `config`: read its state, refuse
+    on a fingerprint difference (before any node runs), seed, run the live
+    section."""
+    from factory import runs as run_registry
+    values = prepared_values(prepared.checkpoints_path, prepared.id)
+    run_registry.check_fingerprint(prepared, values)
+    seed_resumed(graph, config, values, prepared_from=prepared.id, live=live)
+    return graph.invoke(None, config, durability="sync")

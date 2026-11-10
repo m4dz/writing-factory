@@ -5,7 +5,10 @@ ADR-0005. Its directory is the registry: `manifest.yaml` (identity, resolved
 configuration, model tags, status, timings from both clocks), `chapitre.md`,
 `chapitre.wav`, `prompts.md` (every prompt served to the model), `lint.md`
 (the lint grid line), `checkpoints.sqlite` (the graph's checkpoints, thread =
-run id). The API reads runs from disk and holds no chapter in memory;
+run id). A prepared run (`factory prepare`, manifest `kind: prepared`) stops at
+the leader gate and adds `plan.md` (the approved plan, what the stage shows)
+and `plan-report.md` (its check report); a run resumed from it records
+`prepared_from` and carries a copy of `plan.md`. The API reads runs from disk and holds no chapter in memory;
 `factory generate` writes the same directories.
 """
 
@@ -44,7 +47,9 @@ ALIASES = {("beats_see_movement", True): ("beat_context", "map"),
 # keyword overrides the spec already accepts, never spec content.
 OPTIONS = ("rag", "micro_nodes", "segments")
 
-TERMINAL = ("ready", "error", "cancelled")
+# `prepared` is terminal too: a prepared run never moves again, it is resumed
+# as new runs.
+TERMINAL = ("ready", "error", "cancelled", "prepared")
 
 
 class RunError(ValueError):
@@ -76,6 +81,7 @@ class Run:
     overrides: dict = field(default_factory=dict)
     created: str = ""
     status: str = "queued"       # queued | generating | ready | error | cancelled
+    #                              | preparing | prepared
     manifest: dict = field(default_factory=dict)
 
     @property
@@ -93,6 +99,10 @@ class Run:
     @property
     def checkpoints_path(self) -> Path:
         return self.dir / "checkpoints.sqlite"
+
+    @property
+    def plan_path(self) -> Path:
+        return self.dir / "plan.md"
 
 
 def runs_root(root: Path | None = None) -> Path:
@@ -376,7 +386,7 @@ def load_run(directory: Path) -> Run | None:
     if not RUN_ID.match(directory.name) or not manifest.is_file():
         return None
     data = yaml.safe_load(manifest.read_text(encoding="utf-8")) or {}
-    if data.get("kind") != "run":
+    if data.get("kind") not in ("run", "prepared"):
         return None
     return Run(id=directory.name, dir=directory, chapter=int(data.get("chapter") or 0),
                slug=str(data.get("slug") or ""), seed=int(data.get("seed") or 0),
@@ -403,6 +413,67 @@ def find_run(run_id: str, root: Path | None = None) -> Run | None:
 def latest_run(root: Path | None = None) -> Run | None:
     runs = list_runs(root)
     return runs[0] if runs else None
+
+
+def latest_prepared(chapter: int | None, root: Path | None = None) -> Run | None:
+    """The newest run with status `prepared` (of that chapter, when given)."""
+    return next((r for r in list_runs(root) if r.status == "prepared"
+                 and (chapter is None or r.chapter == chapter)), None)
+
+
+def resolve_prepared(token, chapter: int | None, root: Path | None = None) -> Run:
+    """The prepared run a resume names: a whitelisted id or `latest`. Raises
+    `RunError` with the reason (unknown, not prepared, other chapter)."""
+    if not isinstance(token, str) or not token:
+        raise RunError("prepared : identifiant de run ou « latest » attendu")
+    if token == "latest":
+        run = latest_prepared(chapter, root)
+        if run is None:
+            raise RunError("aucun run préparé"
+                           + (f" pour le chapitre {chapter}" if chapter is not None else ""))
+        return run
+    if not RUN_ID.match(token):
+        raise RunError(f"prepared : identifiant de run invalide « {token} »")
+    run = find_run(token, root)
+    if run is None:
+        raise RunError(f"prepared : run inconnu « {token} »")
+    if run.status != "prepared":
+        raise RunError(f"run {run.id} non préparé (état « {run.status} »)")
+    if chapter is not None and run.chapter != chapter:
+        raise RunError(f"run {run.id} préparé pour le chapitre {run.chapter}, pas {chapter}")
+    return run
+
+
+def create_resumed_run(prepared: Run, *, seed: int, root: Path | None = None) -> Run:
+    """A NEW run resuming a prepared one, beside it. The prepared run is never
+    consumed: rehearsals and the stage resume the same approved plan. Its
+    configuration is the prepared one; `plan.md` is copied so the deck reads
+    the plan from the run it launched."""
+    from factory.chapter_spec import load_chapter
+    run = create_run(prepared.chapter, load_chapter(prepared.chapter).slug, seed=seed,
+                     overrides=prepared.overrides, root=root or prepared.dir.parent,
+                     extra={"prepared_from": prepared.id, "prepared_seed": prepared.seed,
+                            "fingerprint": prepared.manifest.get("fingerprint")})
+    if prepared.plan_path.is_file():
+        run.plan_path.write_bytes(prepared.plan_path.read_bytes())
+    return run
+
+
+def render_plan(chapter: int, plan: list[str]) -> str:
+    """`plan.md`: the approved plan alone, what the stage shows."""
+    lines = [f"# Plan — chapitre {chapter}", ""]
+    lines += [f"{n}. {beat}" for n, beat in enumerate(plan, 1)]
+    return "\n".join(lines) + "\n"
+
+
+def write_plan(run: Run, final: dict) -> None:
+    """`plan.md` and `plan-report.md` (the check report: machinery, never
+    shown) of a prepared run."""
+    run.plan_path.write_text(render_plan(run.chapter, list(final.get("plan") or [])),
+                             encoding="utf-8")
+    report = (final.get("plan_report") or "").rstrip() or "(aucun contrôle : plan imposé)"
+    (run.dir / "plan-report.md").write_text(
+        f"# Contrôle du plan — chapitre {run.chapter}\n\n{report}\n", encoding="utf-8")
 
 
 class Clocks:
