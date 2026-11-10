@@ -190,7 +190,9 @@ def _run_one(state: dict, chapter: int, slug: str, args, root, *,
     for k, v in overrides.items():
         setattr(settings, k, v)
     try:
-        final = build_graph().invoke(state, config={"recursion_limit": 50})
+        with run_registry.open_checkpointer(run) as saver:
+            final = build_graph(checkpointer=saver).invoke(
+                state, config=run_registry.run_config(run), durability="sync")
         status, code = "ready", 0
     except PreflightError as exc:
         error = f"préflight refusé : {exc}"

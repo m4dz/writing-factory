@@ -53,6 +53,37 @@ runs twice.
   unchanged). The SQLite file holds the same material `prompts.md` and
   `variants.md` already hold.
 
+### Installed API (verified 2026-11-10)
+
+Checked against `langgraph` 1.2.20, `langgraph-checkpoint` 4.3.1,
+`langgraph-checkpoint-sqlite` 3.1.3 (the extras pin `>=3.0`):
+
+- `from langgraph.checkpoint.sqlite import SqliteSaver`;
+  `SqliteSaver(conn, *, serde=None)` over a `sqlite3` connection opened
+  with `check_same_thread=False` (the API worker runs the graph in its
+  thread). A prepared run is read through a `mode=ro` URI connection: the
+  resume never writes into the prepared run's file.
+- `JsonPlusSerializer(*, pickle_fallback=False, allowed_json_modules=None,
+  allowed_msgpack_modules=...)`. **Differs from the design:** the allowlist
+  takes `(module, name)` pairs or classes, not a module name. The serializer
+  lists the four dataclasses a chapter state holds (`BeatSpec`, `BestOf`,
+  `Drift`, `EntrySpec`); a foreign type is blocked and comes back as a plain
+  dict, never constructed. Default without an explicit list is permissive
+  (warn and allow) unless `LANGGRAPH_STRICT_MSGPACK` is set, hence the
+  explicit list.
+- **Also not in the design:** msgpack has no tuple; the frozen dataclasses
+  came back with lists in their tuple fields, unequal to the loaded spec.
+  `BestOf` and `EntrySpec` restore their declared tuples in
+  `__post_init__` (the serializer rebuilds dataclasses through their
+  constructor), so the round-trip is exact.
+- `invoke(input, config, *, durability: "sync" | "async" | "exit" | None)`.
+- `interrupt(value, *, response_schema=None)`; `invoke` returns the values
+  with `__interrupt__`, `get_state(config).interrupts` holds the payload;
+  `Command(resume=...)` re-executes the node from its top.
+- `update_state(config, values, as_node=None, task_id=None)` on a fresh
+  thread with `as_node="leader"` evaluates `route_after_leader` on the
+  given values: `next == ("live_preflight",)`, then `invoke(None, config)`.
+
 ## Prepare
 
 ```

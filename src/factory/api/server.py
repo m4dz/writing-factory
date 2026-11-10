@@ -186,15 +186,15 @@ class Worker:
             # `render=True`: the last node writes `chapitre.md` then the WAV
             # into the run directory; a voice failure leaves the chapter
             # served (ADR-0012).
-            graph = build_graph()
-            final = graph.invoke(
-                {**load_chapter(run.chapter).state(seed=run.seed),
-                 "preflight": {"strict": True, "timer": True},
-                 "narrative_state": True,
-                 "render": True,
-                 "artifacts_dir": str(run.dir)},
-                config={"recursion_limit": 50},
-            )
+            with run_registry.open_checkpointer(run) as saver:
+                final = build_graph(checkpointer=saver).invoke(
+                    {**load_chapter(run.chapter).state(seed=run.seed),
+                     "preflight": {"strict": True, "timer": True},
+                     "narrative_state": True,
+                     "render": True,
+                     "artifacts_dir": str(run.dir)},
+                    config=run_registry.run_config(run), durability="sync",
+                )
             status = "ready"
             progress.note("chapitre prêt")
             notify.ready(int(time.time() - self.started_at),

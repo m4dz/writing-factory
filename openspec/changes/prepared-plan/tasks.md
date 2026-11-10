@@ -2,21 +2,21 @@
 
 ## 0. Owner
 
-- [ ] Go on the scope (proposal, non-goals).
+- [x] Go on the scope (proposal, non-goals) (2026-11-10).
 - [x] Stage seed: fresh at every resume (2026-10-19).
 - [x] The deck shows the plan, fetched from the API (2026-10-19).
 
 ## 1. Plumbing
 
-- [ ] Add `langgraph-checkpoint-sqlite` to the `pipeline` and `test`
+- [x] Add `langgraph-checkpoint-sqlite` to the `pipeline` and `test`
       extras; `make venv`.
-- [ ] Verify against the installed versions: `SqliteSaver` import path,
+- [x] Verify against the installed versions: `SqliteSaver` import path,
       `allowed_msgpack_modules` signature, `durability` argument,
       `update_state(..., as_node=)` on a finished thread.
-- [ ] `build_graph(checkpointer=None)`; `None` keeps today's graph.
-- [ ] Restricted serializer; round-trip test on the chapter-7 state.
-- [ ] `factory.runs`: open the per-run saver, run config with `thread_id`.
-- [ ] `make check` green, three snapshots byte-identical.
+- [x] `build_graph(checkpointer=None)`; `None` keeps today's graph.
+- [x] Restricted serializer; round-trip test on the chapter-7 state.
+- [x] `factory.runs`: open the per-run saver, run config with `thread_id`.
+- [x] `make check` green, three snapshots byte-identical.
 
 ## 2. Gate and split
 

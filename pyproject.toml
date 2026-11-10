@@ -26,12 +26,13 @@ where = ["src"]
 factory = ["api/static/*", "eval/data/*"]
 
 [project.optional-dependencies]
-# The generation graph and the API (`factory generate|calibrate|serve|chat`).
-pipeline = ["langgraph>=1.0"]
+# The generation graph and the API (`factory generate|prepare|calibrate|serve|chat`);
+# every run is checkpointed in its directory (SQLite saver).
+pipeline = ["langgraph>=1.0", "langgraph-checkpoint-sqlite>=3.0"]
 # Cloned-voice rendering: Apple Silicon only (mlx). Installed on the stage
 # machine, never in the test environment; the import is lazy (ADR-0012).
 tts = ["mlx-audio>=0.4", "soundfile>=0.12", "numpy>=1.26"]
-test = ["pytest>=8", "ruff>=0.6", "langgraph>=1.0"]
+test = ["pytest>=8", "ruff>=0.6", "langgraph>=1.0", "langgraph-checkpoint-sqlite>=3.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

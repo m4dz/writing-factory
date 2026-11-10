@@ -2300,7 +2300,10 @@ def coherence_node(state: ChapterState) -> dict:
 
 # --- Graph assembly ----------------------------------------------------------
 
-def build_graph():
+def build_graph(checkpointer=None):
+    """The compiled chapter graph. `checkpointer`: the run's saver
+    (`factory.pipeline.checkpoint`); `None` keeps the plain graph that tests,
+    calibration and `stage_runner` run."""
     g = StateGraph(ChapterState)
     # The machine gate opens the graph (ADR-0002, item 5): a throttled machine
     # is refused before any model call, from the API and the CLI alike.
@@ -2342,4 +2345,4 @@ def build_graph():
     g.add_node("render", render_node)
     g.add_edge("coherence", "render")
     g.add_edge("render", END)
-    return g.compile()
+    return g.compile(checkpointer=checkpointer)

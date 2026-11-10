@@ -4,8 +4,9 @@ A run is (chapter spec, seed, configuration overrides, commit) — ADR-0003,
 ADR-0005. Its directory is the registry: `manifest.yaml` (identity, resolved
 configuration, model tags, status, timings from both clocks), `chapitre.md`,
 `chapitre.wav`, `prompts.md` (every prompt served to the model), `lint.md`
-(the lint grid line). The API reads runs from disk and holds no chapter in
-memory; `factory generate` writes the same directories.
+(the lint grid line), `checkpoints.sqlite` (the graph's checkpoints, thread =
+run id). The API reads runs from disk and holds no chapter in memory;
+`factory generate` writes the same directories.
 """
 
 from __future__ import annotations
@@ -72,6 +73,10 @@ class Run:
     @property
     def prompts_path(self) -> Path:
         return self.dir / "prompts.md"
+
+    @property
+    def checkpoints_path(self) -> Path:
+        return self.dir / "checkpoints.sqlite"
 
 
 def runs_root(root: Path | None = None) -> Path:
@@ -173,6 +178,19 @@ def create_run(chapter: int, slug: str, *, seed: int, overrides: dict | None = N
     }
     write_manifest(run)
     return run
+
+
+def run_config(run: Run) -> dict:
+    """The graph config of a run: its own checkpoint thread."""
+    from factory.pipeline.checkpoint import thread_config
+    return thread_config(run.id)
+
+
+def open_checkpointer(run: Run, *, read_only: bool = False):
+    """The run's SQLite saver (a context manager). Imported lazily: the
+    indexer container has no LangGraph."""
+    from factory.pipeline.checkpoint import open_saver
+    return open_saver(run.checkpoints_path, read_only=read_only)
 
 
 def write_manifest(run: Run, **fields) -> None:
