@@ -15,5 +15,6 @@
 
 ## 3. Close
 
-- [ ] Journal line linking `xp-author-models` M/781771 as the triggering run
-      (in the `xp-author-models-2` journal entry, the first run under the fix).
+- [x] ~~Journal line linking `xp-author-models` M/781771 as the triggering run~~:
+      moved to `xp-author-models-2` task 4 (its journal entry, the first run
+      under the fix).
