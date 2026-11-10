@@ -101,6 +101,7 @@ class OllamaClient:
         temperature: float = 0.8,
         num_predict: int = 1200,
         num_ctx: int | None = None,
+        options: dict | None = None,
         timeout: float = 900.0,
         on_token=None,
     ) -> tuple[str, dict]:
@@ -112,7 +113,7 @@ class OllamaClient:
         return self.chat_turns(
             system, [{"role": "user", "content": user}],
             model=model, temperature=temperature, num_predict=num_predict,
-            num_ctx=num_ctx, timeout=timeout, on_token=on_token,
+            num_ctx=num_ctx, options=options, timeout=timeout, on_token=on_token,
         )
 
     def chat_continue(
@@ -125,6 +126,7 @@ class OllamaClient:
         temperature: float = 0.8,
         num_predict: int = 1200,
         num_ctx: int | None = None,
+        options: dict | None = None,
         timeout: float = 900.0,
         on_token=None,
     ) -> tuple[str, dict]:
@@ -142,7 +144,7 @@ class OllamaClient:
                 "", [{"role": "user", "content": f"{FRENCH_GUARD}\n\n{system}\n\n{user}"},
                      {"role": "assistant", "content": start}],
                 model=model, temperature=temperature, num_predict=num_predict,
-                num_ctx=num_ctx, timeout=timeout, on_token=on_token)
+                num_ctx=num_ctx, options=options, timeout=timeout, on_token=on_token)
         finally:
             self.recording = rec
         if self.recording is not None:
@@ -150,7 +152,7 @@ class OllamaClient:
                 "model": model or self.settings.author_model, "system": system,
                 "user": user, "start": start, "turns": 2, "num_predict": num_predict,
                 "temperature": temperature, "gen_toks": metrics["gen_toks"],
-                "wall_s": metrics["wall_s"],
+                "wall_s": metrics["wall_s"], **({"options": options} if options else {}),
             })
         return text, metrics
 
@@ -163,6 +165,7 @@ class OllamaClient:
         temperature: float = 0.8,
         num_predict: int = 1200,
         num_ctx: int | None = None,
+        options: dict | None = None,
         timeout: float = 900.0,
         on_token=None,
     ) -> tuple[str, dict]:
@@ -201,6 +204,9 @@ class OllamaClient:
                     "temperature": temperature,
                     "num_predict": num_predict,
                     "num_ctx": num_ctx,
+                    # Extra sampling (writing calls only, `Settings.sampling_options`):
+                    # absent by default, so the default request is unchanged.
+                    **(options or {}),
                 },
             }
         ).encode()
@@ -263,6 +269,7 @@ class OllamaClient:
                 "user": turns[-1].get("content", "") if turns else "",
                 "turns": len(turns), "num_predict": num_predict,
                 "temperature": temperature, "gen_toks": ec, "wall_s": metrics["wall_s"],
+                **({"options": options} if options else {}),
             })
         return data["message"]["content"].strip(), metrics
 

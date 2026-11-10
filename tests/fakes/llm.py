@@ -50,41 +50,46 @@ class FakeModel:
 
     def chat(self, system: str, user: str, *, model: str = "fake",
              temperature: float = 0.8, num_predict: int = 1200,
-             num_ctx: int = 8192, timeout: float = 0.0, on_token=None):
+             num_ctx: int = 8192, options: dict | None = None, timeout: float = 0.0,
+             on_token=None):
         role = self.recognise(system, user)
         text = self._reply(role, system, user)
         self.calls.append(Call(role, system, user, model, num_predict,
                                temperature, text))
-        self._record(model, system, user, num_predict, temperature)
+        self._record(model, system, user, num_predict, temperature, options=options)
         if on_token:
             on_token(text, 1)
         return text, self._metrics(text, num_predict, num_ctx)
 
     def chat_continue(self, system: str, user: str, start: str, *, model: str = "fake",
                       temperature: float = 0.8, num_predict: int = 1200,
-                      num_ctx: int = 8192, timeout: float = 0.0, on_token=None):
+                      num_ctx: int = 8192, options: dict | None = None,
+                      timeout: float = 0.0, on_token=None):
         role = self.recognise(system, user)
         text = self._reply(role, system, user)
         self.calls.append(Call(role, system, user, model, num_predict,
                                temperature, text))
-        self._record(model, system, user, num_predict, temperature, start=start)
+        self._record(model, system, user, num_predict, temperature, start=start,
+                     options=options)
         if on_token:
             on_token(text, 1)
         return text, self._metrics(text, num_predict, num_ctx)
 
     def chat_turns(self, system: str, turns: list[dict], *, model: str = "fake",
                    temperature: float = 0.8, num_predict: int = 1200,
-                   num_ctx: int = 8192, timeout: float = 0.0, on_token=None):
+                   num_ctx: int = 8192, options: dict | None = None,
+                   timeout: float = 0.0, on_token=None):
         user = "\n".join(f"{t['role']}: {t['content']}" for t in turns)
         role = "roleplay" if system.startswith("Tu ES ") else self.recognise(system, user)
         text = self._reply(role, system, user)
         self.calls.append(Call(role, system, user, model, num_predict,
                                temperature, text))
-        self._record(model, system, user, num_predict, temperature)
+        self._record(model, system, user, num_predict, temperature, options=options)
         return text, self._metrics(text, num_predict, num_ctx)
 
     @staticmethod
-    def _record(model, system, user, num_predict, temperature, start="") -> None:
+    def _record(model, system, user, num_predict, temperature, start="",
+                options=None) -> None:
         """Mirror the real client's `recording` (the run's prompts.md)."""
         from factory.infra.ollama import client
 
@@ -92,7 +97,8 @@ class FakeModel:
             client.recording.append({"model": model, "system": system, "user": user,
                                      "turns": 1, "num_predict": num_predict,
                                      "temperature": temperature, "gen_toks": 0, "wall_s": 0.0,
-                                     **({"start": start} if start else {})})
+                                     **({"start": start} if start else {}),
+                                     **({"options": options} if options else {})})
 
     def by_role(self, role: str) -> list[Call]:
         return [c for c in self.calls if c.role == role]

@@ -300,7 +300,8 @@ def _reattach(start: str, continuation: str) -> str:
 
 def _generate_whole(system: str, user: str, *, num_predict: int,
                     temperature: float, label: str, keep_going: bool = True,
-                    start: str = "") -> tuple[str, list[dict], list[str]]:
+                    start: str = "", sampling: dict | None = None,
+                    ) -> tuple[str, list[dict], list[str]]:
     """Generate a WHOLE text: relaunch if `num_predict` cut the generation.
 
     Ollama signals the amputation only through `done_reason: "length"` — the
@@ -312,15 +313,19 @@ def _generate_whole(system: str, user: str, *, num_predict: int,
     then as a net a cut at the last complete sentence if the model still
     overflows. The net is never the first resort: it returns a scene that
     stops early, so without the final state the plan asked of it.
+
+    `sampling`: the extra Ollama options of the writing calls
+    (`Settings.sampling_options`), continuations included.
     """
     if start:
         # The answer is already begun: the model continues `start`, and only
         # the new text comes back (plan-state-beats, served prompt v2).
         text, m = chat_continue(system, user, start, num_predict=num_predict,
-                                temperature=temperature, on_token=progress.token_sink())
+                                temperature=temperature, options=sampling,
+                                on_token=progress.token_sink())
     else:
         text, m = chat(system, user, num_predict=num_predict, temperature=temperature,
-                       on_token=progress.token_sink())
+                       options=sampling, on_token=progress.token_sink())
     metrics = [m]
     warns: list[str] = []
 
@@ -339,7 +344,8 @@ def _generate_whole(system: str, user: str, *, num_predict: int,
         )
         continuation, m = chat(system, continuation_user,
                         num_predict=max(300, num_predict // 3),
-                        temperature=temperature, on_token=progress.token_sink())
+                        temperature=temperature, options=sampling,
+                        on_token=progress.token_sink())
         metrics.append(m)
         text = _reattach(text, continuation)
         warns.append(f"{label} : génération coupée, continuation demandée")
@@ -772,7 +778,9 @@ def write_node(state: ChapterState) -> dict:
                                f"entrée {idx + 1} — {name} ({k + 1}/{beats_n})",
                                i=idx + 1, n=len(state["plan"]))
                 seg, m, w = _generate_whole(
-                    system, beat_user, num_predict=num_predict, temperature=0.7,
+                    system, beat_user, num_predict=num_predict,
+                    temperature=settings.write_temperature,
+                    sampling=settings.sampling_options(),
                     label=f"entrée {idx + 1}/{name}#{k + 1}", keep_going=False,
                     start=start)
                 seg, wn = _clean_segment(seg, f"entrée {idx + 1}/{name}#{k + 1}")
@@ -854,7 +862,9 @@ def write_node(state: ChapterState) -> dict:
                 )
             served_prompts.append((name, seg_user))
             seg, m, w = _generate_whole(
-                system, seg_user, num_predict=num_predict, temperature=0.7,
+                system, seg_user, num_predict=num_predict,
+                temperature=settings.write_temperature,
+                sampling=settings.sampling_options(),
                 label=f"entrée {idx + 1}/{name}")
             # The code's proprietary filters apply TO THE SEGMENT, before it
             # becomes the next prefix: a header re-emitted at the top of the
@@ -907,7 +917,9 @@ def write_node(state: ChapterState) -> dict:
                                f"entrée {idx + 1} ({k + 1}/{best_of})",
                                i=idx + 1, n=len(state["plan"]))
                 t, m, w = _generate_whole(
-                    system, user, num_predict=budget, temperature=0.7,
+                    system, user, num_predict=budget,
+                    temperature=settings.write_temperature,
+                    sampling=settings.sampling_options(),
                     label=f"entrée {idx + 1}#{k + 1}", keep_going=cont)
                 # Strip the stray header BEFORE scoring: otherwise the
                 # two-sentence bound captures « Samedi 14. Beau temps. » (two
@@ -933,7 +945,9 @@ def write_node(state: ChapterState) -> dict:
             ms = [dict(m2, variant=c["k"]) for c in cands for m2 in c["m"]]
         else:
             text, ms, wg = _generate_whole(
-                system, user, num_predict=budget, temperature=0.7,
+                system, user, num_predict=budget,
+                temperature=settings.write_temperature,
+                sampling=settings.sampling_options(),
                 label=f"entrée {idx + 1}", keep_going=not sheet.words)
     # The concatenation itself. `_reattach` removes the overlap character by
     # character if the model repeated the header or the anchor despite the

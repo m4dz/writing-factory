@@ -29,7 +29,7 @@ RUN_ID = re.compile(r"^\d{8}-\d{6}-ch\d{2}-[a-z0-9-]{1,40}$")
 OVERRIDABLE = ("author_model", "qa_model", "gesture_model", "num_ctx", "gesture_temperature",
                "beats_n", "pruning_enabled", "accumulation_enabled", "beat_context", "beat_form",
                "audio_seconds", "switch_after_sentences",
-               "stage_budget_min")
+               "stage_budget_min", "write_temperature", "min_p", "top_p", "repeat_penalty")
 
 # Overrides that take one of a closed set of values.
 CHOICES = {"beat_context": ("blind", "map", "plan"), "beat_form": ("prose", "nominal")}
@@ -97,7 +97,10 @@ def validate_overrides(overrides: dict | None) -> dict:
             raise RunError(f"override « {key} » : valeur invalide {value!r} "
                            f"(attendu : {' | '.join(CHOICES[key])})")
         try:
-            out[key] = type(current)(value)
+            if current is None or value is None:     # optional float knobs (min_p, top_p…)
+                out[key] = None if value is None else float(value)
+            else:
+                out[key] = type(current)(value)
         except (TypeError, ValueError):
             raise RunError(f"override « {key} » : valeur invalide {value!r}") from None
     return out
@@ -141,7 +144,8 @@ def resolved_config(overrides: dict | None = None) -> dict:
     keys = ("author_model", "qa_model", "embed_model", "num_ctx", "gesture_model",
             "gesture_temperature", "beats_n", "pruning_enabled", "accumulation_enabled",
             "beat_context", "beat_form", "switch_after_sentences",
-            "audio_seconds", "audio_words_per_minute", "tts_model", "stage_budget_min")
+            "audio_seconds", "audio_words_per_minute", "tts_model", "stage_budget_min",
+            "write_temperature", "min_p", "top_p", "repeat_penalty")
     conf = {k: getattr(settings, k) for k in keys}
     conf.update(overrides or {})
     return conf
@@ -246,7 +250,8 @@ def render_prompts(calls: list[dict]) -> str:
     for n, c in enumerate(calls, 1):
         out.append(f"## appel {n} — model={c.get('model')} num_predict={c.get('num_predict')} "
                    f"temperature={c.get('temperature')} gen_toks={c.get('gen_toks')} "
-                   f"wall_s={c.get('wall_s')}\n")
+                   f"wall_s={c.get('wall_s')}"
+                   + "".join(f" {k}={v}" for k, v in (c.get("options") or {}).items()) + "\n")
         out.append("### system\n\n```\n" + str(c.get("system", "")).rstrip() + "\n```\n")
         out.append("### user\n\n```\n" + str(c.get("user", "")).rstrip() + "\n```\n")
         if c.get("start"):

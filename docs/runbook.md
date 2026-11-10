@@ -151,6 +151,8 @@ repository). Defaults are the values below.
 | `PRUNING` | `pruning_enabled` | `1` (`0` disables the assemble pass) |
 | `BEAT_CONTEXT` | `beat_context` | `blind` (each beat sees only its instruction; `map`: the whole entry as a map, its time marked; `plan`: the map with each time's state, done / current / next, the current one's end condition, and the recopy gate in the selection). The former override `beats_see_movement=true` reads as `map` |
 | `ACCUMULATION` | `accumulation_enabled` | `1` (`0` skips the accumulation sentence only; drift, fall and pruning stay) |
+| `WRITE_TEMPERATURE` | `write_temperature` | `0.7` (the writing calls: single call, segments, beats, best-of variants; plan, review, QA and gestures keep their own) |
+| `MIN_P` / `TOP_P` / `REPEAT_PENALTY` | `min_p` / `top_p` / `repeat_penalty` | unset: not sent. When set, sent to Ollama on the writing calls only and shown in `prompts.md` |
 | `CHROMA_HOST` / `CHROMA_PORT` | `chroma_host` / `chroma_port` | `localhost` / `8000` |
 | `CHROMA_COLLECTION` | `author_collection` | `auteur` |
 | `CHROMA_SESSIONS` | `sessions_collection` | `sessions` |
