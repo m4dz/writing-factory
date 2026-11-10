@@ -1,0 +1,37 @@
+id: 20261020-beat-instruction-form
+kind: experiment
+change: openspec/changes/beat-instruction-form
+chapter: 7
+question: Does serving the beats of entry 2 in a person-less, nominal form stop nemo
+  reciting them (verbatim in « elle », or transposed into « je »), without making
+  the prose telegraphic? One variable against R.
+author_model: mistral-nemo:12b-instruct-2407-q8_0
+seeds:
+- 140419
+- 602237
+- 913085
+order: by seed, R then F; models unloaded before each run
+flags: --no-voice; preflight strict; --override beat_context=plan; --override beat_form=prose|nominal
+arms_definition:
+  R: prose instructions of brief §7 (production text)
+  F: nominal forms of brief §7 (owner-validated, see proposal)
+smoke:
+  seed: 111111
+  result: mechanical pass (no « elle » copy, no empty variant, guard held); kept relève = nominal form verbatim (1.0, no defect); B/C variants lose the house set for the party, 5/6 « je décide », one English switch
+smoke_runs:
+  F:
+  - 20261020-180918-ch07-anniversaire
+arms:
+  R:
+  - 20261020-181549-ch07-anniversaire
+  - 20261020-182727-ch07-anniversaire
+  - 20261020-183915-ch07-anniversaire
+  F:
+  - 20261020-182131-ch07-anniversaire
+  - 20261020-183251-ch07-anniversaire
+  - 20261020-184557-ch07-anniversaire
+excluded: []
+blind:
+  seed: 419032
+  key: blind-key.yaml (closed until verdicts)
+notes: []

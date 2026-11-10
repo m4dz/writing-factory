@@ -1,0 +1,21 @@
+Samedi 14. Beau temps.
+
+Je me suis décidée aujourd'hui à effacer cette journée de mon calendrier mental. J'ai passé l'après-midi à ranger les photos d'elle, à supprimer les chansons qui me la rappellent, à écarter le plat qu'elle affectionnait.
+
+<!-- BASCULE -->
+
+Samedi 14. Beau temps.
+
+« Neuf ans aujourd'hui que je t'ai dit oui. J'ai mis deux couverts, exprès cette fois, et j'ai redit oui tout haut dans la cuisine. Je t'aime toujours. »
+
+J'allais poser le verdict quand la main s'est arrêtée. Neuf ans, et j'aurais dû demander, quand il était encore temps, ce qui l'a… La marge reste blanche. Le crayon ne biffe pas.
+
+Je relis la ligne que je viens d'écrire, et je m'aperçois que quelque chose ne va pas. Les deux couverts sur la table, je les vois bien, mais je n'ai aucun souvenir de les avoir sortis. Comment ai-je pu oublier une chose pareille ?
+
+Je décide de ranger la cuisine, de mettre un peu d'ordre dans ce chaos. Je commence par les photos étalées sur la table. Je les rassemble et les range dans un album. Je me demande comment elles ont pu se retrouver ainsi éparpillées. Je ne me souviens pas les avoir sorties.
+
+Je décide ensuite de mettre le plat des anniversaires au four. Je le sors du réfrigérateur et le place dans le four préchauffé. Je ne me souviens pas avoir préparé le plat, mais je me souviens que c'est notre plat préféré à toutes les deux. Je ne me souviens pas avoir allumé la musique, mais la playlist que j'aime jouer en cuisine résonne dans la pièce.
+
+Constat : anniversaire.
+
+<!-- FIN AUDIO -->

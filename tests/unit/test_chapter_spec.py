@@ -149,8 +149,19 @@ def test_beat_end_conditions_are_read_apart(tmp_path):
     brief = tmp_path / "brief.md"
     brief.write_text("## 7. Beats\n\n### Beat A — un\n\nElle relit.\n\nFinit quand : elle a lu.\n\n"
                      "### Beat B — deux\n\nElle range.\n", encoding="utf-8")
-    assert loader.read_entry_brief(brief)["beats"] == [("Elle relit.", "elle a lu."),
-                                                ("Elle range.", "")]
+    assert loader.read_entry_brief(brief)["beats"] == [("Elle relit.", "elle a lu.", "", ""),
+                                                ("Elle range.", "", "", "")]
+
+
+def test_beat_nominal_form_is_read_apart(tmp_path):
+    """« Nominal : » and « Finit quand (nominal) : » never leak into the prose
+    instruction, nor into its end condition."""
+    brief = tmp_path / "brief.md"
+    brief.write_text("## 7. Beats\n\n### Beat A — un\n\nElle relit.\n\n"
+                     "Finit quand : elle a lu.\n\nNominal : La relève. Une ligne relue.\n\n"
+                     "Finit quand (nominal) : la ligne lue.\n", encoding="utf-8")
+    assert loader.read_entry_brief(brief)["beats"] == [
+        ("Elle relit.", "elle a lu.", "La relève. Une ligne relue.", "la ligne lue.")]
 
 
 def test_chapter_7_beats_carry_their_end_conditions():

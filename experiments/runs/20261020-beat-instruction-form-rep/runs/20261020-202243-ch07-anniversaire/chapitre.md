@@ -1,0 +1,25 @@
+Samedi 14. Beau temps.
+
+J'ai rangé aujourd'hui les photos de nous deux dans le tiroir du bas, celles où nous sourions à l'appareil photo, où nous sommes heureux. J'ai décidé de ne pas célébrer notre anniversaire cette année.
+
+<!-- BASCULE -->
+
+Samedi 14. Beau temps.
+
+« Neuf ans aujourd'hui que je t'ai dit oui. J'ai mis deux couverts, exprès cette fois, et j'ai redit oui tout haut dans la cuisine. Je t'aime toujours. »
+
+J'allais poser le verdict quand la main s'est arrêtée. Neuf ans, et j'aurais dû demander, quand il était encore temps, ce qui l'a… La marge reste blanche. Le crayon ne biffe pas.
+
+Je relis la phrase, une fois, deux fois. Mes yeux parcourent les mots, mais mon esprit bute sur une phrase. Les deux couverts mis, je les vois bien sur la table, dressés pour une fête que je n'ai pas ordonnée. Mais je ne me souviens pas les avoir mis.
+
+Je décide de ranger la cuisine, de remettre chaque chose à sa place. Je commence par les photos étalées sur la table. Je les rassemble et les range dans un album, en prenant soin de les classer par ordre chronologique. Je ne me souviens pas les avoir sorties, mais je ne m'attarde pas sur cette pensée.
+
+Ensuite, je me tourne vers la musique qui joue en boucle depuis hier soir.
+
+Je me souviens avoir créé une playlist pour cet anniversaire il y a quelques années. Je me souviens même avoir passé des heures à la sélectionner, à la peaufiner pour que chaque chanson soit un souvenir partagé entre nous. Mais je ne me souviens pas l'avoir mise en route hier soir.
+
+Je décide de vérifier si la playlist est bien celle que j'ai créée il y a neuf ans.
+
+Constat : anniversaire.
+
+<!-- FIN AUDIO -->
