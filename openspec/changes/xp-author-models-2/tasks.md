@@ -15,5 +15,10 @@
 
 ## 3. Conclude
 
-- [ ] Owner verdicts; rule applied; journal entry (with the guard-fix line
+- [x] Owner verdicts; rule applied; journal entry (with the guard-fix line
       for `beat-guard-model-text`, M/781771 as trigger).
+- [x] Canon-leak check against `bible/profond/` (no 4-gram outside served
+      text).
+- [x] Decision: W = M (owner, 2026-11-10). Follow-ups in their own changes:
+      entry-1 matter in the first person (owner), entry-1 best-of (code),
+      ADR for the writer, actor-mode check, default `author_model`.

@@ -83,4 +83,58 @@ Hors lecture (l'entrée 2 seule est lue) :
 `blind-key.yaml`. Non tout à fait aveugle : la longueur, l'italique Markdown,
 la troisième personne retenue peuvent trahir un bras.
 
-_À compléter après les verdicts._
+Verdicts rendus le 2026-11-10 (`blind/verdicts.md`), clé ouverte ensuite.
+
+| graine | N | M | S |
+|---|---|---|---|
+| 731667 | E07 oui — fuite (« Je rentre à la maison à 19h30 »), pas de personnalité, densité faible | E09 oui — ton très bon, densité faible | E08 partiel — doute sans profondeur, pas de personnalité, densité faible |
+| 139026 | E03 partiel — une partie du mouvement, pas de ton | E06 oui — pas de tension, erreurs temporelles, densité OK, manque de personnalité | E01 non — pas de mouvement, ton neutre |
+| 487914 | E02 partiel — le ton tient à l'avant-dernier paragraphe, deux fuites | E05 oui — ton parfait, vraie personnalité, densité faible | E04 oui — une fuite (« Retour à la maison »), densité faible, manque de personnalité |
+
+Comparaison graine contre graine, oui > partiel > non, les notes départageant
+à grade égal (lecture confirmée par l'auteur le 2026-11-10) :
+
+- **M contre N** : mieux sur 731667 (même grade, ton contre fuite), mieux sur
+  139026 et 487914 (oui contre partiel). Au moins égal sur 3, pire sur
+  aucune.
+- **S contre N** : pire sur 731667 (partiel contre oui) et 139026 (non contre
+  partiel), mieux sur 487914.
+
+Fuites relevées par l'auteur (consigne recopiée en clair) : N 3 (E02 ×2,
+E07), S 1 (E04), M 0 — dans le sens de P1.
+
+Fuite de canon : aucun 4-gramme de `bible/profond/` dans les neuf chapitres
+hors le texte servi (`prompts.md` du run ; la citation [CIT-2] est servie et
+figure aussi dans `citations-cahier.md`). « La maison est vide. Elle est
+partie. » (S, 487914, entrée 1) n'est pas lexical ; S est écarté.
+
+## La règle
+
+- **M remplace N** : au moins égal sur 3 graines, pire sur aucune.
+- **S est écarté** : pire que N sur 2 graines.
+- **P2 réfutée** : S n'est au moins égal à N que sur une graine.
+
+Décision : **W = M** (`xp-ministral3-14b-q5`), auteur de scène et de livre.
+365 s par chapitre, dans le budget de 25 min. Confirmée par l'auteur le
+2026-11-10.
+
+### Ce que la décision emporte
+
+- **Entrée 1 en « elle ».** M, graine 487914 (le run de E05, le meilleur
+  tirage de l'entrée 2) ouvre l'entrée 1 par une citation à la troisième
+  personne (« « Elle a posé le stylo… » »). L'entrée 1 ne doit ni citer ni
+  quitter le « je », et c'est celle que le locuteur lit en direct. Cause : la
+  matière servie de l'entrée 1 est écrite à la troisième personne
+  (`chapters/07-anniversaire/spec.yaml`), et la sélection ne regarde que les
+  temps de l'entrée 2. Correctif décidé (A + B) : l'auteur réécrit la matière
+  de l'entrée 1 à la première personne ; le code tire l'entrée 1 en best-of
+  avec les contrôles de personne et de citation. Changes séparés.
+- **Troisième personne retenue.** M, graine 731667, retient découverte et
+  doute à la troisième personne, comme N sur 139026 et 487914 : la lecture
+  l'a passée (E09 « oui »), elle reste un défaut à suivre.
+- **Italique Markdown** sur la citation recopiée (M, 2 runs sur 3) : à
+  nettoyer par le code (`delint`) avant la scène.
+- **Densité faible** sur 7 des 9 entrées, tous bras : la variable suivante
+  (`storyboard-density`, après le 4 décembre).
+- ADR remplaçant le choix d'auteur d'ADR-0008 ; contrôle du mode acteur avec
+  M.

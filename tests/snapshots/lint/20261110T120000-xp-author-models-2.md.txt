@@ -1,0 +1,24 @@
+### 20261110T120000-xp-author-models-2.md
+392 mots [HORS CIBLE] · 9 paragraphes · 18 phrases
+
+**Mécanique — EXACT (✗ = défaut présent)**
+- ✓ Lexique pastiche gothique
+- ✓ Tic d'IA
+- ✓ Point d'exclamation hors dialogue
+- ✓ Incise adverbiale (ou son équivalent prépositionnel)
+- ✓ Élision manquante
+
+**Structure — EXACT (✗ = attendu absent)**
+- ✓ Phrase d'accumulation : exactement une
+    - `| bras | oui / partiel / non | récitent (variantes) | fuites lues | temps moyen |
+|---|---|---|---|---|
+| N | 1 / 2 / 0 …`
+- ✓ Phrase-couperet en fin de paragraphe → 1 (dont 3 couperets au total)
+    - `## Erreurs de ma part`
+- ✓ Heure ou quantité exacte → 2
+    - `Trois auteurs`, `trois graines`
+
+**Passé simple — CANDIDATS, à confirmer à l'œil**
+- ✓ aucune forme non ambiguë détectée
+
+**Laissé au relecteur** (non automatisable) : adjectifs coordonnés · émotion annoncée · météo corrélée · omniscience · doute résolu · vérification matérielle décrite · décalage du dialogue · les 5 beats dans l'ordre · les 3 lignes orales.
