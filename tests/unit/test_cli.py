@@ -117,7 +117,7 @@ def test_doctor_reports_each_probe(monkeypatch, capsys):
     monkeypatch.setattr(pf, "report", lambda: "disque 100 GB libres")
     monkeypatch.setattr(pf, "preflight", lambda **k: ["swap tiède"])
     monkeypatch.setattr(cli, "_http_ok", lambda url, timeout=5.0: (
-        (True, '{"models": [{"name": "mistral-nemo:12b-instruct-2407-q8_0"}]}')
+        (True, '{"models": [{"name": "ministral3-14b-q5:latest"}]}')
         if "api/tags" in url else (False, "refused")))
     code = cli.main(["doctor"])
     out = capsys.readouterr().out

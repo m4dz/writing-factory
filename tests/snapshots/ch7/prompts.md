@@ -1297,7 +1297,7 @@ Dans le salon, l'enceinte est allumée et la musique tourne, la liste que j'ai e
 Prose seule, en français uniquement, sans en-tête, sans titre, sans méta-commentaire. AUCUNE étiquette de section : jamais un mot seul suivi de deux-points en tête de phrase (pas de « Verdict : », pas de « Note : », pas de « Constat : »). Aucun nom propre. Tu ne rends AUCUN verdict et tu ne résous rien : le doute reste ouvert, la faute ne se stabilise pas — surtout, elle ne se retourne pas en certitude rassurante. Rien ne se produit sous tes yeux : aucune voix, aucun bruit, aucun pas, personne qui agit — tu constates seulement des états trouvés, des choses déplacées ou laissées, sans surprendre personne.
 ```
 
-## call 13 — accumulate — model=mistral-nemo:12b-instruct-2407-q8_0 num_predict=300 temperature=0.3
+## call 13 — accumulate — model=ministral3-14b-q5 num_predict=300 temperature=0.3
 
 ### system
 

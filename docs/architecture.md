@@ -15,7 +15,7 @@ excerpt in a cloned voice. A second surface, the actor mode, answers in
 character with a stateful memory.
 
 Everything runs on one Apple Silicon laptop: Ollama on the host (author model
-`mistral-nemo` 12B, QA model `qwen2.5` 7B, embeddings `nomic-embed-text`),
+Ministral 3 14B Q5 (ADR-0029), QA model `qwen2.5` 7B, embeddings `nomic-embed-text`),
 ChromaDB in a Podman container, the `factory` package in a host venv.
 
 ## Layout today (step 6 done)
