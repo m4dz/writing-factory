@@ -13,6 +13,7 @@ import shutil
 import pytest
 
 from factory import cli, paths, runs
+from factory.chapter_spec import load_chapter
 from factory.settings import settings
 
 TAGS = {"models": [{"name": "mistral-nemo:12b-instruct-2407-q8_0", "digest": "sha256:aaaa"},
@@ -71,7 +72,8 @@ def test_an_approved_plan_is_prepared_with_its_plan_and_fingerprint(stage, monke
                                      "narrative_state"}
     assert m["fingerprint"]["narrative_state"]                      # the prep indexed it
     plan = run.plan_path.read_text(encoding="utf-8")
-    assert plan.startswith("# Plan — chapitre 7") and "1. " in plan
+    assert plan == load_chapter(7).stage_plan + "\n"                 # the owner's text, no fall
+    assert "Constat" not in plan
     assert (run.dir / "plan-report.md").is_file() and run.checkpoints_path.is_file()
     assert _writes(fake_model) == [] and not run.chapter_path.exists()
 

@@ -269,7 +269,8 @@ factory generate --from 20261109-201500-ch07-prep --seed 424242   # pinned seed:
 
 `factory prepare` stops at the leader gate and prints the plan and its
 check report. Only `o` / `oui` approves: the run becomes `prepared`, with
-`plan.md` (what the deck shows), `plan-report.md` and a fingerprint in its
+`plan.md` (what the deck shows: the spec's `stage_plan`, the owner's text,
+else the approved beats), `plan-report.md` and a fingerprint in its
 manifest. Anything else, or no terminal, leaves it `cancelled`. To change
 the plan, change the brief and prepare again; the gate does not edit.
 The prep runs a lenient, untimed preflight; the strict, timed one runs at

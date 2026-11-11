@@ -97,8 +97,10 @@ factory prepare --chapter 7 [--seed S] [--override K=V …]
 4. `invoke(Command(resume={"approved": …}))`: `leader` returns the
    decision into the state and the conditional edge ends the thread.
 5. Approved: write `fingerprint` into the manifest, status `prepared`,
-   write `plan.md` (the plan alone: the beats, later the storyboard
-   actions; this is what the stage shows) and `plan-report.md` (the check
+   write `plan.md` (what the stage shows: the chapter spec's `stage_plan`,
+   written by the owner, when it has one — an imposed brief carries its
+   fall and is no plan to project; else the plan alone: the beats, later
+   the storyboard actions) and `plan-report.md` (the check
    report, machinery, never shown). Refused: status `cancelled`.
 
 The prepared thread is finished, never resumed in place; its final state

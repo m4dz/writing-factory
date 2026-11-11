@@ -89,3 +89,12 @@ def test_a_manifest_read_during_a_write_always_finds_the_run(tmp_path):
         stop.set()
         t.join()
     assert misses == 0 and [p.name for p in run.dir.iterdir()] == ["manifest.yaml"]
+
+
+def test_plan_md_shows_the_stage_plan_when_the_spec_has_one():
+    beats = ["**Entrée 1 — l'après-midi.** Matière. Constat : anniversaire."]
+    assert runs.render_plan(7, beats) == (
+        "# Plan — chapitre 7\n\n1. **Entrée 1 — l'après-midi.** Matière. "
+        "Constat : anniversaire.\n")
+    shown = runs.render_plan(7, beats, "# Chapitre 7\n\n1. La relève.\n\n")
+    assert shown == "# Chapitre 7\n\n1. La relève.\n"

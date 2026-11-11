@@ -402,7 +402,7 @@ def prepare(argv: list[str]) -> int:
             # The plan files and the fingerprint exist before the status says
             # `prepared`: nothing reads a prepared run without its plan.
             fields["fingerprint"] = run_registry.fingerprint(run, final)
-            run_registry.write_plan(run, final)
+            run_registry.write_plan(run, final, spec.stage_plan)
         run_registry.write_manifest(run, **fields)
         return final
 

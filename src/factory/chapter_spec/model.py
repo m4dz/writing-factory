@@ -126,6 +126,7 @@ class ChapterSpec:
     entries: tuple[EntrySpec, ...] = ()
     imposed_plan: tuple[str, ...] = ()  # one beat per entry, cut from the brief
     entry_brief: str = ""               # single-entry brief for scored calibration runs
+    stage_plan: str = ""                # the plan as the stage shows it: the owner's text, never served
     workshop_terms: tuple[str, ...] = ()  # workshop vocabulary found in a file brief (owner's call)
 
     def state(self, *, seed: int | None = None, brief: str | None = None,
