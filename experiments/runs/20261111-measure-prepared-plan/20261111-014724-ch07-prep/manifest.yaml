@@ -1,0 +1,90 @@
+id: 20261111-014724-ch07-prep
+kind: prepared
+chapter: 7
+slug: prep
+seed: 460930
+created: '2026-11-11T00:47:24.062061+00:00'
+commit: 7eaea07
+status: prepared
+overrides: {}
+config:
+  author_model: ministral3-14b-q5
+  qa_model: qwen2.5:7b-instruct
+  embed_model: nomic-embed-text
+  num_ctx: 8192
+  gesture_model: ''
+  gesture_temperature: 0.3
+  beats_n: 3
+  pruning_enabled: true
+  accumulation_enabled: true
+  beat_context: blind
+  beat_form: prose
+  switch_after_sentences: 2
+  audio_seconds: 165.0
+  audio_words_per_minute: 177.0
+  tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+  stage_budget_min: 25.0
+  write_temperature: 0.7
+  min_p: null
+  top_p: null
+  repeat_penalty: null
+leader:
+  approved: true
+  by: owner
+  at: '2026-11-11T00:47:34+00:00'
+fingerprint:
+  commit: 7eaea071e70b6536cfc1e858fae2acaa72b7fccd
+  dirty: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+  chapter:
+    brief-entree-2.md: 87a49192fe24ee601ffc378ac1a08ce57fd435f60532c5bb2a1f6f66de784fbb
+    brief.md: 67f934a9069e3b0aadf843ef60f13ab3d6a6a6bfdc07a9ba9289f428a7847697
+    spec.yaml: 8d4a31a71dee7bdf7495543d8004330d81756b8632ab8be0b468b8ec054cc33f
+  config:
+    author_model: ministral3-14b-q5
+    qa_model: qwen2.5:7b-instruct
+    embed_model: nomic-embed-text
+    num_ctx: 8192
+    gesture_model: ''
+    gesture_temperature: 0.3
+    beats_n: 3
+    pruning_enabled: true
+    accumulation_enabled: true
+    beat_context: blind
+    beat_form: prose
+    switch_after_sentences: 2
+    audio_seconds: 165.0
+    audio_words_per_minute: 177.0
+    tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+    stage_budget_min: 25.0
+    write_temperature: 0.7
+    min_p: null
+    top_p: null
+    repeat_penalty: null
+  models:
+    ministral3-14b-q5: 87501e5270dc6d27dfb25200fb9f6a334149bc76383e4ee66099e7bd1c624e6d
+    qwen2.5:7b-instruct: 845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e
+    nomic-embed-text: 0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f
+  narrative_state: 3dd0dd694eba72735835d7d39dd3be64d10dedf005a82063562f041616a8631e
+timings:
+  monotonic_s: 10.6
+  wall_s: 10.6
+  sleep_s: 0.0
+collections:
+- auteur
+finished: '2026-11-11T00:47:35+00:00'
+metrics:
+  calls: 0
+  gen_toks: 0
+  ctx_need_max: 0
+  ctx_truncated: 0
+scenes: 0
+warnings: []
+plan_report: plan FOURNI par le brief — nœud court-circuité (structure imposée, un
+  beat par entrée)
+coherence: ''
+audio: null
+preflight_warnings:
+- 'Swap : 0.35 GB libres sur 10.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts
+  sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total`
+  au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les
+  durées restent interprétables.'

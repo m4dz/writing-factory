@@ -59,8 +59,13 @@
 
 ## 6. Measure and document
 
-- [ ] One real chapter-7 prep + resume on the stage machine: time saved,
+- [x] One real chapter-7 prep + resume on the stage machine: time saved,
       `checkpoints.sqlite` size, served prompts equal to an unsplit run's.
+      2026-11-11, `experiments/runs/20261111-measure-prepared-plan/`: prep
+      12 s (imposed plan: the gain is the approval, not time); checkpoints
+      192 KB prepared, 0.7–0.8 MB per chapter; calls 1–6 byte-equal to the
+      unsplit run of the same seed, then a model reply differs (Ollama is
+      not deterministic at equal seed here).
 - [x] ADR: prep/live split, resume as a new run, fingerprint (ADR-0028).
 - [x] `docs/architecture.md` (graph, sections), `docs/runbook.md`
       (prepare the day before; resume on stage; what a refusal means).

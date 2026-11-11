@@ -22,6 +22,8 @@ output/
 # Le WAV qui compte — le chapitre de secours pré-rendu — est archivé
 # délibérément selon le RUNBOOK, pas ramassé au fil des tirages.
 experiments/runs/**/*.wav
+# Checkpoints de run (ADR-0028) : l'état de reprise, local à la machine.
+experiments/runs/**/checkpoints.sqlite*
 
 # Claude Code: harness worktrees and local settings are never versioned; the
 # openspec skills and commands are.

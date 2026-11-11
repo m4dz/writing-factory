@@ -1,0 +1,8 @@
+TIMING 12s exit=0 :: zsh -c printf 'o
+' | .venv/bin/factory prepare --chapter 7 --runs-dir experiments/runs/20261111-measure-prepared-plan
+PREP=20261111-014724-ch07-prep
+TIMING 385s exit=0 :: .venv/bin/factory generate --from 20261111-014724-ch07-prep --seed 424242 --no-voice --runs-dir experiments/runs/20261111-measure-prepared-plan
+TIMING 339s exit=0 :: .venv/bin/factory generate --from 20261111-014724-ch07-prep --no-voice --runs-dir experiments/runs/20261111-measure-prepared-plan
+TIMING 361s exit=0 :: .venv/bin/factory generate --from 20261111-014724-ch07-prep --no-voice --runs-dir experiments/runs/20261111-measure-prepared-plan
+TIMING 338s exit=0 :: .venv/bin/factory generate --chapter 7 --seed 424242 --no-voice --runs-dir experiments/runs/20261111-measure-prepared-plan
+DONE

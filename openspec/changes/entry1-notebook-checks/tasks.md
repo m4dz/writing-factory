@@ -19,3 +19,7 @@
 
 - [ ] Chapter 7 with M, three seeds: entry 1 in the first person, without
       quotation, on each; read by the owner.
+      2026-11-11 (`experiments/runs/20261111-measure-prepared-plan/`): the
+      selection holds on 3 of 4 runs, then the review rewrites entry 1
+      without its bounds (2 sentences → up to 11 paragraphs, a quotation,
+      another weather in the header). Reading waits for a review guard.
