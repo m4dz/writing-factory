@@ -2073,6 +2073,56 @@ def _acceptable_cut(before: int, after: int, target: tuple[int, int]) -> bool:
     return (lo - after) < (before - hi) and after >= 0.6 * before
 
 
+def _bound_defects(sheet: EntrySpec, body: str) -> set[str]:
+    """What the entry's sheet bounds and the body breaks: sentences, words,
+    and the notebook vetoes (third person, quotation). The anchor is read out:
+    its « je » is the notebook's, and would hide a body gone to « elle »."""
+    if sheet.citation:
+        body = body.replace(sheet.citation, "").strip()
+    defects = set(scorers.notebook(body, cites=sheet.citation != "")[1])
+    if sheet.sentences_max and len(sentence_ends(body)) > sheet.sentences_max:
+        defects.add(f"plus de {sheet.sentences_max} phrase(s)")
+    if sheet.words and len(body.split()) > sheet.words[1]:
+        defects.add(f"plus de {sheet.words[1]} mots")
+    return defects
+
+
+def _review_guard(state: ChapterState, i: int, scene: str,
+                  text: str) -> tuple[str, list[str]]:
+    """The review answers for the prose, not for the entry's bounds.
+
+    It is served the entry without its sheet. Measured 2026-11-11 on chapter
+    7 with M (`experiments/runs/20261111-measure-prepared-plan/`): entry 1,
+    selected at two sentences without quotation, came back at up to eleven
+    paragraphs, opened on a quotation twice, and under another weather twice
+    (« Ciel blanc. » for « Beau temps. »).
+
+    The header is the code's: put back whatever the review did to it. A
+    review that ADDS a defect the entry did not have keeps the text from
+    before the review; a defect already there is the writing's, not its.
+    """
+    warns: list[str] = []
+    m = STRAY_HEADER.match(scene)
+    if m:
+        head = m.group(0)
+        body = STRAY_HEADER.sub("", text).strip()
+        if not text.startswith(head):
+            warns.append(f"relecture entrée {i + 1}: en-tête réécrit par le modèle "
+                         f"— « {head.strip()} » rétabli")
+        text = head + body
+    spec = state.get("entry_specs") or []
+    if i >= len(spec):
+        return text, warns
+    added = (_bound_defects(spec[i], STRAY_HEADER.sub("", text).strip())
+             - _bound_defects(spec[i], STRAY_HEADER.sub("", scene).strip()))
+    if added:
+        warns.append(f"relecture entrée {i + 1}: hors des bornes de l'entrée "
+                     f"({', '.join(sorted(added))}) — relecture REJETÉE, "
+                     "texte d'avant relecture conservé")
+        return scene, warns
+    return text, warns
+
+
 def review_node(state: ChapterState) -> dict:
     """Prose review: tighten, fix repetitions, keep the voice.
 
@@ -2139,6 +2189,8 @@ def review_node(state: ChapterState) -> dict:
             warns.append(
                 f"relecture entrée {i + 1}: coupe profonde ACCEPTÉE "
                 f"({after} mots contre {before}) — elle rapproche de la cible")
+        text, wb = _review_guard(state, i, scene, text)
+        warns.extend(wb)
         text, w = delint(text)
         warns.extend(f"relecture entrée {i + 1}: {x}" for x in w)
         reviewed.append(text)
