@@ -91,6 +91,13 @@ def trim_to_sentence(text: str) -> str:
     return cut if len(cut) >= 0.75 * len(t) else text
 
 
+def english_leaks(text: str) -> list[str]:
+    """The English the lint detects: suspect words and corrupted tokens (a
+    token mash-up is a leak glued to French, « nousWantons »)."""
+    return sorted({m.group(0) for m in _SUSPECT_EN.finditer(text)}
+                  | {m.group(0) for m in _GARBAGE.finditer(text)})
+
+
 def delint(text: str) -> tuple[str, list[str]]:
     """Clean the 1:1 leaks and return (corrected_text, warnings).
 

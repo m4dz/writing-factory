@@ -570,39 +570,7 @@ Vingt-deux heures. La lampe du couloir éteinte, la porte de la chambre, le vole
 Erreur de relevé. J'ai compté une assiette là où il y en avait deux, et c'est le texte qui a raison, pas moi. Je pointerai plus précisément, chaque objet, chaque heure, à la ligne. La nuque raide, les doigts froids. Deux assiettes.
 ```
 
-## call 6 — repair — model=qwen2.5:7b-instruct num_predict=788 temperature=0.2
-
-### system
-
-```
-Tu es correcteur linguistique. Tu réécris le texte en français en corrigeant TOUT passage qui n'est pas en français (mot ou phrase). Tu ne changes NI le sens, NI le style, NI l'ordre, NI la ponctuation des dialogues. Tu rends UNIQUEMENT le texte corrigé, rien d'autre.
-```
-
-### user
-
-```
-Mardi 12. Ciel couvert.
-
-« Deux assiettes mises, sans y penser. Je l'ai laissée sur la table jusqu'au matin. »
-
-Le cahier est ouvert à la page d'hier, comme chaque soir, la lampe basse, le manuscrit repoussé sur le coin de la table. Je relis la phrase, deux fois. Ma mémoire dit une assiette, un dîner pris seule, debout, et la phrase en compte deux. Je repousse la chaise, je me lève, la main encore sur le cahier. Le couloir est sombre. Je m'arrête à la porte de la cuisine, sans allumer.
-
-Dix-huit heures trente. La table du séjour, le manuscrit ouvert au chapitre onze, le crayon rouge, la marge pleine de mes signes. Je corrige jusqu'à la dernière ligne de la page, je note l'heure dans la marge.
-
-Dix-neuf heures quinze. La cuisine, l'égouttoir vide, l'eau qui chauffe. Une casserole, du sel, le pain coupé en deux tranches. L'assiette sortie du placard, la fourchette, le verre.
-
-Dix-neuf heures quarante. Le dîner, l'assiette sur la table, le pain à gauche, le verre à droite. Je mange debout près de la fenêtre, le torchon sur l'épaule. La nuit tombe sur le jardin.
-
-Vingt heures cinq. La vaisselle, l'eau chaude, l'assiette rincée, retournée sur l'égouttoir. Le verre à côté. Le torchon plié sur le rebord.
-
-Vingt heures vingt. Le retour au séjour, le cahier rouvert, l'entrée de la veille relue une fois, le crayon posé. La phrase d'hier, mot à mot, les deux assiettes écrites de ma main.
-
-Vingt-deux heures. La lampe du couloir éteinte, la porte de la chambre, le volet tiré. Le pull sur la chaise. La maison silencieuse.
-
-Erreur de relevé. J'ai compté une assiette là où il y en avait deux, et c'est le texte qui a raison, pas moi. Je pointerai plus précisément, chaque objet, chaque heure, à la ligne. La nuque raide, les doigts froids. Deux assiettes.
-```
-
-## call 7 — qa.facts — model=qwen2.5:7b-instruct num_predict=400 temperature=0.1
+## call 6 — qa.facts — model=qwen2.5:7b-instruct num_predict=400 temperature=0.1
 
 ### system
 
@@ -646,7 +614,7 @@ Romane est partie il y a neuf mois. La séparation a été déclarée définitiv
 **La thérapeute.** Une silhouette sans nom, sans cabinet, sans scène. la narratrice envisage par moments de consulter — « il faudrait peut-être voir quelqu'un » — et n'y va jamais. À la place, la consultation se tient au conditionnel, dans le carnet : elle note ce qu'*on* lui dirait si elle y allait. « On me dirait que c'est le contrecoup. On me dirait de commencer par l'étagère. » Les avis qu'elle prête à cette voix sont prévisibles, un peu plats — c'est commode : des platitudes se réfutent, et ne pas y aller reste raisonnable. Elle consulte sans consulter ; elle garde la main.
 ```
 
-## call 8 — qa.questions — model=qwen2.5:7b-instruct num_predict=500 temperature=0.1
+## call 7 — qa.questions — model=qwen2.5:7b-instruct num_predict=500 temperature=0.1
 
 ### system
 
@@ -677,7 +645,7 @@ FAITS :
 6. Elle ne sort pas de la maison.
 ```
 
-## call 9 — qa.answers — model=qwen2.5:7b-instruct num_predict=400 temperature=0.0
+## call 8 — qa.answers — model=qwen2.5:7b-instruct num_predict=400 temperature=0.0
 
 ### system
 

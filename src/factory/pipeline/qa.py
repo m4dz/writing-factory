@@ -16,6 +16,7 @@ import re
 from factory.infra.ollama import chat
 from factory.retrieval.context import world_context
 from factory.settings import settings
+from factory.text import english_leaks, sentence_ends
 
 # PRODUCTION vocabulary, forbidden in derived facts (item 3).
 PILOT_VOCAB = re.compile(
@@ -39,6 +40,41 @@ def repair(text: str) -> tuple[str, dict]:
     budget = min(2000, max(600, int(len(text) / 3) + 200))
     return chat(_REPAIR_SYS, text, model=settings.qa_model, temperature=0.2,
                 num_predict=budget)
+
+
+def repair_leaks(text: str) -> tuple[str, list[dict], list[str]]:
+    """Repair ONLY the sentences where the lint detects English, one call per
+    sentence; every other sentence is returned byte for byte, and an entry
+    without a leak costs no call.
+
+    Served the whole entry, the repair rewrote French it was told not to
+    touch: « J'ai décidé de ne pas allumer les bougies du soir. » came back
+    « Je n'ai pas allumé les bougies du soir. », the decision — the subject of
+    chapter 7's entry 1 — gone (`experiments/runs/20261116-review-guard/`).
+
+    A repaired sentence that comes back empty or over several paragraphs is
+    not a sentence: the original is kept and said.
+    """
+    out, metrics, notes = [], [], []
+    pos = 0
+    for end in sentence_ends(text) + [len(text)]:
+        seg, pos = text[pos:end], max(pos, end)
+        core = seg.strip()
+        leaks = english_leaks(core) if core else []
+        if not leaks:
+            out.append(seg)
+            continue
+        fixed, m = repair(core)
+        metrics.append(m)
+        fixed = fixed.strip()
+        if not fixed or "\n\n" in fixed:
+            notes.append(f"phrase non réparée (réponse hors phrase) : {leaks}")
+            out.append(seg)
+            continue
+        notes.append(f"phrase réparée {leaks} : « {' '.join(core.split())[:60]} »")
+        out.append(seg[:len(seg) - len(seg.lstrip())] + fixed
+                   + seg[len(seg.rstrip()):])
+    return "".join(out), metrics, notes
 
 
 # --- Coherence: facts → violation questions → per-scene answers --------------

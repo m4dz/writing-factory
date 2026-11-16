@@ -1524,45 +1524,7 @@ Dans le salon, l'enceinte est allumée et la musique tourne, la liste que j'ai e
 Le cahier est ouvert sur la table, à la page d'hier, la ligne relue trois fois. Rien n'est écrit de ma main entre midi et ce soir. Je ne sais pas si c'est moi qui ai mis la table sans le savoir. La lampe reste allumée.
 ```
 
-## call 16 — repair — model=qwen2.5:7b-instruct num_predict=600 temperature=0.2
-
-### system
-
-```
-Tu es correcteur linguistique. Tu réécris le texte en français en corrigeant TOUT passage qui n'est pas en français (mot ou phrase). Tu ne changes NI le sens, NI le style, NI l'ordre, NI la ponctuation des dialogues. Tu rends UNIQUEMENT le texte corrigé, rien d'autre.
-```
-
-### user
-
-```
-Samedi 14. Beau temps.
-
-J'ai rangé les photos dans la boîte, supprimé la playlist et laissé le plat des grandes occasions au fond du placard. Une journée ordinaire, rien de plus, et je n'ai pas mis le couvert.
-```
-
-## call 17 — repair — model=qwen2.5:7b-instruct num_predict=600 temperature=0.2
-
-### system
-
-```
-Tu es correcteur linguistique. Tu réécris le texte en français en corrigeant TOUT passage qui n'est pas en français (mot ou phrase). Tu ne changes NI le sens, NI le style, NI l'ordre, NI la ponctuation des dialogues. Tu rends UNIQUEMENT le texte corrigé, rien d'autre.
-```
-
-### user
-
-```
-Samedi 14. Beau temps.
-
-« Neuf ans aujourd'hui que je t'ai dit oui. J'ai mis deux couverts, exprès cette fois, et j'ai redit oui tout haut dans la cuisine. Je t'aime toujours. »
-
-Je rentre et la maison est allumée. Sur la table du séjour, la boîte est ouverte, les photos étalées en éventail. Je les ai rangées cet après-midi, la boîte fermée, l'étagère du bas. Je reste debout avec mon manteau.
-
-Dans le salon, l'enceinte est allumée et la musique tourne, la liste que j'ai effacée ce matin, titre après titre. À la cuisine, le plat est au four, l'odeur remplit la pièce. Sur la table, les deux couverts sont mis, les verres alignés. Je compte les assiettes deux fois. Je ne me souviens pas d'avoir sorti le plat.
-
-Le cahier est ouvert sur la table, à la page d'hier, la ligne relue trois fois. Rien n'est écrit de ma main entre midi et ce soir. Je ne sais pas si c'est moi qui ai mis la table sans le savoir. La lampe reste allumée.
-```
-
-## call 18 — qa.facts — model=qwen2.5:7b-instruct num_predict=400 temperature=0.1
+## call 16 — qa.facts — model=qwen2.5:7b-instruct num_predict=400 temperature=0.1
 
 ### system
 
@@ -1606,7 +1568,7 @@ Romane est partie il y a neuf mois. La séparation a été déclarée définitiv
 **La thérapeute.** Une silhouette sans nom, sans cabinet, sans scène. la narratrice envisage par moments de consulter — « il faudrait peut-être voir quelqu'un » — et n'y va jamais. À la place, la consultation se tient au conditionnel, dans le carnet : elle note ce qu'*on* lui dirait si elle y allait. « On me dirait que c'est le contrecoup. On me dirait de commencer par l'étagère. » Les avis qu'elle prête à cette voix sont prévisibles, un peu plats — c'est commode : des platitudes se réfutent, et ne pas y aller reste raisonnable. Elle consulte sans consulter ; elle garde la main.
 ```
 
-## call 19 — qa.questions — model=qwen2.5:7b-instruct num_predict=500 temperature=0.1
+## call 17 — qa.questions — model=qwen2.5:7b-instruct num_predict=500 temperature=0.1
 
 ### system
 
@@ -1637,7 +1599,7 @@ FAITS :
 6. Elle ne sort pas de la maison.
 ```
 
-## call 20 — qa.answers — model=qwen2.5:7b-instruct num_predict=400 temperature=0.0
+## call 18 — qa.answers — model=qwen2.5:7b-instruct num_predict=400 temperature=0.0
 
 ### system
 
@@ -1666,7 +1628,7 @@ Samedi 14. Beau temps.
 J'ai rangé les photos dans la boîte, supprimé la playlist et laissé le plat des grandes occasions au fond du placard. Une journée ordinaire, rien de plus, et je n'ai pas mis le couvert.
 ```
 
-## call 21 — qa.answers — model=qwen2.5:7b-instruct num_predict=400 temperature=0.0
+## call 19 — qa.answers — model=qwen2.5:7b-instruct num_predict=400 temperature=0.0
 
 ### system
 
