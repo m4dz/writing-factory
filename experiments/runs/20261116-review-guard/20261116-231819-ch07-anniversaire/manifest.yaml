@@ -1,0 +1,41 @@
+id: 20261116-231819-ch07-anniversaire
+kind: run
+chapter: 7
+slug: anniversaire
+seed: 424242
+created: '2026-11-16T22:18:19.136825+00:00'
+commit: 46cb108
+status: error
+overrides: {}
+config:
+  author_model: ministral3-14b-q5
+  qa_model: qwen2.5:7b-instruct
+  embed_model: nomic-embed-text
+  num_ctx: 8192
+  gesture_model: ''
+  gesture_temperature: 0.3
+  beats_n: 3
+  pruning_enabled: true
+  accumulation_enabled: true
+  beat_context: blind
+  beat_form: prose
+  switch_after_sentences: 2
+  audio_seconds: 165.0
+  audio_words_per_minute: 177.0
+  tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+  stage_budget_min: 25.0
+  write_temperature: 0.7
+  min_p: null
+  top_p: null
+  repeat_penalty: null
+timings:
+  monotonic_s: 15.3
+  wall_s: 15.3
+  sleep_s: 0.0
+collections: []
+finished: '2026-11-16T22:18:34+00:00'
+error: "préflight refusé : Préflight refusé :\n  - Entretien macOS en cours : corespotlightd\
+  \ 110 %. Le processus de génération tourne à nice 5 et perdra l'arbitrage : trous\
+  \ de plusieurs minutes entre deux appels au modèle, budget de scène explosé. ATTENDRE\
+  \ que ça retombe (`ps -Ao %cpu,comm -r | head`) — après un redémarrage, l'analyse\
+  \ média peut tourner longtemps."

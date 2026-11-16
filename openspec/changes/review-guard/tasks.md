@@ -9,5 +9,8 @@
 
 ## 2. Measure
 
-- [ ] Chapter 7 with M, three seeds: rejections and restorations counted;
-      entry 1 read by the owner.
+- [x] Chapter 7 with M, three seeds: rejections and restorations counted
+      (2026-11-16, `experiments/runs/20261116-review-guard/report.md`):
+      entry-1 review rejected 3/3 (quotation + over 2 sentences each time),
+      0 header restored; served entry 1 bounded on all three.
+- [ ] Entry 1 read by the owner (closes `entry1-notebook-checks` task 3).

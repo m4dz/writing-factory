@@ -1,0 +1,113 @@
+id: 20261116-231835-ch07-anniversaire
+kind: run
+chapter: 7
+slug: anniversaire
+seed: 171197
+created: '2026-11-16T22:18:35.351778+00:00'
+commit: 46cb108
+status: ready
+overrides: {}
+config:
+  author_model: ministral3-14b-q5
+  qa_model: qwen2.5:7b-instruct
+  embed_model: nomic-embed-text
+  num_ctx: 8192
+  gesture_model: ''
+  gesture_temperature: 0.3
+  beats_n: 3
+  pruning_enabled: true
+  accumulation_enabled: true
+  beat_context: blind
+  beat_form: prose
+  switch_after_sentences: 2
+  audio_seconds: 165.0
+  audio_words_per_minute: 177.0
+  tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+  stage_budget_min: 25.0
+  write_temperature: 0.7
+  min_p: null
+  top_p: null
+  repeat_penalty: null
+timings:
+  monotonic_s: 349.2
+  wall_s: 349.2
+  sleep_s: 0.0
+collections:
+- auteur
+finished: '2026-11-16T22:24:25+00:00'
+metrics:
+  calls: 23
+  gen_toks: 3495
+  ctx_need_max: 0.53
+  ctx_truncated: 0
+scenes: 2
+warnings:
+- 'entrée 1#3 : fin coupée à la dernière phrase complète, 40 caractères retirés —
+  « Mes doigts, après, sont restés collés au »'
+- 'entrée 1 : best-of-3 — variant 3 retenu (score 3, propre) ; rejetés : #1 score
+  -3 ; #2 score -13'
+- 'entrée 1 : bornée à 2 phrase(s) — 3 retirée(s), à partir de « Le plat des grandes
+  occasions est resté sous le film, scellé depuis des mois, et… »'
+- 'entrée 2/relève#1 : fin coupée à la dernière phrase complète, 76 caractères retirés
+  — « Sur le comptoir, à côté de l’égouttoir, il y a une trace de farine en demi-c
+  »'
+- 'entrée 2/relève : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #2
+  score 3 ; #3 score 0'
+- 'entrée 2/découverte#1 : fin coupée à la dernière phrase complète, 19 caractères
+  retirés — « Je vois les marques »'
+- 'entrée 2 : bornée à 5 phrase(s) — 10 retirée(s), à partir de « Je n’ai pas allumé
+  le four, je n’ai rien mis dedans. Pourtant, l’odeur persiste,… »'
+- 'entrée 2/découverte : best-of-3 — variant 1 retenu (score 0, propre) ; rejetés
+  : #2 score 0 ; #3 score -4'
+- 'entrée 2/doute#1 : fin coupée à la dernière phrase complète, 61 caractères retirés
+  — « Mes doigts effleurent la table : la poussière y est plus fine »'
+- 'entrée 2 : bornée à 4 phrase(s) — 1 retirée(s), à partir de « Les ébréchures sont
+  nettes, presque régulières, comme si on avait frotté un angl… »'
+- 'entrée 2/doute : best-of-3 — variant 1 retenu (score 0, propre) ; rejetés : #2
+  score 0 ; #3 score 0'
+- 'accumulation entrée 2, essai 1 : trop longue (166 mots ; plafond 120)'
+- 'accumulation entrée 2, essai 2 : troisième personne : « Elle est rentrée à vingt-deux
+  heures v »'
+- 'accumulation entrée 2 : ABANDONNÉE après 2 essais'
+- 'relecture entrée 1: hors des bornes de l''entrée (cite (l''entrée ne porte pas
+  de citation), plus de 2 phrase(s)) — relecture REJETÉE, texte d''avant relecture
+  conservé'
+- 'pruning : rien à retirer'
+- 'assemblage entrée 1 : aucune accumulation à poser'
+- 'assemblage entrée 2 : ancre re-tamponné — le texte portait « « Neuf ans aujourd’hui
+  que je t’ai dit oui. J’ai mis deux couverts, ex »'
+- 'assemblage entrée 2 : chute imposée absente — posée par le code : « Constat : anniversaire.
+  »'
+- 'assemblage entrée 2 : aucune accumulation à poser'
+plan_report: plan FOURNI par le brief — nœud court-circuité (structure imposée, un
+  beat par entrée)
+coherence: 'FAIT 1 : tenu — La narratrice ignore où est Romane et ne cherchera jamais
+  à la joindre.
+
+  FAIT 2 : tenu — La narratrice a perdu sa sœur dans un incendie il y a neuf mois.
+
+  FAIT 3 : tenu — La narratrice refuse de consulter une thérapeute, préférant se référer
+  à des avis conditionnels.
+
+  FAIT 4 : tenu — La narratrice a 38 ans et est correctrice depuis quinze ans.
+
+  FAIT 5 : tenu — La narratrice ne supprime jamais une ligne de ce qu''elle relit,
+  même si elle la trouve blessante.
+
+  FAIT 6 : tenu — La narratrice utilise une méthode de dater, relever et relire pour
+  se tenir debout.
+
+  FAIT 7 : tenu — Personne d''autre n''entre dans la maison.
+
+  FAIT 8 : tenu — Aucun repas n''est partagé, aucune conversation n''a lieu.
+
+  FAIT 9 : tenu — Elle ne sort pas de la maison.'
+audio: null
+preflight_warnings:
+- 'Swap : 1.17 GB libres sur 16.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts
+  sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total`
+  au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les
+  durées restent interprétables.'
+variants:
+  drawn: 9
+  with_defects: 1

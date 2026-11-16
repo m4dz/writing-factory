@@ -1,0 +1,9 @@
+  ⚠ le brief du chapitre 7 porte des termes d'atelier que le lint bannit en sortie : ['ancre', 'matériau'] — à arbitrer par l'auteur
+
+=== run 20261116-231819-ch07-anniversaire ===
+[0:00 / 25:00] Préflight
+
+Préflight refusé :
+  - Entretien macOS en cours : corespotlightd 110 %. Le processus de génération tourne à nice 5 et perdra l'arbitrage : trous de plusieurs minutes entre deux appels au modèle, budget de scène explosé. ATTENDRE que ça retombe (`ps -Ao %cpu,comm -r | head`) — après un redémarrage, l'analyse média peut tourner longtemps.
+
+  (--skip-preflight pour outrepasser)
