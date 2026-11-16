@@ -30,7 +30,7 @@ from factory.eval.lint import (ENTRY_HEADER, MACHINERY,
 from factory.infra.ollama import chat, chat_continue, unload
 from factory.retrieval.context import REVIEW_STYLE, assemble_system_prompt
 from factory.text import delint, ends_mid_sentence, sentence_ends, trim_to_sentence
-from factory.pipeline.qa import repair, derive_facts, check_facts, check_plan
+from factory.pipeline.qa import repair_leaks, derive_facts, check_facts, check_plan
 from factory.chapter_spec.model import EMPTY_ENTRY, BeatSpec, EntrySpec
 from factory.pipeline import scorers
 from factory.pipeline.nodes.narrative_state import narrative_state_node
@@ -2218,8 +2218,9 @@ def repair_node(state: ChapterState) -> dict:
         progress.phase("Réparation linguistique",
                        f"entrée {i + 1}/{len(state['reviewed'])} (Qwen)",
                        i=i + 1, n=len(state["reviewed"]))
-        text, m = repair(scene)
-        metrics.extend(_tag([m], f"repair/{i + 1}"))
+        text, ms, notes = repair_leaks(scene)
+        metrics.extend(_tag(ms, f"repair/{i + 1}"))
+        warns.extend(f"réparation entrée {i + 1}: {x}" for x in notes)
         # Guard: a repair must not make the entry vanish. Talkative for the
         # same reason as the review's.
         before, after = len(scene.split()), len(text.split())

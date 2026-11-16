@@ -127,9 +127,12 @@ will sit between `plan` and `leader`.
   (thresholds, language, person, abstraction, decor), set aside.
 - **drift** (no model): the drift passage, from the chapter bank or the
   brief, validated and set aside.
-- **review** (nemo) and **repair** (Qwen, after nemo is unloaded): rewrite
-  each entry; a guard rejects a rewrite that moves away from the entry's word
-  target.
+- **review** (the author model) rewrites each entry; a guard rejects a
+  rewrite that moves away from the entry's word target or adds a defect of
+  its bounds (sentences, words, person, quotation), and the code restores
+  the header. **repair** (Qwen, after the author model is unloaded) rewrites
+  only the sentences where the lint detects English; the rest is untouched
+  and an entry without a leak costs no call.
 - **assemble**: deterministic pruning of named residue motifs on beat entries.
 - **place_gestures**: re-stamps header and anchor, poses the fall line, inserts
   accumulation and drift on the FINAL text, deduplicates repeated paragraphs

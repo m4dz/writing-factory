@@ -13,4 +13,7 @@
       (2026-11-16, `experiments/runs/20261116-review-guard/report.md`):
       entry-1 review rejected 3/3 (quotation + over 2 sentences each time),
       0 header restored; served entry 1 bounded on all three.
-- [ ] Entry 1 read by the owner (closes `entry1-notebook-checks` task 3).
+- [x] Entry 1 read by the owner (closes `entry1-notebook-checks` task 3),
+      2026-11-16: 174597 good enough; 171197 poor, meaningless; 424242
+      fuzzy, invents (a date, « trois ans »). The bounds hold; the matter
+      of entry 1 does not yet (1 of 3).
