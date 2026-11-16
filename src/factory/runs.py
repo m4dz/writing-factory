@@ -470,18 +470,22 @@ def create_resumed_run(prepared: Run, *, seed: int, root: Path | None = None) ->
     return run
 
 
-def render_plan(chapter: int, plan: list[str]) -> str:
-    """`plan.md`: the approved plan alone, what the stage shows."""
+def render_plan(chapter: int, plan: list[str], stage_plan: str = "") -> str:
+    """`plan.md`: what the stage shows. The owner's stage plan when the spec
+    has one (an imposed brief is no plan to project: it carries the fall),
+    else the approved plan alone."""
+    if stage_plan:
+        return stage_plan.rstrip() + "\n"
     lines = [f"# Plan — chapitre {chapter}", ""]
     lines += [f"{n}. {beat}" for n, beat in enumerate(plan, 1)]
     return "\n".join(lines) + "\n"
 
 
-def write_plan(run: Run, final: dict) -> None:
+def write_plan(run: Run, final: dict, stage_plan: str = "") -> None:
     """`plan.md` and `plan-report.md` (the check report: machinery, never
     shown) of a prepared run."""
-    run.plan_path.write_text(render_plan(run.chapter, list(final.get("plan") or [])),
-                             encoding="utf-8")
+    run.plan_path.write_text(render_plan(run.chapter, list(final.get("plan") or []),
+                                         stage_plan), encoding="utf-8")
     report = (final.get("plan_report") or "").rstrip() or "(aucun contrôle : plan imposé)"
     (run.dir / "plan-report.md").write_text(
         f"# Contrôle du plan — chapitre {run.chapter}\n\n{report}\n", encoding="utf-8")

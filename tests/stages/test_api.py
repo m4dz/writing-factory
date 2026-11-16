@@ -284,7 +284,7 @@ def test_a_prepared_run_is_listed_never_ready_and_serves_its_plan(server, prepar
     assert call(server, "GET", f"/runs/{prep_id}/chapter")[0] == 204
     status, ctype, body = call(server, "GET", f"/runs/{prep_id}/plan")
     assert status == 200 and ctype.startswith("text/markdown")
-    assert body.decode().startswith("# Plan — chapitre 7") and b"Contr" not in body
+    assert body.decode().startswith("# Chapitre 7") and b"Contr" not in body
     # The event stream closes on a prepared run instead of polling forever.
     status, _, body = call(server, "GET", f"/runs/{prep_id}/events")
     assert status == 200 and body.count(b"data: ") == 1

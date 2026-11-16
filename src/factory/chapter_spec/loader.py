@@ -16,6 +16,8 @@ the text they already carry, so a brief keeps one truth:
 - entry ``movement: {entry: N}`` or chapter ``movement: table`` — the single
   row of the deep movement table for this chapter (and entry). The file is
   deep and is never served; only its row is.
+- ``stage_plan`` — the plan as the deck shows it (``plan.md``), written by the
+  owner. Shown, never served: no workshop term, no bible file name, no fall.
 
 Validation is the anti-leak discipline of the former chapter module: served
 text names no bible file, a bank approach passes its own validator, beat
@@ -84,6 +86,22 @@ def assert_no_file_names(text: str, what: str) -> None:
     if leaks:
         raise ChapterSpecError(f"{what} nomme des fichiers de bible : {leaks} "
                                "— le modèle auteur ne doit pas savoir qu'ils existent")
+
+
+_NOTE_TAG = re.compile(r"\[[A-Z]+-\d+\]")   # the author's notes: [CIT-2]
+
+
+def _check_stage_plan(text: str, entries, assembly: dict) -> None:
+    """The stage plan is projected before the chapter is written: it shows no
+    machinery and does not give away a fall."""
+    leaks = workshop_terms(text) + _NOTE_TAG.findall(text)
+    if leaks:
+        raise ChapterSpecError(f"le plan de scène montre des termes d'atelier : {leaks}")
+    assert_no_file_names(text, "le plan de scène")
+    falls = {str(assembly.get("fall") or "")} | {e.fall for e in entries}
+    for fall in sorted(f.strip() for f in falls if f.strip()):
+        if fall.lower() in text.lower():
+            raise ChapterSpecError(f"le plan de scène livre la chute « {fall} »")
 
 
 def workshop_terms(text: str) -> list[str]:
@@ -314,6 +332,10 @@ def load_spec(path: Path, base_dir: Path | None = None) -> ChapterSpec:
         raise ChapterSpecError(f"le brief découpe {len(imposed)} entrées, la spec en "
                                f"annonce {entry_count}")
 
+    stage_plan = str(raw.get("stage_plan") or "").strip()
+    if stage_plan:
+        _check_stage_plan(stage_plan, entries, raw.get("assembly") or {})
+
     cal = raw.get("calendar") or {}
     bank = raw.get("drift_bank") or {}
     drift_bank = DriftBank(tuple(bank.get("approaches") or ()), tuple(bank.get("facts") or ()))
@@ -338,5 +360,5 @@ def load_spec(path: Path, base_dir: Path | None = None) -> ChapterSpec:
         defaults=Defaults(bool(dflt.get("rag", True)), bool(dflt.get("micro_nodes", True)),
                           bool(dflt.get("segments", True))),
         entries=entries, imposed_plan=imposed, entry_brief=entry_brief,
-        workshop_terms=tuple(terms),
+        stage_plan=stage_plan, workshop_terms=tuple(terms),
     )

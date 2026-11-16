@@ -136,6 +136,44 @@ def test_loader_refuses_leaks_and_inconsistencies(tmp_path):
         """, "06-d") / "spec.yaml")
 
 
+def test_chapter7_stage_plan_is_shown_never_served():
+    spec = load_chapter(7)
+    assert spec.stage_plan.startswith("# Chapitre 7")
+    assert "Constat" not in spec.stage_plan
+    served = spec.state(seed=1)
+    assert spec.stage_plan not in repr(served)
+
+
+def test_stage_plan_refuses_machinery_and_the_fall(tmp_path):
+    with pytest.raises(ChapterSpecError, match="plan de scène montre"):
+        load_spec(_write_spec(tmp_path, """
+            chapter: 3
+            slug: a
+            narrator: judith
+            brief: "Le soir."
+            stage_plan: "1. La relève [CIT-2]"
+        """, "03-a") / "spec.yaml")
+    with pytest.raises(ChapterSpecError, match="livre la chute"):
+        load_spec(_write_spec(tmp_path, """
+            chapter: 4
+            slug: b
+            narrator: judith
+            brief: "Le soir."
+            assembly: {fall: "Constat : anniversaire."}
+            stage_plan: "1. La nuit. constat : anniversaire."
+        """, "04-b") / "spec.yaml")
+    with pytest.raises(ChapterSpecError, match="livre la chute"):
+        load_spec(_write_spec(tmp_path, """
+            chapter: 5
+            slug: c
+            narrator: judith
+            brief: "Le soir."
+            entries:
+              - {fall: "Fin de la page."}
+            stage_plan: "1. Fin de la page."
+        """, "05-c") / "spec.yaml")
+
+
 def test_served_brief_drops_fabrication_notes():
     text = ("ancre [CIT-2], fournie en matériau, pré-écrite selon `fiche-romane.md` §1 : une ligne "
             "chaude (cf. `objets.md`) sans plus.")

@@ -77,6 +77,22 @@ resumed run SHALL carry a copy of the prepared `plan.md`.
 - **WHEN** one prepared run is resumed twice
 - **THEN** two runs exist, each with `prepared_from` naming it, and the prepared run is still `prepared`
 
+### Requirement: The stage shows the owner's plan
+
+An approved prep SHALL write `plan.md` from the chapter spec's `stage_plan`
+when the spec has one, else from the approved beats. `stage_plan` SHALL
+never be served to a model. Loading a spec SHALL refuse a `stage_plan` that
+shows a workshop term, an author's note tag, a bible file name, or the text
+of an entry's or the assembly's fall.
+
+#### Scenario: Chapter 7 shows its stage plan
+- **WHEN** chapter 7 is prepared and approved
+- **THEN** `plan.md` is the spec's `stage_plan` and does not contain « Constat : anniversaire. »
+
+#### Scenario: A stage plan that gives away the fall
+- **WHEN** a spec's `stage_plan` contains the assembly fall
+- **THEN** loading the spec fails and names the fall
+
 ### Requirement: Prepared state fingerprint
 
 Approving a prepared plan SHALL record a fingerprint of what the state

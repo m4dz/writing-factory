@@ -57,6 +57,10 @@
       run-based contract (`POST /generate {chapter, prepared: "latest"}`,
       `/runs/<id>/status|events|chapter|audio|plan`) and showing the plan.
 
+- [x] `stage_plan` in the chapter spec (owner's text, never served; refused
+      if it shows machinery or a fall): `plan.md` shows it, since the imposed
+      chapter-7 brief carries its fall « Constat : anniversaire. » (2026-11-11).
+
 ## 6. Measure and document
 
 - [x] One real chapter-7 prep + resume on the stage machine: time saved,
