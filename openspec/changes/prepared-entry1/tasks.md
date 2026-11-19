@@ -33,5 +33,8 @@
 
 ## 4. Measure
 
-- [ ] One real `factory prepare --chapter 7` + `factory generate --from` on
+- [x] One real `factory prepare --chapter 7` + `factory generate --from` on
       M: prep time, stage time against an unsplit run, entry 1 untouched.
+      2026-11-20: prep 141 s, stage 292 s (unsplit 337–384 s), no entry-1
+      write on stage, entry 1 verbatim
+      (`experiments/runs/20261120-prepared-entry1/report.md`).

@@ -1,0 +1,148 @@
+id: 20261120-004643-ch07-anniversaire
+kind: run
+chapter: 7
+slug: anniversaire
+seed: 424242
+created: '2026-11-19T23:46:43.231537+00:00'
+commit: b2bb3ac
+status: ready
+overrides: {}
+config:
+  author_model: ministral3-14b-q5
+  qa_model: qwen2.5:7b-instruct
+  embed_model: nomic-embed-text
+  num_ctx: 8192
+  gesture_model: ''
+  gesture_temperature: 0.3
+  beats_n: 3
+  pruning_enabled: true
+  accumulation_enabled: true
+  beat_context: blind
+  beat_form: prose
+  switch_after_sentences: 2
+  audio_seconds: 165.0
+  audio_words_per_minute: 177.0
+  tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+  stage_budget_min: 25.0
+  write_temperature: 0.7
+  min_p: null
+  top_p: null
+  repeat_penalty: null
+prepared_from: 20261120-004421-ch07-prep
+prepared_seed: 424242
+fingerprint:
+  commit: b2bb3ac0eeb5ee130830b412c24ace42123c2d82
+  dirty: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+  chapter:
+    brief-entree-2.md: 87a49192fe24ee601ffc378ac1a08ce57fd435f60532c5bb2a1f6f66de784fbb
+    brief.md: 67f934a9069e3b0aadf843ef60f13ab3d6a6a6bfdc07a9ba9289f428a7847697
+    spec.yaml: b52cd529039d194f5db98f0fcedac40f5c0c4d255bb6118321ac55592c51195a
+  config:
+    author_model: ministral3-14b-q5
+    qa_model: qwen2.5:7b-instruct
+    embed_model: nomic-embed-text
+    num_ctx: 8192
+    gesture_model: ''
+    gesture_temperature: 0.3
+    beats_n: 3
+    pruning_enabled: true
+    accumulation_enabled: true
+    beat_context: blind
+    beat_form: prose
+    switch_after_sentences: 2
+    audio_seconds: 165.0
+    audio_words_per_minute: 177.0
+    tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+    stage_budget_min: 25.0
+    write_temperature: 0.7
+    min_p: null
+    top_p: null
+    repeat_penalty: null
+  models:
+    ministral3-14b-q5: 87501e5270dc6d27dfb25200fb9f6a334149bc76383e4ee66099e7bd1c624e6d
+    qwen2.5:7b-instruct: 845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e
+    nomic-embed-text: 0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f
+  narrative_state: 3dd0dd694eba72735835d7d39dd3be64d10dedf005a82063562f041616a8631e
+timings:
+  monotonic_s: 291.7
+  wall_s: 291.7
+  sleep_s: 0.0
+collections:
+- auteur
+finished: '2026-11-19T23:51:35+00:00'
+metrics:
+  calls: 24
+  gen_toks: 3607
+  ctx_need_max: 0.54
+  ctx_truncated: 0
+scenes: 2
+warnings:
+- 'entrée 1 : best-of-6 préparé — variant 5 choisi par l''auteur (rang 1, score 3,
+  propre)'
+- 'entrée 1#5 : guillemets d''ouverture retirés — sa propre ligne, l''entrée ne cite
+  pas'
+- 'entrée 1 : bornée à 2 phrase(s) — 4 retirée(s), à partir de « La musique supprimée
+  sans écouter la fin, juste le geste sec du pouce sur l’écra… »'
+- 'relecture entrée 1: hors des bornes de l''entrée (cite (l''entrée ne porte pas
+  de citation), plus de 2 phrase(s), plus de 60 mots) — relecture REJETÉE, texte d''avant
+  relecture conservé'
+- 'entrée 2/relève#3 : fin coupée à la dernière phrase complète, 76 caractères retirés
+  — « La nappe est tendue, le pain est coupé en tranches, les miettes sont tombées
+  »'
+- 'entrée 2 : bornée à 4 phrase(s) — 2 retirée(s), à partir de « J’ai relu la phrase
+  trois fois de suite en suivant du doigt : *j’ai mis deux cou… »'
+- 'entrée 2/relève : best-of-3 — variant 3 retenu (score 3, propre) ; rejetés : #1
+  score 0 ; #2 score 0'
+- 'entrée 2/découverte#1 : fin coupée à la dernière phrase complète, 3 caractères
+  retirés — « Mes »'
+- 'entrée 2 : bornée à 5 phrase(s) — 3 retirée(s), à partir de « J’ai compté les taches
+  sur le plan de travail. Trois nouvelles, toutes dans un r… »'
+- 'entrée 2/découverte : best-of-3 — variant 1 retenu (score 0, propre) ; rejetés
+  : #2 score 0 ; #3 score 0'
+- 'entrée 2/doute#1 : fin coupée à la dernière phrase complète, 86 caractères retirés
+  — « Je les retourne une à une entre mes doigts : les lames n’ont pas servi, mais
+  que »'
+- 'entrée 2/doute : best-of-3 — variant 1 retenu (score 0, propre) ; rejetés : #2
+  score 0 ; #3 score 0'
+- 'accumulation entrée 2, essai 1 : trop longue (121 mots ; plafond 120)'
+- 'accumulation entrée 2 : ACCEPTÉE malgré 123 mots (plafond 120) — dernier essai'
+- 'relecture entrée 2: garde-fou déclenché (168 mots contre 313, soit 54% — hors cible
+  300-400) — relecture REJETÉE, original conservé'
+- 'pruning : rien à retirer'
+- 'assemblage entrée 1 : aucune accumulation à poser'
+- 'assemblage entrée 2 : chute imposée absente — posée par le code : « Constat : anniversaire.
+  »'
+plan_report: plan FOURNI par le brief — nœud court-circuité (structure imposée, un
+  beat par entrée)
+coherence: 'FAIT 1 : tenu — La narratrice a 38 ans et est correctrice depuis quinze
+  ans.
+
+  FAIT 2 : tenu — La narratrice ne cherchera jamais à joindre Romane ni à comprendre
+  pourquoi elle est partie.
+
+  FAIT 3 : tenu — La narratrice utilise une méthode de dater, relever, relire pour
+  se tenir debout.
+
+  FAIT 4 : tenu — La narratrice ne supprime jamais une ligne de ce qu''elle relit,
+  même si cela la blesse.
+
+  FAIT 5 : tenu — La narratrice ne consulte jamais de thérapeute, préférant se référer
+  à des avis conditionnels.
+
+  FAIT 6 : tenu — La narratrice ne cherche pas à entrer en contact avec Romane et
+  ne lui accorde aucune coordonnée.
+
+  FAIT 7 : tenu — Personne d''autre n''entre dans la maison.
+
+  FAIT 8 : tenu — Aucun repas n''est partagé, aucune conversation n''a lieu.
+
+  FAIT 9 : tenu — Elle ne sort pas de la maison.'
+audio: null
+preflight_warnings:
+- 'Swap : 0.77 GB libres sur 21.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts
+  sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total`
+  au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les
+  durées restent interprétables.'
+variants:
+  drawn: 15
+  with_defects: 5
