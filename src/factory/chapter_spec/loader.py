@@ -252,7 +252,8 @@ def _entry(raw: dict, spec_dir: Path, chapter: int) -> EntrySpec:
         if isinstance(bo, int):
             bo = {"n": bo}
         best_of = BestOf(int(bo["n"]), str(bo.get("criterion") or ""),
-                         tuple(bo.get("names") or ()), tuple(bo.get("drift") or ()))
+                         tuple(bo.get("names") or ()), tuple(bo.get("drift") or ()),
+                         tuple(bo.get("decision") or ()))
     drift = raw.get("drift")
     drift = (Drift(str(drift["text"]), str(drift.get("position") or "")) if drift
              else source.get("drift"))

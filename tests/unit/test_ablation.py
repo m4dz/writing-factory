@@ -69,7 +69,8 @@ def test_overrides_and_options_apply_for_the_run_only(fake_model, fake_chroma, t
     assert run.manifest["overrides"] == {"beats_n": 1, "pruning_enabled": False}
     assert run.manifest["config"]["beats_n"] == 1
     assert run.manifest["options"] == {"micro_nodes": False}
-    assert run.manifest["variants"] == {"drawn": 3, "with_defects": 0}   # one per beat
+    # one per beat, and entry 1's own best-of-3 (recorded since entry1-decision)
+    assert run.manifest["variants"] == {"drawn": 6, "with_defects": 0}
     assert settings.beats_n == 3 and settings.pruning_enabled is True     # restored
 
 
@@ -89,9 +90,11 @@ def test_bad_pairs_are_refused_before_any_run(tmp_path, flag, pair, message):
 def test_variants_and_text_only_render(fake_model, fake_chroma, tmp_path):
     assert generate(tmp_path, "--chapter", "7") == 0
     (run,) = runs.list_runs(tmp_path / "runs")
-    assert run.manifest["variants"]["drawn"] == 9               # 3 beats × best-of-3
+    # 3 beats × best-of-3, and entry 1's best-of-3 (entry1-decision)
+    assert run.manifest["variants"]["drawn"] == 12
     text = (run.dir / "variants.md").read_text(encoding="utf-8")
-    assert text.count("— RETENU") == 3
+    assert text.count("— RETENU") == 4
+    assert "## entrée 1 / entrée entière / variant 1" in text
     assert run.chapter_path.is_file() and run.manifest["audio"] is None
 
 

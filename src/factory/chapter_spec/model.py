@@ -45,6 +45,7 @@ class BestOf:
     criterion: str = ""           # scorer name in ``factory.pipeline.scorers``
     names: tuple[str, ...] = ()   # terms the served text must name (keyword scorer)
     drift: tuple[str, ...] = ()   # terms that mark a drift away from the entry
+    decision: tuple[str, ...] = ()  # terms that pose the entry's decision (none: no check)
 
     def __post_init__(self) -> None:
         _restore_tuples(self)
