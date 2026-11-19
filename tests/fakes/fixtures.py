@@ -27,11 +27,11 @@ PLAN = (
 
 CONTINUATION = "Je referme le cahier et j'éteins la lampe."
 
-# Chapter 7, entry 1 — two sentences naming the erasure of the anniversary.
+# Chapter 7, entry 1 — two sentences: the decision, then the erasure.
 SHORT_ENTRY = (
+    "J'ai décidé que ce jour n'aurait pas lieu, et je n'ai pas mis le couvert. "
     "J'ai rangé les photos dans la boîte, supprimé la playlist et laissé le "
-    "plat des grandes occasions au fond du placard. Une journée ordinaire, "
-    "rien de plus, et je n'ai pas mis le couvert."
+    "plat des grandes occasions au fond du placard."
 )
 
 # Chapter 7, entry 2 — three bounded beats. No resolution, no presence, no

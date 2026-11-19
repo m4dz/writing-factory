@@ -1,6 +1,6 @@
 Samedi 14. Beau temps.
 
-J'ai rangé les photos dans la boîte, supprimé la playlist et laissé le plat des grandes occasions au fond du placard. Une journée ordinaire, rien de plus, et je n'ai pas mis le couvert.
+J'ai décidé que ce jour n'aurait pas lieu, et je n'ai pas mis le couvert. J'ai rangé les photos dans la boîte, supprimé la playlist et laissé le plat des grandes occasions au fond du placard.
 
 <!-- BASCULE -->
 

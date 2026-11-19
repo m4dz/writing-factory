@@ -1,4 +1,4 @@
-entrée 1 : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #2 score 3 ; #3 score 3
+entrée 1 : best-of-6 — variant 1 retenu (score 3, propre) ; rejetés : #2 score 3 ; #3 score 3 ; #4 score 3 ; #5 score 3 ; #6 score 3
 entrée 2/relève : best-of-3 — variant 1 retenu (score 0, propre) ; rejetés : #2 score 0 ; #3 score 0
 entrée 2/découverte : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #2 score 3 ; #3 score 3
 entrée 2/doute : best-of-3 — variant 1 retenu (score 3, propre) ; rejetés : #2 score 3 ; #3 score 3

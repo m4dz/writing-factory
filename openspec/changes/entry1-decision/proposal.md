@@ -60,7 +60,30 @@ chapter 7 spec does not move: `best_of.decision` is the OWNER's list, and
 `n` the owner's number; the measure uses a variant spec under the
 experiment directory.
 
-## For the owner (not done)
+## Owner's decisions (2026-11-19)
+
+All four adopted, plus the movement line:
+
+1. `best_of.decision` = the measured list.
+2. « anniversaire » removed from `best_of.names`.
+3. `album`, `albums`, `cadre`, `cadres` added to `best_of.names` (`drift`
+   unchanged: « dans un album » still costs 5).
+4. `n: 6`.
+5. Movement of entry 1 (`bible/profond/mouvements-chapitres.md`, owner's
+   wording): « Deux phrases, la porte fermée : la première décide que ce jour
+   n'aura pas lieu ; la seconde l'efface — les photos rangées, la musique
+   supprimée, le plat écarté. Rien d'autre. » The day's word leaves the
+   served prompt; the decision enters it.
+
+**Served prompt moved:** the MOUVEMENT line of entry 1 (snapshot `ch7`),
+and six `write.entry` calls instead of three. The fake entry 1
+(`tests/fakes/fixtures.py` `SHORT_ENTRY`) now poses the decision, as the
+spec asks; `ch7/chapter.md` moves with it.
+
+Entry 1 prepared the day before (the owner picks among 6) is its own change:
+`prepared-entry1`.
+
+## For the owner (asked 2026-11-19)
 
 1. `best_of.decision` for chapter 7, entry 1 — measured with: `[décidé,
    décidée, décision, "n'aura pas lieu", "n'aurait pas lieu", ne se

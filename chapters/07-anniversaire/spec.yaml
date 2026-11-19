@@ -84,14 +84,18 @@ entries:
     citation: ""
     gestures: false
     strategy: single
-    # Best-of-3 sur l'entrée lue à voix nue : le variant retenu est celui dont
-    # les DEUX phrases servies nomment l'effacement de l'anniversaire, pas un
-    # rangement générique (cahier, grenier).
+    # Best-of-6 sur l'entrée lue à voix nue : le variant retenu est celui dont
+    # les DEUX phrases servies posent la décision (`decision`) et nomment
+    # l'effacement de l'anniversaire (`names`), pas un rangement générique
+    # (cahier, grenier). « anniversaire » n'est pas dans `names` : le mot du
+    # jour ne s'écrit pas dans l'entrée 1 (refusé à la sélection).
+    # Décisions du propriétaire, 2026-11-19 (entry1-decision).
     best_of:
-      n: 3
+      n: 6
       criterion: names-erasure
-      names: [photo, photos, playlist, musique, le plat, anniversaire, couvert, couverts]
+      names: [photo, photos, playlist, musique, le plat, couvert, couverts, album, albums, cadre, cadres]
       drift: [ranger le cahier, ranger le grenier, le grenier, dans un album, le cahier ailleurs]
+      decision: [décidé, décidée, décision, "n'aura pas lieu", "n'aurait pas lieu", ne se célébrera pas, pas question]
     movement: {entry: 1}
     # Matière d'entrée 1 : la résolution d'effacement. Nommer les objets est
     # VOULU — la liste d'effacement EST les deux phrases.

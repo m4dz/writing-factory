@@ -1,0 +1,23 @@
+  ⚠ le brief du chapitre 7 porte des termes d'atelier que le lint bannit en sortie : ['ancre', 'matériau'] — à arbitrer par l'auteur
+
+=== run 20261119-210939-ch07-anniversaire ===
+[0:00 / 25:00] Préflight
+[0:09 / 25:00]   · préflight : Swap : 1.46 GB libres sur 15.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total` au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les durées restent interprétables.
+[0:09 / 25:00]   · préflight : Pression mémoire élevée selon macOS (niveau 2). Fermer ce qui n'est pas nécessaire avant de lancer.
+[0:09 / 25:00] État narratif — chapitre 7
+[0:10 / 25:00]   · état narratif du chapitre 7 régénéré, chunk judith::etat_narratif_courant::ch07
+[0:10 / 25:00] Plan — fourni par le brief (2 entrées)
+[0:10 / 25:00] Écriture — entrée 1/2 (ministral3-14b-q5)
+[0:10 / 25:00] Écriture — entrée 1 (1/6)
+[1:15 / 25:00] Écriture — entrée 1 (2/6)
+[1:33 / 25:00] Écriture — entrée 1 (3/6)
+[1:48 / 25:00] Écriture — entrée 1 (4/6)
+[2:11 / 25:00] Écriture — entrée 1 (5/6)
+[10:53 / 25:00] Écriture — entrée 1 (6/6)
+[11:49 / 25:00] Écriture — entrée 2/2 (ministral3-14b-q5)
+[11:50 / 25:00] Écriture — entrée 2 — relève (1/3)
+[12:15 / 25:00] Écriture — entrée 2 — relève (2/3)
+[14:58 / 25:00] Écriture — entrée 2 — relève (3/3)
+[141:52 / 25:00] Écriture — entrée 2 — découverte (1/3)
+[146:05 / 25:00] Écriture — entrée 2 — découverte (2/3)
+[150:06 / 25:00] Écriture — entrée 2 — découverte (3/3)
