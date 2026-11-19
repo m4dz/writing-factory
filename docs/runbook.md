@@ -276,6 +276,14 @@ the plan, change the brief and prepare again; the gate does not edit.
 The prep runs a lenient, untimed preflight; the strict, timed one runs at
 every resume, on the machine that will generate.
 
+**Entry 1 is picked at the prep** (chapter 7, `prepared: true`, ADR-0030).
+After « o », the prep draws entry 1's six drafts (~3–4 min on M), prints them
+ranked — score, defects, the two sentences the stage will read — and asks
+« Brouillon retenu ? [1-6, Entrée = 1] ». Enter keeps the first ranked;
+anything that is not a rank is asked again. The chosen draft is reviewed and
+repaired, then the run is `prepared`. The stage writes entry 2 only. To get
+other drafts, prepare again.
+
 Each resume is a new run (`prepared_from` in its manifest, a copy of
 `plan.md`); the prepared run is never consumed, so rehearsals and the stage
 resume the same plan. The seed is drawn fresh at every resume. `--override`
@@ -399,7 +407,7 @@ curl http://localhost:8420/runs/latest/audio   -o public/fallback/chapitre.wav
 | When | What |
 |---|---|
 | D-1 | Fallback assets produced, roleplay sessions curated, `caffeinate` tested |
-| D-1 | `factory prepare --chapter 7`, read the plan, approve; one rehearsal `factory generate --from latest`. Change nothing after |
+| D-1 | `factory prepare --chapter 7`, read the plan, approve, pick entry 1's draft; one rehearsal `factory generate --from latest`. Change nothing after |
 | H-60 | **Reboot the Mac.** Let macOS maintenance finish (§0) |
 | H-30 | Backends: Ollama, podman + ChromaDB, index up to date, seal re-proved |
 | H-20 | `caffeinate -is &`, then `factory doctor`: all green |

@@ -356,11 +356,36 @@ def _approve() -> bool:
     return answer.strip().lower() in ("o", "oui", "y", "yes")
 
 
+def _pick(gate: dict) -> int:
+    """The owner's draft for a prepared entry, as a variant number. Enter or
+    end of input keeps the first ranked; anything else that is not a rank is
+    asked again — a draft goes on stage, it is not picked by a typo."""
+    bar = "#" * 78
+    drafts = gate.get("drafts") or []
+    print(f"\n{bar}\nENTRÉE {gate.get('entry')} — BROUILLON À CHOISIR\n{bar}")
+    for rank, d in enumerate(drafts, 1):
+        verdict = ", ".join(d["defects"]) or "propre"
+        print(f"\n  [{rank}] variant {d['variant']} — score {d['score']} ({verdict})\n"
+              + "\n".join(f"      {l}" for l in d["served"].splitlines()))
+    while True:
+        try:
+            answer = input(f"\nBrouillon retenu ? [1-{len(drafts)}, Entrée = 1] ").strip()
+        except EOFError:
+            answer = ""
+        if not answer:
+            return drafts[0]["variant"]
+        if answer.isdigit() and 1 <= int(answer) <= len(drafts):
+            return drafts[int(answer) - 1]["variant"]
+        print(f"  « {answer} » : un rang de 1 à {len(drafts)}, ou Entrée.")
+
+
 def prepare(argv: list[str]) -> int:
     """The PREP section before the event: gather and plan, stop at the leader
     gate, ask the owner. Approved: `prepared`, with its fingerprint, `plan.md`
     and `plan-report.md`. Refused: `cancelled`. Amending the plan is out of
-    scope: change the brief or the storyboard and prepare again."""
+    scope: change the brief or the storyboard and prepare again. When the
+    spec's first entry is `prepared`, an approved plan goes on: its drafts
+    are drawn, the owner picks one, and it is reviewed (prepared-entry1)."""
     args = _prepare_parser().parse_args(argv)
     import random
     from datetime import datetime, timezone
@@ -398,6 +423,15 @@ def prepare(argv: list[str]) -> int:
                         at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
         final = graph.invoke(Command(resume=dict(decision)), config, durability="sync")
         fields: dict = {"leader": dict(decision)}
+        if graph.get_state(config).interrupts:
+            # The prepared entry's drafts, at the owner's pick.
+            gate = checkpoint.gate(graph, config)
+            progress.SINK.end()
+            variant = _pick(gate)
+            fields["entry_pick"] = {
+                "entry": gate.get("entry"), "variant": variant, "by": "owner",
+                "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+            final = graph.invoke(Command(resume=variant), config, durability="sync")
         if decision["approved"]:
             # The plan files and the fingerprint exist before the status says
             # `prepared`: nothing reads a prepared run without its plan.

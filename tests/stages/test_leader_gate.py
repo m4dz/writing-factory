@@ -1,6 +1,8 @@
 """The prep/live split in the graph: the leader gate and the live preflight.
 
-A prepared thread stops at the gate and never writes; an unsplit run passes
+A prepared thread stops at the gate and never writes, unless its first entry
+is `prepared` (chapter 7): then it draws that entry, stops at the owner's pick
+and reviews the chosen draft (prepared-entry1). An unsplit run passes
 through both new nodes (the snapshots hold it byte for byte) and probes the
 machine once; a resumed run probes it again, strict and timed, before the
 first `write` call.
@@ -30,9 +32,9 @@ def _writes(model) -> list:
     return [c for c in model.calls if c.role.startswith("write")]
 
 
-@pytest.mark.parametrize("chapter", [7, 2])
-def test_a_prepared_thread_stops_at_the_gate_and_never_writes(chapter, tmp_path, fake_model,
+def test_a_prepared_thread_stops_at_the_gate_and_never_writes(tmp_path, fake_model,
                                                               fake_chroma, quiet_progress):
+    chapter = 2                            # no prepared entry
     state = {**load_chapter(chapter).state(seed=1), "prepare": True}
     config = checkpoint.thread_config("prep")
     with checkpoint.open_saver(tmp_path / checkpoint.FILENAME) as saver:
@@ -48,8 +50,49 @@ def test_a_prepared_thread_stops_at_the_gate_and_never_writes(chapter, tmp_path,
     assert final["leader"]["approved"] is True and final["plan"]
     assert not final.get("scenes") and not final.get("repaired")
     assert _writes(fake_model) == []
-    if chapter == 2:                       # the plan node did call the model
-        assert fake_model.calls
+    assert fake_model.calls                # the plan node did call the model
+
+
+def test_a_prepared_entry_is_drawn_picked_and_reviewed_then_the_thread_ends(
+        tmp_path, fake_model, fake_chroma, quiet_progress):
+    drafts = [f"J'ai décidé que ce jour n'aurait pas lieu, brouillon {k}. Les photos "
+              "sont rangées dans la boîte, la playlist supprimée." for k in range(1, 7)]
+    fake_model.responses["write.entry"] = drafts
+    state = {**load_chapter(7).state(seed=1), "prepare": True}
+    config = checkpoint.thread_config("prep")
+    with checkpoint.open_saver(tmp_path / checkpoint.FILENAME) as saver:
+        graph = build_graph(checkpointer=saver)
+        graph.invoke(state, config, durability="sync")
+        graph.invoke(Command(resume={"approved": True, "by": "owner", "at": "t"}),
+                     config, durability="sync")
+        snap = graph.get_state(config)
+        assert snap.next == ("prep_pick",)
+        (gate,) = snap.interrupts
+        assert gate.value["entry"] == 1 and len(gate.value["drafts"]) == 6
+        assert [c.role for c in fake_model.calls] == ["write.entry"] * 6   # nothing else yet
+        final = graph.invoke(Command(resume=4), config, durability="sync")
+        assert graph.get_state(config).next == ()
+    # Draft 4, finished as a winner is, reviewed and repaired; no entry 2.
+    assert len(final["scenes"]) == 1 and "brouillon 4" in final["scenes"][0]
+    assert len(final["reviewed"]) == 1 and len(final["repaired"]) == 1
+    assert final["idx"] == 1 and not final.get("entry_draws") and not final.get("chapter_md")
+    assert len(fake_model.by_role("write.entry")) == 6 and not fake_model.by_role("write.beat")
+    assert any("variant 4 choisi par l'auteur" in w for w in final["warnings"])
+    winners = [v["variant"] for v in final["beat_variants"]
+               if v["beat"] == "entrée entière" and v["winner"]]
+    assert winners == [4]
+
+
+def test_a_refused_plan_draws_no_prepared_entry(tmp_path, fake_model, fake_chroma,
+                                                quiet_progress):
+    state = {**load_chapter(7).state(seed=1), "prepare": True}
+    config = checkpoint.thread_config("prep")
+    with checkpoint.open_saver(tmp_path / checkpoint.FILENAME) as saver:
+        graph = build_graph(checkpointer=saver)
+        graph.invoke(state, config, durability="sync")
+        graph.invoke(Command(resume={"approved": False}), config, durability="sync")
+        assert graph.get_state(config).next == ()
+    assert _writes(fake_model) == []
 
 
 def test_a_refusal_ends_the_thread_the_same_way(tmp_path, fake_model, fake_chroma,

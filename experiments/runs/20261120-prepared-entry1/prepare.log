@@ -1,0 +1,69 @@
+
+=== préparation 20261120-004421-ch07-prep ===
+[0:00 / 25:00] Préflight
+[0:09 / 25:00]   · préflight : Swap : 0.51 GB libres sur 13.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total` au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les durées restent interprétables.
+[0:09 / 25:00]   · préflight : Pression mémoire élevée selon macOS (niveau 2). Fermer ce qui n'est pas nécessaire avant de lancer.
+[0:09 / 25:00]   · préflight : Entretien macOS en cours : corespotlightd 124 %. Le processus de génération tourne à nice 5 et perdra l'arbitrage : trous de plusieurs minutes entre deux appels au modèle, budget de scène explosé. ATTENDRE que ça retombe (`ps -Ao %cpu,comm -r | head`) — après un redémarrage, l'analyse média peut tourner longtemps.
+[0:09 / 25:00] État narratif — chapitre 7
+[0:10 / 25:00]   · état narratif du chapitre 7 régénéré, chunk judith::etat_narratif_courant::ch07
+[0:10 / 25:00] Plan — fourni par le brief (2 entrées)
+
+##############################################################################
+PLAN À APPROUVER
+##############################################################################
+  1. **Chapitre 7 — L'anniversaire.** Carnet de relecture, première personne. **Deux entrées du carnet, datées du même jour** (anniversaire de mariage), chacune ouverte par l'en-tête normalisé (« Samedi 14. Beau temps. »). **L'entrée 1 ne cite pas** — elle n'a pas relu le cahier ce jour-là : première entorse au rituel, premier signal. **L'entrée 2 s'ouvre sur une citation du cahier** entre guillemets — ancre [CIT-2], fournie en matériau : une ligne chaude, adressée, qu'elle ne parvient pas à réduire. Texte de l'ancre, verbatim : « Neuf ans aujourd'hui que je t'ai dit oui. J'ai mis deux couverts, exprès cette fois, et j'ai redit oui tout haut dans la cuisine. Je t'aime toujours. »
+
+**Entrée 1 — l'après-midi. DEUX PHRASES MAXIMUM après l'en-tête, sans citation.** Elle sait quel jour c'est et a décidé que ce jour n'aura pas lieu ; la liste d'effacement tient dans la seconde phrase (encaisser les photos, supprimer la playlist, une journée ordinaire). Le mot du jour n'est jamais écrit dans l'entrée 1. *(Note scénique : c'est l'entrée lue en direct par le locuteur — sa brièveté est un choix de keynote autant que de dramaturgie.)*
+
+**Matériau imposé :** les photos, la playlist, le plat des anniversaires, les deux couverts — et l'ancre [CIT-2] (ouverture de l'entrée 2), recopiée verbatim. L'entrée 1 ne cite pas.
+**Progression interne :** résolution → contrariété → vertige → capitulation.
+**Chute :** capitulation lexicale — elle cesse la liste, laisse la journée finir telle qu'elle s'est imposée, et écrit pour la première fois le mot qu'elle refusait d'écrire. Dernière ligne de l'entrée 2, seule : « Constat : anniversaire. »
+**Interdits :** aucun élément d'intrigue nouveau. Aucune explication, aucune hypothèse sur la cause. Aucun personnage, aucune apparition, aucune figure. Aucun nom propre. Aucune tentative de contact (pas d'appel, pas de lettre — si la pensée approche le où ou le pourquoi du départ, la phrase s'interrompt). La voix ne cède pas : déclaratif, tenu, pas de cri.
+  2. **Chapitre 7 — L'anniversaire.** Carnet de relecture, première personne. **Deux entrées du carnet, datées du même jour** (anniversaire de mariage), chacune ouverte par l'en-tête normalisé (« Samedi 14. Beau temps. »). **L'entrée 1 ne cite pas** — elle n'a pas relu le cahier ce jour-là : première entorse au rituel, premier signal. **L'entrée 2 s'ouvre sur une citation du cahier** entre guillemets — ancre [CIT-2], fournie en matériau : une ligne chaude, adressée, qu'elle ne parvient pas à réduire. Texte de l'ancre, verbatim : « Neuf ans aujourd'hui que je t'ai dit oui. J'ai mis deux couverts, exprès cette fois, et j'ai redit oui tout haut dans la cuisine. Je t'aime toujours. »
+
+**Entrée 2 — la nuit.** Tout ce qu'elle a banni est revenu. Chaque geste d'effacement dont elle se souvient d'avoir décidé est contredit par l'état de la maison : les photos sur la table, la musique lancée, le plat au four, deux couverts mis. Plus elle éloigne le souvenir, plus il s'accroche. Le mot du jour reste interdit jusqu'à la chute.
+
+**Matériau imposé :** les photos, la playlist, le plat des anniversaires, les deux couverts — et l'ancre [CIT-2] (ouverture de l'entrée 2), recopiée verbatim. L'entrée 1 ne cite pas.
+**Progression interne :** résolution → contrariété → vertige → capitulation.
+**Chute :** capitulation lexicale — elle cesse la liste, laisse la journée finir telle qu'elle s'est imposée, et écrit pour la première fois le mot qu'elle refusait d'écrire. Dernière ligne de l'entrée 2, seule : « Constat : anniversaire. »
+**Interdits :** aucun élément d'intrigue nouveau. Aucune explication, aucune hypothèse sur la cause. Aucun personnage, aucune apparition, aucune figure. Aucun nom propre. Aucune tentative de contact (pas d'appel, pas de lettre — si la pensée approche le où ou le pourquoi du départ, la phrase s'interrompt). La voix ne cède pas : déclaratif, tenu, pas de cri.
+
+  contrôle du plan :
+  plan FOURNI par le brief — nœud court-circuité (structure imposée, un beat par entrée)
+
+Approuver ce plan ? [o/N] [0:10 / 25:00] Écriture — entrée 1/2 (ministral3-14b-q5)
+[0:10 / 25:00] Écriture — entrée 1 (1/6)
+[0:55 / 25:00] Écriture — entrée 1 (2/6)
+[1:06 / 25:00] Écriture — entrée 1 (3/6)
+[1:18 / 25:00] Écriture — entrée 1 (4/6)
+[1:30 / 25:00] Écriture — entrée 1 (5/6)
+[1:41 / 25:00] Écriture — entrée 1 (6/6)
+
+##############################################################################
+ENTRÉE 1 — BROUILLON À CHOISIR
+##############################################################################
+
+  [1] variant 5 — score 3 (propre)
+      J’ai décidé de ne pas en faire une journée à elle. Les photos sont retournées face contre le mur dans le tiroir du haut, les enveloppes froissées une fois encore pour vérifier qu’elles tenaient.
+
+  [2] variant 3 — score -1 (ne pose pas la décision)
+      J’ai tourné la clé dans la serrure sans bruit, comme si la porte devait savoir que c’était la dernière fois. Les photos sont retournées face contre le mur, un par un, dans l’album du placard, et le nom qu’elles portaient en silence a disparu.
+
+  [3] variant 6 — score -1 (ne pose pas la décision)
+      J’ai tourné le commutateur du téléphone avant même que l’idée ne se forme. Écran noir, silence : les notifications restées sans réponse, les photos de nous deux, le dernier album de *son* compositeur préféré — tout, effacé en glissant le doigt, sans y penser.
+
+  [4] variant 1 — score -13 (ne nomme pas l'effacement de l'anniversaire, cite (l'entrée ne porte pas de citation))
+      « Ce jour n’aura pas lieu. » La phrase a tourné dans ma tête toute l’après-midi, comme une clé dans une serrure qui résiste, avant que je ne la prononce à voix basse, pour m’entendre.
+
+  [5] variant 2 — score -13 (ne nomme pas l'effacement de l'anniversaire, cite (l'entrée ne porte pas de citation))
+      « Ce jour n’aura pas lieu. » La phrase a suffi.
+
+  [6] variant 4 — score -13 (ne nomme pas l'effacement de l'anniversaire, cite (l'entrée ne porte pas de citation))
+      J’ai écrit *"Ce jour n’aura pas lieu"* au dos de l’enveloppe ouverte sur le bureau, comme une ligne de consigne. Le stylo a tremblé une seconde, assez pour que l’encre déborde, mais j’ai serré plus fort après, jusqu’à ce que la phrase tienne.
+
+Brouillon retenu ? [1-6, Entrée = 1] [1:51 / 25:00] Relecture — entrée 1/1 (ministral3-14b-q5)
+[2:20 / 25:00] Bascule des modèles — ministral3-14b-q5 déchargé, Qwen prend la main
+[2:20 / 25:00] Réparation linguistique — entrée 1/1 (Qwen)
+
+  plan approuvé : 20261120-004421-ch07-prep
+  reprise      : factory generate --from 20261120-004421-ch07-prep

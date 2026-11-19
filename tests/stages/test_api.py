@@ -241,7 +241,9 @@ def prepared(server, monkeypatch):
 
     tags = copy.deepcopy(TAGS)
     monkeypatch.setattr(run_registry, "_ollama_tags", lambda: tags)
-    monkeypatch.setattr(builtins, "input", lambda prompt="": "o")
+    # Yes to the plan, Enter (the first ranked draft) at the entry-1 pick.
+    monkeypatch.setattr(builtins, "input",
+                        lambda prompt="": "o" if "Approuver" in prompt else "")
 
     def prepare_one() -> str:
         before = {r.id for r in run_registry.list_runs()}

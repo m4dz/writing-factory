@@ -269,6 +269,7 @@ def _entry(raw: dict, spec_dir: Path, chapter: int) -> EntrySpec:
         material=tuple(raw.get("material") or source.get("material") or ()),
         vetos=str(raw.get("vetos") or ""), form=dict(raw.get("form") or {}),
         fall=str(raw.get("fall") or ""), drift=drift,
+        prepared=bool(raw.get("prepared", False)),
     )
 
 
@@ -329,6 +330,15 @@ def load_spec(path: Path, base_dir: Path | None = None) -> ChapterSpec:
     entry_count = int(raw.get("entry_count") or len(entries) or 1)
     if entries and len(entries) != entry_count:
         raise ChapterSpecError(f"{len(entries)} entrées décrites pour entry_count={entry_count}")
+    # A prepared entry is written the day before and picked among its drafts:
+    # the first one only, never the whole chapter, and with drafts to pick.
+    for i, e in enumerate(entries):
+        if e.prepared and (i != 0 or len(entries) < 2):
+            raise ChapterSpecError("seule la première entrée d'un chapitre de plusieurs "
+                                   "entrées peut être préparée (prepared)")
+        if e.prepared and not (e.best_of and e.best_of.n >= 2):
+            raise ChapterSpecError("une entrée préparée se choisit parmi ses brouillons : "
+                                   "best_of.n ≥ 2 requis")
     if imposed and len(imposed) != entry_count:
         raise ChapterSpecError(f"le brief découpe {len(imposed)} entrées, la spec en "
                                f"annonce {entry_count}")
