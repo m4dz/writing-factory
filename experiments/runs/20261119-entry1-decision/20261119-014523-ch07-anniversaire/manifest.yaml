@@ -1,0 +1,59 @@
+id: 20261119-014523-ch07-anniversaire
+kind: run
+chapter: 7
+slug: anniversaire
+seed: 174597
+created: '2026-11-19T00:45:23.398147+00:00'
+commit: 9b4ac4e
+status: error
+overrides: {}
+config:
+  author_model: ministral3-14b-q5
+  qa_model: qwen2.5:7b-instruct
+  embed_model: nomic-embed-text
+  num_ctx: 8192
+  gesture_model: ''
+  gesture_temperature: 0.3
+  beats_n: 3
+  pruning_enabled: true
+  accumulation_enabled: true
+  beat_context: blind
+  beat_form: prose
+  switch_after_sentences: 2
+  audio_seconds: 165.0
+  audio_words_per_minute: 177.0
+  tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+  stage_budget_min: 25.0
+  write_temperature: 0.7
+  min_p: null
+  top_p: null
+  repeat_penalty: null
+spec:
+  source: experiments/runs/20261119-entry1-decision/spec.yaml
+  canonical: /Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory/.claude/worktrees/entry1-decision/chapters/07-anniversaire/spec.yaml
+  diff: "--- /Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory/.claude/worktrees/entry1-decision/chapters/07-anniversaire/spec.yaml\n\
+    +++ experiments/runs/20261119-entry1-decision/spec.yaml\n@@ -1,3 +1,5 @@\n+# VARIANTE\
+    \ d'expérience (entry1-decision, 2026-11-19) : copie de\n+# chapters/07-anniversaire/spec.yaml\
+    \ + best_of.decision de l'entrée 1, rien d'autre.\n # Chapitre 7 — L'anniversaire.\
+    \ Spécification lue par la fabrique (étape 5 du\n # plan). Ce fichier porte la\
+    \ STRUCTURE et les RÉGLAGES ; le texte du brief vit\n # dans brief.md et brief-entree-2.md,\
+    \ pointés ici, jamais recopiés.\n@@ -92,6 +94,9 @@\n       criterion: names-erasure\n\
+    \       names: [photo, photos, playlist, musique, le plat, anniversaire, couvert,\
+    \ couverts]\n       drift: [ranger le cahier, ranger le grenier, le grenier, dans\
+    \ un album, le cahier ailleurs]\n+      # VARIANTE entry1-decision (proposée au\
+    \ propriétaire, pas dans chapters/) :\n+      # la décision du brief, « a décidé\
+    \ que ce jour n'aura pas lieu ».\n+      decision: [décidé, décidée, décision,\
+    \ \"n'aura pas lieu\", \"n'aurait pas lieu\", ne se célébrera pas, pas question]\n\
+    \     movement: {entry: 1}\n     # Matière d'entrée 1 : la résolution d'effacement.\
+    \ Nommer les objets est\n     # VOULU — la liste d'effacement EST les deux phrases.\n"
+timings:
+  monotonic_s: 6.2
+  wall_s: 6.2
+  sleep_s: 0.0
+collections: []
+finished: '2026-11-19T00:45:30+00:00'
+error: "préflight refusé : Préflight refusé :\n  - Entretien macOS en cours : mediaanalysisd\
+  \ 206 %, corespotlightd 115 %. Le processus de génération tourne à nice 5 et perdra\
+  \ l'arbitrage : trous de plusieurs minutes entre deux appels au modèle, budget de\
+  \ scène explosé. ATTENDRE que ça retombe (`ps -Ao %cpu,comm -r | head`) — après\
+  \ un redémarrage, l'analyse média peut tourner longtemps."

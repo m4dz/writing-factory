@@ -1,0 +1,134 @@
+id: 20261119-015237-ch07-anniversaire
+kind: run
+chapter: 7
+slug: anniversaire
+seed: 171197
+created: '2026-11-19T00:52:37.928806+00:00'
+commit: 29ebe1c
+status: ready
+overrides: {}
+config:
+  author_model: ministral3-14b-q5
+  qa_model: qwen2.5:7b-instruct
+  embed_model: nomic-embed-text
+  num_ctx: 8192
+  gesture_model: ''
+  gesture_temperature: 0.3
+  beats_n: 3
+  pruning_enabled: true
+  accumulation_enabled: true
+  beat_context: blind
+  beat_form: prose
+  switch_after_sentences: 2
+  audio_seconds: 165.0
+  audio_words_per_minute: 177.0
+  tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+  stage_budget_min: 25.0
+  write_temperature: 0.7
+  min_p: null
+  top_p: null
+  repeat_penalty: null
+spec:
+  source: experiments/runs/20261119-entry1-decision/spec.yaml
+  canonical: /Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory/.claude/worktrees/entry1-decision/chapters/07-anniversaire/spec.yaml
+  diff: "--- /Users/m4dz/Personal/Projects/m4dz/ia-devant-soi/factory/.claude/worktrees/entry1-decision/chapters/07-anniversaire/spec.yaml\n\
+    +++ experiments/runs/20261119-entry1-decision/spec.yaml\n@@ -1,3 +1,5 @@\n+# VARIANTE\
+    \ d'expérience (entry1-decision, 2026-11-19) : copie de\n+# chapters/07-anniversaire/spec.yaml\
+    \ + best_of.decision de l'entrée 1, rien d'autre.\n # Chapitre 7 — L'anniversaire.\
+    \ Spécification lue par la fabrique (étape 5 du\n # plan). Ce fichier porte la\
+    \ STRUCTURE et les RÉGLAGES ; le texte du brief vit\n # dans brief.md et brief-entree-2.md,\
+    \ pointés ici, jamais recopiés.\n@@ -92,6 +94,9 @@\n       criterion: names-erasure\n\
+    \       names: [photo, photos, playlist, musique, le plat, anniversaire, couvert,\
+    \ couverts]\n       drift: [ranger le cahier, ranger le grenier, le grenier, dans\
+    \ un album, le cahier ailleurs]\n+      # VARIANTE entry1-decision (proposée au\
+    \ propriétaire, pas dans chapters/) :\n+      # la décision du brief, « a décidé\
+    \ que ce jour n'aura pas lieu ».\n+      decision: [décidé, décidée, décision,\
+    \ \"n'aura pas lieu\", \"n'aurait pas lieu\", ne se célébrera pas, pas question]\n\
+    \     movement: {entry: 1}\n     # Matière d'entrée 1 : la résolution d'effacement.\
+    \ Nommer les objets est\n     # VOULU — la liste d'effacement EST les deux phrases.\n"
+timings:
+  monotonic_s: 333.7
+  wall_s: 333.7
+  sleep_s: 0.0
+collections:
+- auteur
+finished: '2026-11-19T00:58:12+00:00'
+metrics:
+  calls: 21
+  gen_toks: 3245
+  ctx_need_max: 0.53
+  ctx_truncated: 0
+scenes: 2
+warnings:
+- 'entrée 1#1 : fin coupée à la dernière phrase complète, 84 caractères retirés —
+  « La playlist a disparu du téléphone, effacée d’un geste sec, le pouce sur la poub
+  »'
+- 'entrée 1 : best-of-3 — variant 1 retenu (score -1, ne pose pas la décision) ; rejetés
+  : #3 score -1 ; #2 score -6'
+- 'entrée 1 : bornée à 2 phrase(s) — 5 retirée(s), à partir de « La décision s’est
+  prise là, entre la vue des traces séchées et le silence de la … »'
+- 'entrée 2/relève#2 : fin coupée à la dernière phrase complète, 44 caractères retirés
+  — « Les couverts sont propres, alignés comme des »'
+- 'entrée 2 : bornée à 4 phrase(s) — 1 retirée(s), à partir de « Peut-être aussi les
+  ai-je sortis ce matin même, mais le souvenir ne vient pas.… »'
+- 'entrée 2/relève : best-of-3 — variant 2 retenu (score 3, propre) ; rejetés : #1
+  score 0 ; #3 score 0'
+- 'entrée 2/découverte#1 : fin coupée à la dernière phrase complète, 165 caractères
+  retirés — « Les titres ne s’affichent plus, mais je reconnais la progression : d’abord
+  les v »'
+- 'entrée 2 : bornée à 5 phrase(s) — 3 retirée(s), à partir de « Les miens sont unis,
+  d’un bleu pâle qui pâlit encore sous les lavages, et je les… »'
+- 'entrée 2/découverte : best-of-3 — variant 1 retenu (score 0, propre) ; rejetés
+  : #3 score 0 ; #2 score -8'
+- 'entrée 2/doute#1 : fin coupée à la dernière phrase complète, 12 caractères retirés
+  — « Ce n’est pas »'
+- 'entrée 2 : bornée à 4 phrase(s) — 2 retirée(s), à partir de « Elle n’a jamais contenu
+  autre chose que des miettes, et encore, rarement. Je la … »'
+- 'entrée 2/doute : best-of-3 — variant 1 retenu (score 0, propre) ; rejetés : #2
+  score 0 ; #3 score 0'
+- 'accumulation entrée 2, essai 1 : troisième personne : « Elle est rentrée à vingt-deux
+  heures t »'
+- 'accumulation entrée 2 : ACCEPTÉE malgré 156 mots (plafond 120) — dernier essai'
+- 'relecture entrée 1: hors des bornes de l''entrée (cite (l''entrée ne porte pas
+  de citation), plus de 2 phrase(s), plus de 60 mots) — relecture REJETÉE, texte d''avant
+  relecture conservé'
+- 'pruning : rien à retirer'
+- 'assemblage entrée 1 : aucune accumulation à poser'
+- 'assemblage entrée 2 : ancre re-tamponné — le texte portait « « Neuf ans aujourd’hui
+  que j’ai dit oui. J’ai posé deux couverts, expr »'
+- 'assemblage entrée 2 : chute imposée absente — posée par le code : « Constat : anniversaire.
+  »'
+plan_report: plan FOURNI par le brief — nœud court-circuité (structure imposée, un
+  beat par entrée)
+coherence: 'FAIT 1 : tenu — La narratrice a 38 ans et est correctrice depuis quinze
+  ans.
+
+  FAIT 2 : tenu — La narratrice ne cherchera jamais à joindre Romane ni à comprendre
+  pourquoi elle est partie.
+
+  FAIT 3 : tenu — La narratrice utilise une méthode de dater, relever, relire pour
+  se tenir debout.
+
+  FAIT 4 : tenu — La narratrice ne descend une marche que quand celle du dessus a
+  cédé.
+
+  FAIT 5 : tenu — La narratrice ne supprime jamais une ligne de ce qu''elle relit,
+  même si cela la blesse.
+
+  FAIT 6 : tenu — La narratrice envisage par moments de consulter une thérapeute mais
+  ne le fait jamais.
+
+  FAIT 7 : tenu — Personne d''autre n''entre dans la maison.
+
+  FAIT 8 : tenu — Aucun repas n''est partagé, aucune conversation n''a lieu.
+
+  FAIT 9 : tenu — Elle ne sort pas de la maison.'
+audio: null
+preflight_warnings:
+- 'Swap : 0.73 GB libres sur 15.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts
+  sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total`
+  au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les
+  durées restent interprétables.'
+variants:
+  drawn: 12
+  with_defects: 4

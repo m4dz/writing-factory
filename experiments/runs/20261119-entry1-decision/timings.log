@@ -1,0 +1,10 @@
+TIMING 11s exit=1 seed=424242
+TIMING 10s exit=1 seed=171197
+TIMING 7s exit=1 seed=174597
+DONE
+TIMING 10s exit=1 seed=424242
+TIMING 335s exit=0 seed=171197
+TIMING 330s exit=0 seed=174597
+DONE
+TIMING 324s exit=0 seed=424242
+DONE

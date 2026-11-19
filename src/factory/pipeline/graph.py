@@ -923,6 +923,7 @@ def write_node(state: ChapterState) -> dict:
             # selection is a deterministic reading, not a judge of taste.
             phr = sheet.sentences_max
             cont = not sheet.words
+            day = _day_word(state, sheet)
             cands = []
             for k in range(best_of):
                 progress.phase("Écriture",
@@ -939,15 +940,33 @@ def write_node(state: ChapterState) -> dict:
                 # score alike — the selection stops discriminating (measured
                 # in the previous run).
                 t_clean = STRAY_HEADER.sub("", t).strip()
+                # The narrator's own line dressed as a quotation loses its
+                # marks BEFORE scoring, and the variant served is the
+                # undressed one (`scorers.unquote_own_line`).
+                if not sheet.citation:
+                    own = scorers.unquote_own_line(t_clean)
+                    if own != t_clean:
+                        t, t_clean = own, own
+                        w = list(w) + [
+                            f"entrée {idx + 1}#{k + 1} : guillemets d'ouverture "
+                            "retirés — sa propre ligne, l'entrée ne cite pas"]
                 to_score = (_bound_sentences(t_clean, phr, idx, "")[0]
                             if phr else t_clean)
                 sc, defects = scorers.score(to_score, sheet.best_of)
-                nb, nd = scorers.notebook(to_score, cites=sheet.citation != "")
+                nb, nd = scorers.notebook(to_score, cites=sheet.citation != "",
+                                          day_word=day)
                 sc, defects = sc + nb, defects + nd
                 cands.append({"score": sc, "k": k, "t": t, "m": m, "w": w,
-                              "def": defects})
+                              "def": defects, "served": to_score})
             cands.sort(key=lambda c: (-c["score"], c["k"]))
             g = cands[0]
+            # Recorded like the beats' variants: the two sentences each draw
+            # would have served (until 2026-11-19 entry 1 left no trace).
+            drawn_variants += [
+                {"entry": idx + 1, "beat": "entrée entière", "variant": c["k"] + 1,
+                 "score": c["score"], "defects": list(c["def"]),
+                 "winner": c is g, "text": c["served"]}
+                for c in sorted(cands, key=lambda c: c["k"])]
             text, wg = g["t"], list(g["w"])
             wg.append(
                 f"entrée {idx + 1} : best-of-{best_of} — variant {g['k'] + 1} "
@@ -2073,13 +2092,21 @@ def _acceptable_cut(before: int, after: int, target: tuple[int, int]) -> bool:
     return (lo - after) < (before - hi) and after >= 0.6 * before
 
 
-def _bound_defects(sheet: EntrySpec, body: str) -> set[str]:
+def _day_word(state: ChapterState, sheet: EntrySpec) -> str:
+    """The verdict word an entry does not write: its verdict is absent."""
+    return (state.get("verdict") or ""
+            if (sheet.form or {}).get("verdict") == "absent" else "")
+
+
+def _bound_defects(sheet: EntrySpec, body: str, day_word: str = "") -> set[str]:
     """What the entry's sheet bounds and the body breaks: sentences, words,
-    and the notebook vetoes (third person, quotation). The anchor is read out:
-    its « je » is the notebook's, and would hide a body gone to « elle »."""
+    and the notebook vetoes (third person, quotation, the day's word). The
+    anchor is read out: its « je » is the notebook's, and would hide a body
+    gone to « elle »."""
     if sheet.citation:
         body = body.replace(sheet.citation, "").strip()
-    defects = set(scorers.notebook(body, cites=sheet.citation != "")[1])
+    defects = set(scorers.notebook(body, cites=sheet.citation != "",
+                                   day_word=day_word)[1])
     if sheet.sentences_max and len(sentence_ends(body)) > sheet.sentences_max:
         defects.add(f"plus de {sheet.sentences_max} phrase(s)")
     if sheet.words and len(body.split()) > sheet.words[1]:
@@ -2113,8 +2140,9 @@ def _review_guard(state: ChapterState, i: int, scene: str,
     spec = state.get("entry_specs") or []
     if i >= len(spec):
         return text, warns
-    added = (_bound_defects(spec[i], STRAY_HEADER.sub("", text).strip())
-             - _bound_defects(spec[i], STRAY_HEADER.sub("", scene).strip()))
+    day = _day_word(state, spec[i])
+    added = (_bound_defects(spec[i], STRAY_HEADER.sub("", text).strip(), day)
+             - _bound_defects(spec[i], STRAY_HEADER.sub("", scene).strip(), day))
     if added:
         warns.append(f"relecture entrée {i + 1}: hors des bornes de l'entrée "
                      f"({', '.join(sorted(added))}) — relecture REJETÉE, "
