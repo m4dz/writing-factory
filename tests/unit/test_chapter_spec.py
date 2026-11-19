@@ -30,8 +30,10 @@ def test_chapter7_entries_have_the_stage_structure():
     spec = load_chapter(7)
     e1, e2 = spec.entries
     assert e1.citation == "" and e1.sentences_max == 2 and e1.gestures is False
-    assert e1.strategy == "single" and e1.best_of.n == 3
+    assert e1.strategy == "single" and e1.best_of.n == 6
     assert e1.best_of.criterion == "names-erasure" and "playlist" in e1.best_of.names
+    # The day's word is not a term entry 1 should name; the decision is.
+    assert "anniversaire" not in e1.best_of.names and "décidé" in e1.best_of.decision
     assert e1.movement and e1.material and e1.vetos
     assert e2.citation.startswith("« Neuf ans") and e2.fall == "Constat : anniversaire."
     assert e2.strategy == "beats"

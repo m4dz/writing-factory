@@ -37,12 +37,19 @@ OWN_LINE = {
            "le placard, les cadres retournés contre le mur."),
 }
 
-# The decision terms proposed to the owner for chapter 7's `best_of.decision`.
+# The decision terms measured, then adopted by the owner for chapter 7's
+# `best_of.decision` (2026-11-19). The names are the measured ones, before the
+# owner's edit: the doorstep / decision fixtures were scored against them.
 DECISION = ("décidé", "décidée", "décision", "n'aura pas lieu", "n'aurait pas lieu",
             "ne se célébrera pas", "pas question")
 CRITERION = BestOf(3, "names-erasure",
-                   load_chapter(7).entries[0].best_of.names,
+                   ("photo", "photos", "playlist", "musique", "le plat", "anniversaire",
+                    "couvert", "couverts"),
                    load_chapter(7).entries[0].best_of.drift, DECISION)
+
+
+def test_the_spec_holds_the_measured_decision():
+    assert load_chapter(7).entries[0].best_of.decision == DECISION
 
 
 def test_own_line_loses_its_marks():
@@ -81,8 +88,7 @@ def test_either_apostrophe_poses_the_decision():
 
 
 def test_no_decision_list_no_check():
-    criterion = load_chapter(7).entries[0].best_of
-    assert criterion.decision == ()
+    criterion = replace(load_chapter(7).entries[0].best_of, decision=())
     assert "ne pose pas la décision" not in scorers.score(ACCEPTED["N-104812"], criterion)[1]
 
 
