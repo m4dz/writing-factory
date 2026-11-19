@@ -1,0 +1,159 @@
+  ⚠ le brief du chapitre 7 porte des termes d'atelier que le lint bannit en sortie : ['ancre', 'matériau'] — à arbitrer par l'auteur
+
+=== run 20261119-015812-ch07-anniversaire ===
+[0:00 / 25:00] Préflight
+[0:05 / 25:00]   · préflight : Swap : 1.68 GB libres sur 17.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total` au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les durées restent interprétables.
+[0:05 / 25:00] État narratif — chapitre 7
+[0:06 / 25:00]   · état narratif du chapitre 7 inchangé, chunk judith::etat_narratif_courant::ch07
+[0:06 / 25:00] Plan — fourni par le brief (2 entrées)
+[0:06 / 25:00] Écriture — entrée 1/2 (ministral3-14b-q5)
+[0:06 / 25:00] Écriture — entrée 1 (1/3)
+[0:44 / 25:00] Écriture — entrée 1 (2/3)
+[0:55 / 25:00] Écriture — entrée 1 (3/3)
+[1:05 / 25:00] Écriture — entrée 2/2 (ministral3-14b-q5)
+[1:06 / 25:00] Écriture — entrée 2 — relève (1/3)
+[1:25 / 25:00] Écriture — entrée 2 — relève (2/3)
+[1:37 / 25:00] Écriture — entrée 2 — relève (3/3)
+[1:49 / 25:00] Écriture — entrée 2 — découverte (1/3)
+[2:11 / 25:00] Écriture — entrée 2 — découverte (2/3)
+[2:31 / 25:00] Écriture — entrée 2 — découverte (3/3)
+[2:50 / 25:00] Écriture — entrée 2 — doute (1/3)
+[3:05 / 25:00] Écriture — entrée 2 — doute (2/3)
+[3:17 / 25:00] Écriture — entrée 2 — doute (3/3)
+[3:30 / 25:00] Accumulation — entrée 2 (essai 1)
+[3:50 / 25:00] Accumulation — entrée 2 (essai 2)
+[4:07 / 25:00] Relecture — entrée 1/2 (ministral3-14b-q5)
+[4:34 / 25:00] Relecture — entrée 2/2 (ministral3-14b-q5)
+[4:53 / 25:00] Bascule des modèles — ministral3-14b-q5 déchargé, Qwen prend la main
+[4:53 / 25:00] Réparation linguistique — entrée 1/2 (Qwen)
+[4:53 / 25:00] Réparation linguistique — entrée 2/2 (Qwen)
+[4:53 / 25:00] Assemblage — entrée 2
+[4:53 / 25:00] Pose des gestes — 2 entrée(s)
+[4:53 / 25:00] Cohérence par faits — (Qwen)
+
+##############################################################################
+PLAN DE SCÈNES
+##############################################################################
+  1. **Chapitre 7 — L'anniversaire.** Carnet de relecture, première personne. **Deux entrées du carnet, datées du même jour** (anniversaire de mariage), chacune ouverte par l'en-tête normalisé (« Samedi 14. Beau temps. »). **L'entrée 1 ne cite pas** — elle n'a pas relu le cahier ce jour-là : première entorse au rituel, premier signal. **L'entrée 2 s'ouvre sur une citation du cahier** entre guillemets — ancre [CIT-2], fournie en matériau : une ligne chaude, adressée, qu'elle ne parvient pas à réduire. Texte de l'ancre, verbatim : « Neuf ans aujourd'hui que je t'ai dit oui. J'ai mis deux couverts, exprès cette fois, et j'ai redit oui tout haut dans la cuisine. Je t'aime toujours. »
+
+**Entrée 1 — l'après-midi. DEUX PHRASES MAXIMUM après l'en-tête, sans citation.** Elle sait quel jour c'est et a décidé que ce jour n'aura pas lieu ; la liste d'effacement tient dans la seconde phrase (encaisser les photos, supprimer la playlist, une journée ordinaire). Le mot du jour n'est jamais écrit dans l'entrée 1. *(Note scénique : c'est l'entrée lue en direct par le locuteur — sa brièveté est un choix de keynote autant que de dramaturgie.)*
+
+**Matériau imposé :** les photos, la playlist, le plat des anniversaires, les deux couverts — et l'ancre [CIT-2] (ouverture de l'entrée 2), recopiée verbatim. L'entrée 1 ne cite pas.
+**Progression interne :** résolution → contrariété → vertige → capitulation.
+**Chute :** capitulation lexicale — elle cesse la liste, laisse la journée finir telle qu'elle s'est imposée, et écrit pour la première fois le mot qu'elle refusait d'écrire. Dernière ligne de l'entrée 2, seule : « Constat : anniversaire. »
+**Interdits :** aucun élément d'intrigue nouveau. Aucune explication, aucune hypothèse sur la cause. Aucun personnage, aucune apparition, aucune figure. Aucun nom propre. Aucune tentative de contact (pas d'appel, pas de lettre — si la pensée approche le où ou le pourquoi du départ, la phrase s'interrompt). La voix ne cède pas : déclaratif, tenu, pas de cri.
+  2. **Chapitre 7 — L'anniversaire.** Carnet de relecture, première personne. **Deux entrées du carnet, datées du même jour** (anniversaire de mariage), chacune ouverte par l'en-tête normalisé (« Samedi 14. Beau temps. »). **L'entrée 1 ne cite pas** — elle n'a pas relu le cahier ce jour-là : première entorse au rituel, premier signal. **L'entrée 2 s'ouvre sur une citation du cahier** entre guillemets — ancre [CIT-2], fournie en matériau : une ligne chaude, adressée, qu'elle ne parvient pas à réduire. Texte de l'ancre, verbatim : « Neuf ans aujourd'hui que je t'ai dit oui. J'ai mis deux couverts, exprès cette fois, et j'ai redit oui tout haut dans la cuisine. Je t'aime toujours. »
+
+**Entrée 2 — la nuit.** Tout ce qu'elle a banni est revenu. Chaque geste d'effacement dont elle se souvient d'avoir décidé est contredit par l'état de la maison : les photos sur la table, la musique lancée, le plat au four, deux couverts mis. Plus elle éloigne le souvenir, plus il s'accroche. Le mot du jour reste interdit jusqu'à la chute.
+
+**Matériau imposé :** les photos, la playlist, le plat des anniversaires, les deux couverts — et l'ancre [CIT-2] (ouverture de l'entrée 2), recopiée verbatim. L'entrée 1 ne cite pas.
+**Progression interne :** résolution → contrariété → vertige → capitulation.
+**Chute :** capitulation lexicale — elle cesse la liste, laisse la journée finir telle qu'elle s'est imposée, et écrit pour la première fois le mot qu'elle refusait d'écrire. Dernière ligne de l'entrée 2, seule : « Constat : anniversaire. »
+**Interdits :** aucun élément d'intrigue nouveau. Aucune explication, aucune hypothèse sur la cause. Aucun personnage, aucune apparition, aucune figure. Aucun nom propre. Aucune tentative de contact (pas d'appel, pas de lettre — si la pensée approche le où ou le pourquoi du départ, la phrase s'interrompt). La voix ne cède pas : déclaratif, tenu, pas de cri.
+
+  contrôle du plan AVANT rédaction :
+  plan FOURNI par le brief — nœud court-circuité (structure imposée, un beat par entrée)
+
+##############################################################################
+CHAPITRE (après relecture + réparation linguistique)
+##############################################################################
+Samedi 14. Beau temps.
+
+Les photos dans l'armoire à double battant, les albums serrés côte à côte entre les chemises de lin, leurs dos en tissu vert défraîchi. La musique coupée sur le téléviseur, le silence épais comme une nappe étalée sur les haut-parleurs.
+
+<!-- BASCULE -->
+
+Samedi 14. Beau temps.
+
+« Neuf ans aujourd'hui que je t'ai dit oui. J'ai mis deux couverts, exprès cette fois, et j'ai redit oui tout haut dans la cuisine. Je t'aime toujours. »
+
+J'allais poser le verdict quand la main s'est arrêtée. Neuf ans, et j'aurais dû demander, quand il était encore temps, ce qui l'a… La marge reste blanche. Le crayon ne biffe pas.
+
+Les couverts sont là, sur la table de la cuisine. Deux, posés côte à côte dans les assiettes, exactement comme écrit. Le sel et le poivre sont encore à moitié renversés, comme si on avait hésité avant de les prendre. Mais je ne me souviens pas de les avoir touchés.
+
+Les couverts sont alignés au millimètre, comme traînés par une main qui aurait calculé l’écart entre les bords des assiettes. Le sel, penché vers la droite, a laissé une traînée poudreuse sur le rebord de la table — trois doigts, peut-être, qui l’ont saisi trop vite. Le poivre, lui, a glissé plus loin, comme si on l’avait posé sans regarder. Je vérifie l’angle de la bouteille : à vingt-trois heures, quand je l’ai rangée dans le tiroir, elle était droite. Maintenant, elle est penchée de trois degrés vers l’avant, comme si on avait voulu la saisir sans y parvenir.
+
+Le crayon glisse sur le papier, trace un trait trop long qui barre l’entrée précédente — *Samedi 14. Beau temps.* — comme si la date elle-même était une erreur. Elle efface jusqu’à la moitié de la page, mais la tache d’encre reste, grasse et noire, comme une preuve. Deux couverts sur la table, deux couverts *exacts*.
+
+Elle rentra à vingt-deux heures trente, alluma la lumière de l’entrée en cherchant ses clés dans le sac, posa celui-ci près du plat des anniversaires encore couvert d’un film transparent, souleva le couvercle pour voir les restes du gâteau à moitié mangé, effleura les deux couverts alignés dans les assiettes sans les toucher, se dirigea vers le salon où les photos du cadre doré étaient légèrement de travers, les redressa d’un geste sec, s’assit au bureau et écrivit *Samedi 14* avant de barrer la phrase d’un trait trop large avec le crayon du cahier, passa les doigts sur la traînée de sel penché vers la droite près du poivre renversé, vérifia l’angle de la bouteille dans le tiroir à vingt-trois heures en la rangeant droite mais la retrouva penchée de trois degrés au matin, éteignit la lumière en sortant de la cuisine, se coucha en laissant la playlist tourner encore.
+
+Constat : anniversaire.
+
+<!-- FIN AUDIO -->
+
+##############################################################################
+RAPPORT DE COHÉRENCE
+##############################################################################
+FAIT 1 : tenu — La narratrice a 38 ans et a été correctrice depuis quinze ans.
+FAIT 2 : tenu — La narratrice ne cherchera jamais à joindre son épouse disparue.
+FAIT 3 : tenu — La narratrice utilise une méthode de dater, relever et relire pour se tenir debout.
+FAIT 4 : tenu — La narratrice ne descend une marche dans son processus de reconstruction que lorsque celle du dessus a cédé.
+FAIT 5 : tenu — La narratrice ne supprime jamais une ligne de ce qu'elle relit, même si cela la blesse.
+FAIT 6 : tenu — La narratrice ne consulte jamais de thérapeute, préférant se référer à des avis conditionnels.
+FAIT 7 : tenu — Personne d'autre n'entre dans la maison.
+FAIT 8 : tenu — Aucun repas n'est partagé, aucune conversation n'a lieu.
+FAIT 9 : tenu — Elle ne sort pas de la maison.
+
+[signalements écartés faute de citation vérifiable :]
+    fait 3, scène 2 : « La main s'est arrêtée. Neuf ans, et j'aurais dû demander, quand il était encore temps, ce qui l'a… La marge reste blanche. Le crayon ne biffe pas. » [non confirmé au contre-appel]
+
+##############################################################################
+LINT DE STYLE (fuites de langue, tokens corrompus)
+##############################################################################
+  texte final : aucune alerte
+
+  détecté puis corrigé en amont (état avant réparation) :
+    · entrée 1 : best-of-3 — variant 1 retenu (score -1, ne pose pas la décision) ; rejetés : #3 score -1 ; #2 score -6
+    · entrée 1 : bornée à 2 phrase(s) — 4 retirée(s), à partir de « Le plat reste dans le placard, sous son couvercle d'aluminium, là où il ne verra… »
+    · entrée 2/relève#2 : fin coupée à la dernière phrase complète, 3 caractères retirés — « Seu »
+    · entrée 2 : bornée à 4 phrase(s) — 6 retirée(s), à partir de « Mon pouce effleure la cuillère en inox, froide malgré la journée. L’air sent le … »
+    · entrée 2/relève : best-of-3 — variant 2 retenu (score 3, propre) ; rejetés : #1 score 0 ; #3 score 0
+    · entrée 2/découverte#1 : fin coupée à la dernière phrase complète, 86 caractères retirés — « Je l’ai lavée hier soir, après le dîner, et je l’ai mise à égoutter sur l’égoutt »
+    · entrée 2 : bornée à 5 phrase(s) — 2 retirée(s), à partir de « Le four est éteint, mais la chaleur persiste contre ma paume. Le plat en terre c… »
+    · entrée 2/découverte : best-of-3 — variant 1 retenu (score 0, propre) ; rejetés : #2 score 0 ; #3 score 0
+    · entrée 2/doute#1 : fin coupée à la dernière phrase complète, 12 caractères retirés — « Elle la soul »
+    · entrée 2 : bornée à 4 phrase(s) — 3 retirée(s), à partir de « Elle les a touchés, elle le sait, mais ses doigts ne s’en souviennent pas. La ta… »
+    · entrée 2/doute : best-of-3 — variant 1 retenu (score 0, propre) ; rejetés : #2 score 0 ; #3 score 0
+    · accumulation entrée 2, essai 1 : trop longue (148 mots ; plafond 120)
+    · accumulation entrée 2 : ACCEPTÉE malgré 150 mots (plafond 120) — dernier essai
+    · relecture entrée 1: hors des bornes de l'entrée (cite (l'entrée ne porte pas de citation), plus de 2 phrase(s), plus de 60 mots) — relecture REJETÉE, texte d'avant relecture conservé
+    · relecture entrée 2: garde-fou déclenché (125 mots contre 238, soit 53% — hors cible 300-400) — relecture REJETÉE, original conservé
+    · pruning : rien à retirer
+    · assemblage entrée 1 : aucune accumulation à poser
+    · assemblage entrée 2 : chute imposée absente — posée par le code : « Constat : anniversaire. »
+
+##############################################################################
+PROFILAGE (contrainte des 25 min)
+##############################################################################
+  appels LLM       : 22
+  tokens générés   : 3263
+  vitesse moyenne  : 18.3 tok/s
+  TEMPS TOTAL      : 329 s  (5.5 min)
+
+  détail par appel (« length » = génération coupée — une continuation a été relancée, cf. lint ; need > 1.00 = fenêtre insuffisante) :
+    #0   136/136 tok   12.9 tok/s  ctx 0.35 / need 0.41  [stop]
+    #1   131/136 tok   12.6 tok/s  ctx 0.35 / need 0.41  [stop]
+    #2   136/136 tok   12.9 tok/s  ctx 0.35 / need 0.41  [length]  <-- COUPÉ (continuation)
+    #3   150/150 tok   12.9 tok/s  ctx 0.35 / need 0.41  [length]  <-- COUPÉ (continuation)
+    #4   150/150 tok   12.9 tok/s  ctx 0.35 / need 0.41  [length]  <-- COUPÉ (continuation)
+    #5   150/150 tok   12.8 tok/s  ctx 0.35 / need 0.41  [length]  <-- COUPÉ (continuation)
+    #6   240/240 tok   12.6 tok/s  ctx 0.37 / need 0.44  [length]  <-- COUPÉ (continuation)
+    #7   240/240 tok   12.5 tok/s  ctx 0.37 / need 0.44  [length]  <-- COUPÉ (continuation)
+    #8   240/240 tok   12.8 tok/s  ctx 0.37 / need 0.44  [length]  <-- COUPÉ (continuation)
+    #9   150/150 tok   12.8 tok/s  ctx 0.37 / need 0.44  [length]  <-- COUPÉ (continuation)
+    #10   150/150 tok   12.7 tok/s  ctx 0.37 / need 0.44  [length]  <-- COUPÉ (continuation)
+    #11   150/150 tok   12.4 tok/s  ctx 0.37 / need 0.44  [length]  <-- COUPÉ (continuation)
+    #12   204/300 tok   13.1 tok/s  ctx 0.11 / need 0.14  [stop]
+    #13   213/300 tok   13.1 tok/s  ctx 0.11 / need 0.14  [stop]
+    #14   124/1200 tok   12.5 tok/s  ctx 0.31 / need 0.49  [stop]
+    #15   206/1200 tok   12.7 tok/s  ctx 0.35 / need 0.53  [stop]
+    #16   140/400 tok   28.6 tok/s  ctx 0.17 / need 0.20  [stop]
+    #17   171/500 tok   28.8 tok/s  ctx 0.07 / need 0.11  [stop]
+    #18    40/300 tok   29.1 tok/s  ctx 0.04 / need 0.07  [stop]
+    #19    45/400 tok   29.5 tok/s  ctx 0.07 / need 0.12  [stop]
+    #20    95/400 tok   28.9 tok/s  ctx 0.16 / need 0.20  [stop]
+    #21     2/8 tok   53.0 tok/s  ctx 0.11 / need 0.11  [stop]
+
+  run      : experiments/runs/20261119-entry1-decision/20261119-015812-ch07-anniversaire
+  chapitre : experiments/runs/20261119-entry1-decision/20261119-015812-ch07-anniversaire/chapitre.md
+  audio    : absent (voir notes)

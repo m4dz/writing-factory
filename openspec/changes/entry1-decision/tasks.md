@@ -23,7 +23,8 @@
 
 ## 3. Measure
 
-- [ ] Chapter 7 × 3 seeds with the variant spec; report.
+- [x] Chapter 7 × 3 seeds with the variant spec; report (`report.md`):
+  1 of 3 serves the decision; the selection took it whenever a draw held it.
 - [ ] Owner reads entry 1 of the three `chapitre.md`.
 - [ ] Owner decides the four spec questions of the proposal (decision list,
   « anniversaire » in names, album/cadre, `n`).
