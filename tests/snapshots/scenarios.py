@@ -67,10 +67,12 @@ def run(scenario: Scenario, fake_model) -> dict:
     return final
 
 
-def run_prepared(scenario: Scenario, fake_model, directory) -> dict:
+def run_prepared(scenario: Scenario, fake_model, directory, pick: int | None = None) -> dict:
     """Prepare, approve and resume ``scenario`` through the production resume
     path (``factory.pipeline.checkpoint``), minus the fingerprint, which has
-    its own tests. The fake model records both sections' calls in order."""
+    its own tests. A prepared entry's draft is ``pick`` (a variant number;
+    ``None``: the first ranked, the CLI's Enter). The fake model records both
+    sections' calls in order."""
     from langgraph.types import Command
 
     from factory.pipeline import checkpoint
@@ -84,6 +86,11 @@ def run_prepared(scenario: Scenario, fake_model, directory) -> dict:
         graph.invoke({**scenario.state, "prepare": True}, prep, durability="sync")
         graph.invoke(Command(resume={"approved": True, "by": "owner", "at": "t"}), prep,
                      durability="sync")
+        pending = graph.get_state(prep).interrupts
+        if pending:
+            drafts = pending[0].value["drafts"]
+            graph.invoke(Command(resume=pick or drafts[0]["variant"]), prep,
+                         durability="sync")
     values = checkpoint.prepared_values(prep_path, "prep")
     with checkpoint.open_saver(live_path) as saver:
         graph = build_graph(checkpointer=saver)

@@ -208,3 +208,25 @@ def test_chapter_7_beats_carry_their_end_conditions():
     beats = load_chapter(7).entries[1].beats
     assert all(b.ends for b in beats)
     assert not any("Finit quand" in b.instruction for b in beats)
+
+
+@pytest.mark.parametrize("entries,message", [
+    ("[{best_of: 3}, {prepared: true, best_of: 3}]", "première entrée"),
+    ("[{prepared: true, best_of: 3}]", "première entrée"),
+    ("[{prepared: true}, {}]", "brouillons"),
+    ("[{prepared: true, best_of: 1}, {}]", "brouillons"),
+])
+def test_only_a_first_entry_with_drafts_is_prepared(tmp_path, entries, message):
+    with pytest.raises(ChapterSpecError, match=message):
+        load_spec(_write_spec(tmp_path, f"""
+            chapter: 3
+            slug: e
+            narrator: judith
+            brief: "Le soir."
+            entries: {entries}
+        """) / "spec.yaml")
+
+
+def test_chapter7_prepares_its_first_entry():
+    e1, e2 = load_chapter(7).entries
+    assert e1.prepared and not e2.prepared

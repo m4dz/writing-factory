@@ -21,6 +21,7 @@ import re
 from typing import TypedDict
 
 from langgraph.graph import StateGraph, START, END
+from langgraph.types import interrupt
 
 
 
@@ -142,6 +143,8 @@ class ChapterState(TypedDict):
     prepare: bool         # stop at the leader gate: the run prepares a plan, never writes
     prepared_from: str    # id of the prepared run this run resumes ("" : not resumed)
     leader: dict          # the owner's decision at the gate {approved, by, at}
+    entry_draws: dict     # a prepared entry's drafts, awaiting the owner's pick
+    frozen: int           # entries written at `prepare`: the live run keeps them
 
 
 # --- Nodes -------------------------------------------------------------------
@@ -967,6 +970,24 @@ def write_node(state: ChapterState) -> dict:
                  "score": c["score"], "defects": list(c["def"]),
                  "winner": c is g, "text": c["served"]}
                 for c in sorted(cands, key=lambda c: c["k"])]
+            ms = [dict(m2, variant=c["k"]) for c in cands for m2 in c["m"]]
+            if state.get("prepare") and sheet.prepared:
+                # A PREPARED entry (prepared-entry1): the owner picks the draft
+                # at `factory prepare`, ranked as the selection ranks them, and
+                # `prep_pick` finishes the chosen one as below. The drafts and
+                # what the code composed wait in the state.
+                return {
+                    "entry_draws": {
+                        "idx": idx, "n": best_of, "prefix": prefix, "head": head,
+                        "anchor": anchor, "reconstruction": reconstruction,
+                        "cands": [{"variant": c["k"] + 1, "score": c["score"],
+                                   "defects": list(c["def"]), "served": c["served"],
+                                   "text": c["t"], "warnings": list(c["w"])}
+                                  for c in cands]},
+                    "served_prompts": (state.get("served_prompts") or []) + served_prompts,
+                    "beat_variants": (state.get("beat_variants") or []) + drawn_variants,
+                    "metrics": state["metrics"] + _tag(ms, f"write/{idx + 1}"),
+                }
             text, wg = g["t"], list(g["w"])
             wg.append(
                 f"entrée {idx + 1} : best-of-{best_of} — variant {g['k'] + 1} "
@@ -975,13 +996,39 @@ def write_node(state: ChapterState) -> dict:
                 + ") ; rejetés : "
                 + " ; ".join(f"#{c['k'] + 1} score {c['score']}"
                              for c in cands[1:]))
-            ms = [dict(m2, variant=c["k"]) for c in cands for m2 in c["m"]]
         else:
             text, ms, wg = _generate_whole(
                 system, user, num_predict=budget,
                 temperature=settings.write_temperature,
                 sampling=settings.sampling_options(),
                 label=f"entrée {idx + 1}", keep_going=not sheet.words)
+    text, wg = _finish_entry(state, sheet, idx, prefix, text, wg)
+    return {
+        "scenes": state["scenes"] + [text],
+        "idx": idx + 1,
+        # The reconstruction segment is set aside for `accumulate`: IT becomes
+        # its context, not the whole entry. The cut makes this matter
+        # identifiable without guessing it inside the text.
+        "reconstruction": reconstruction,
+        # What the code COMPOSED for this entry, set aside for the stamp of
+        # `place_gestures_node`: it alone can re-pose it identically after the
+        # repair has rewritten it.
+        "placed_header": head,
+        "placed_anchor": anchor,
+        "placed_fall": sheet.fall,
+        "served_prompts": (state.get("served_prompts") or []) + served_prompts,
+        "beat_variants": (state.get("beat_variants") or []) + drawn_variants,
+        "metrics": state["metrics"] + _tag(ms, f"write/{idx + 1}"),
+        "warnings": state["warnings"] + wg,
+    }
+
+
+def _finish_entry(state: ChapterState, sheet: EntrySpec, idx: int, prefix: str,
+                  text: str, wg: list[str]) -> tuple[str, list[str]]:
+    """What the code does to the kept draw before it is the entry: markers and
+    headers out, prefix reattached, vetos, sentence bound, lint. One place,
+    for the selection's winner and for the draft the owner picks."""
+    wg = list(wg)
     # The concatenation itself. `_reattach` removes the overlap character by
     # character if the model repeated the header or the anchor despite the
     # instruction — neither a doublet nor a recomposed anchor is wanted.
@@ -1026,24 +1073,44 @@ def write_node(state: ChapterState) -> dict:
         wg += wp
 
     text, w = delint(text)
+    return text, wg + [f"entrée {idx + 1}: {x}" for x in w]
+
+
+def prep_pick_node(state: ChapterState) -> dict:
+    """The owner picks a prepared entry's draft (prepared-entry1).
+
+    Called with the drafts `write` left in `entry_draws`, ranked by the
+    selection; the answer is a variant number, any other answer keeps the
+    first ranked. The chosen draft is finished as `write` finishes a winner.
+    ``interrupt()`` re-executes the node from the top on resume: nothing
+    before it may call a model.
+    """
+    draws = state["entry_draws"]
+    cands = draws["cands"]
+    answer = interrupt({"entry": draws["idx"] + 1, "drafts": [
+        {k: c[k] for k in ("variant", "score", "defects", "served")} for c in cands]})
+    chosen = next((c for c in cands if c["variant"] == answer), cands[0])
+    idx = draws["idx"]
+    sheet = state["entry_specs"][idx]
+    text, wg = _finish_entry(state, sheet, idx, draws["prefix"], chosen["text"],
+                             chosen["warnings"])
+    rank = cands.index(chosen) + 1
+    line = (f"entrée {idx + 1} : best-of-{draws['n']} préparé — variant "
+            f"{chosen['variant']} choisi par l'auteur (rang {rank}, score "
+            f"{chosen['score']}, " + (", ".join(chosen["defects"]) or "propre") + ")")
+    variants = [dict(v, winner=v["variant"] == chosen["variant"])
+                if v.get("entry") == idx + 1 and v.get("beat") == "entrée entière" else v
+                for v in state.get("beat_variants") or []]
     return {
         "scenes": state["scenes"] + [text],
         "idx": idx + 1,
-        # The reconstruction segment is set aside for `accumulate`: IT becomes
-        # its context, not the whole entry. The cut makes this matter
-        # identifiable without guessing it inside the text.
-        "reconstruction": reconstruction,
-        # What the code COMPOSED for this entry, set aside for the stamp of
-        # `place_gestures_node`: it alone can re-pose it identically after the
-        # repair has rewritten it.
-        "placed_header": head,
-        "placed_anchor": anchor,
+        "reconstruction": draws["reconstruction"],
+        "placed_header": draws["head"],
+        "placed_anchor": draws["anchor"],
         "placed_fall": sheet.fall,
-        "served_prompts": (state.get("served_prompts") or []) + served_prompts,
-        "beat_variants": (state.get("beat_variants") or []) + drawn_variants,
-        "metrics": state["metrics"] + _tag(ms, f"write/{idx + 1}"),
-        "warnings": state["warnings"] + wg
-        + [f"entrée {idx + 1}: {x}" for x in w],
+        "entry_draws": None,
+        "beat_variants": variants,
+        "warnings": state["warnings"] + [line] + wg,
     }
 
 
@@ -2051,9 +2118,23 @@ def place_gestures_node(state: ChapterState) -> dict:
     return {"repaired": outputs, "warnings": state["warnings"] + warns}
 
 
+def route_after_draw(state: ChapterState) -> str:
+    """A prepared entry's drafts go to the owner's pick first."""
+    return "prep_pick" if state.get("entry_draws") else "accumulate"
+
+
 def route_after_write(state: ChapterState) -> str:
-    """Loop while scenes remain to write, otherwise move to review."""
+    """Loop while scenes remain to write, otherwise move to review. A prep
+    writes its prepared entry only, then reviews it."""
+    if state.get("prepare"):
+        return "review"
     return "write" if state["idx"] < len(state["plan"]) else "review"
+
+
+def route_after_repair(state: ChapterState) -> str:
+    """A prep ends once its prepared entry is reviewed and repaired: the
+    chapter is assembled on stage."""
+    return END if state.get("prepare") else "assemble"
 
 
 def _entry_target(state: ChapterState, i: int) -> tuple[int, int]:
@@ -2173,7 +2254,12 @@ def review_node(state: ChapterState) -> dict:
         chapter=state.get("chapter"),
         style=REVIEW_STYLE, epistemic=False,
     )
+    # Entries written at `prepare` were reviewed there, and stay as they are.
+    frozen = state.get("frozen") or 0
     for i, scene in enumerate(state["scenes"]):
+        if i < frozen:
+            reviewed.append(state["reviewed"][i])
+            continue
         progress.phase("Relecture",
                        f"entrée {i + 1}/{len(state['scenes'])} ({_author()})",
                        i=i + 1, n=len(state["scenes"]))
@@ -2242,7 +2328,11 @@ def repair_node(state: ChapterState) -> dict:
         warns.append(f"QA : déchargement de {_author()} refusé par Ollama (co-résidence "
                      f"{_author()} + Qwen, pression mémoire)")
         progress.note(f"déchargement de {_author()} REFUSÉ — pression mémoire")
+    frozen = state.get("frozen") or 0
     for i, scene in enumerate(state["reviewed"]):
+        if i < frozen:
+            repaired.append(state["repaired"][i])
+            continue
         progress.phase("Réparation linguistique",
                        f"entrée {i + 1}/{len(state['reviewed'])} (Qwen)",
                        i=i + 1, n=len(state["reviewed"]))
@@ -2437,11 +2527,16 @@ def build_graph(checkpointer=None):
     g.add_node("leader", leader_node)
     g.add_node("live_preflight", live_preflight_node)
     g.add_edge("plan", "leader")
-    g.add_conditional_edges("leader", route_after_leader, ["live_preflight", END])
+    # An approved prep with a PREPARED entry writes it before ending
+    # (prepared-entry1): its drafts stop at the owner's pick, the chosen one is
+    # reviewed and repaired, and the live run keeps it as written.
+    g.add_conditional_edges("leader", route_after_leader, ["live_preflight", "write", END])
     g.add_edge("live_preflight", "write")
+    g.add_node("prep_pick", prep_pick_node)
     # The gestures are assembled INSIDE the loop, one pass per entry: they
     # work over a closed entry, not a chapter.
-    g.add_edge("write", "accumulate")
+    g.add_conditional_edges("write", route_after_draw, ["prep_pick", "accumulate"])
+    g.add_edge("prep_pick", "accumulate")
     g.add_edge("accumulate", "drift")
     g.add_conditional_edges("drift", route_after_write, ["write", "review"])
     g.add_edge("review", "repair")
@@ -2453,7 +2548,7 @@ def build_graph(checkpointer=None):
     # fall, accumulation) are not yet posed — the pruning cannot damage them,
     # and the code poses them CLEAN over the cleaned body. The pass makes no
     # model call: no extra swap.
-    g.add_edge("repair", "assemble")
+    g.add_conditional_edges("repair", route_after_repair, ["assemble", END])
     g.add_edge("assemble", "place_gestures")
     g.add_edge("place_gestures", "coherence")
     # Assembly and voice close the graph: the chapter judged by coherence is

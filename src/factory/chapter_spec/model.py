@@ -76,6 +76,7 @@ class EntrySpec:
     form: dict = field(default_factory=dict)   # {"accumulation": absent|allowed, "verdict": absent|...}
     fall: str = ""
     drift: Drift | None = None
+    prepared: bool = False        # written at `factory prepare`, the owner picks the draft
 
     def __post_init__(self) -> None:
         _restore_tuples(self)

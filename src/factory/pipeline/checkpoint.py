@@ -74,9 +74,12 @@ def seed_resumed(graph, config: dict, values: dict, *, prepared_from: str, live:
     """Start a NEW thread from a prepared state, as if `leader` had just run:
     `route_after_leader` reads `prepare: False` and the next node is
     `live_preflight`. `live` carries the stage requests (preflight, render,
-    voice, artifacts_dir, seed)."""
+    voice, artifacts_dir, seed). Entries the prep wrote are `frozen`: written,
+    reviewed and repaired there, the live run keeps them."""
     graph.update_state(config, {**values, **live, "prepare": False,
-                                "prepared_from": prepared_from}, as_node="leader")
+                                "prepared_from": prepared_from,
+                                "frozen": len(values.get("scenes") or [])},
+                       as_node="leader")
 
 
 def resume_prepared(graph, config: dict, prepared, live: dict) -> dict:

@@ -14,6 +14,7 @@ that carries it. Regenerate with ``make snapshots`` only then.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -79,19 +80,34 @@ def test_ch7_structure_is_the_stage_structure(fake_model, fake_chroma, quiet_pro
     assert after.split(assembly.AUDIO_END)[0].rstrip().endswith("Constat : anniversaire.")
 
 
+def _calls(prompts: str) -> list[str]:
+    """The served calls of a rendered `prompts.md`, unnumbered, sorted."""
+    return sorted(re.split(r"^## call \d+ — ", prompts, flags=re.M)[1:])
+
+
 @pytest.mark.snapshot
 def test_ch7_prepared_serves_the_ch7_prompts_byte_for_byte(fake_model, fake_chroma,
                                                             quiet_progress, tmp_path):
     """Scenario ``ch7-prepared``: compared to ``ch7``'s golden files, never
-    written (``--update-snapshots`` does not apply to it)."""
+    written (``--update-snapshots`` does not apply to it). Entry 1 is prepared
+    (prepared-entry1): drawn, picked (the first ranked, as the unsplit run
+    keeps it) and reviewed in the prep, so the same calls are served, byte for
+    byte, in another order — entry 1's review before entry 2's writing."""
     sc = scenarios.all_scenarios()[0]
     final = scenarios.run_prepared(sc, fake_model, tmp_path)
     folder = HERE / "ch7"
     prompts = scenarios.render_prompts(fake_model.calls)
-    assert prompts == (folder / "prompts.md").read_text(encoding="utf-8")
+    golden = (folder / "prompts.md").read_text(encoding="utf-8")
+    assert prompts != golden and _calls(prompts) == _calls(golden)
     chapter = assembly.assemble(final["repaired"], **sc.assembly)
     assert chapter == (folder / "chapter.md").read_text(encoding="utf-8")
-    warnings = "\n".join(final.get("warnings") or []) + "\n"
-    assert warnings == (folder / "warnings.txt").read_text(encoding="utf-8")
+    # The selection's line becomes the owner's pick; every other warning holds.
+    warnings = final.get("warnings") or []
+    expected = (folder / "warnings.txt").read_text(encoding="utf-8").splitlines()
+    picked = [w for w in warnings if "choisi par l'auteur" in w]
+    kept = [w for w in expected if w.startswith("entrée 1 : best-of-")]
+    assert len(picked) == 1 and len(kept) == 1 and "variant 1 " in picked[0]
+    assert sorted(w for w in warnings if w not in picked) == sorted(
+        w for w in expected if w not in kept)
     assert final["prepared_from"] == "prep" and final["leader"]["approved"] is True
     assert final["prepare"] is False

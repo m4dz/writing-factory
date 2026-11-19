@@ -96,6 +96,10 @@ entries:
       names: [photo, photos, playlist, musique, le plat, couvert, couverts, album, albums, cadre, cadres]
       drift: [ranger le cahier, ranger le grenier, le grenier, dans un album, le cahier ailleurs]
       decision: [décidé, décidée, décision, "n'aura pas lieu", "n'aurait pas lieu", ne se célébrera pas, pas question]
+    # Écrite la veille (factory prepare) : l'auteur choisit parmi les six
+    # brouillons, l'entrée est relue et figée ; la scène n'écrit que l'entrée 2.
+    # Décision du propriétaire, 2026-11-19 (prepared-entry1).
+    prepared: true
     movement: {entry: 1}
     # Matière d'entrée 1 : la résolution d'effacement. Nommer les objets est
     # VOULU — la liste d'effacement EST les deux phrases.

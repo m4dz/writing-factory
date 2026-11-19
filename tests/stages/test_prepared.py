@@ -30,14 +30,18 @@ def stage(tmp_path, monkeypatch, fake_model, fake_chroma, repo_root):
     return tmp_path / "runs"
 
 
-def answer(monkeypatch, text: str | None) -> list[str]:
-    """The owner's answer at the gate; the prompts asked are recorded."""
+def answer(monkeypatch, text: str | None, *picks: str) -> list[str]:
+    """The owner's answer at the plan gate, then at the entry-1 pick (in
+    order, Enter once exhausted); the prompts asked are recorded."""
     asked: list[str] = []
+    picks_left = list(picks)
 
     def fake_input(prompt=""):
         asked.append(prompt)
         if text is None:
             raise EOFError
+        if "Brouillon" in prompt:
+            return picks_left.pop(0) if picks_left else ""
         return text
 
     monkeypatch.setattr(builtins, "input", fake_input)
@@ -75,7 +79,38 @@ def test_an_approved_plan_is_prepared_with_its_plan_and_fingerprint(stage, monke
     assert plan == load_chapter(7).stage_plan + "\n"                 # the owner's text, no fall
     assert "Constat" not in plan
     assert (run.dir / "plan-report.md").is_file() and run.checkpoints_path.is_file()
-    assert _writes(fake_model) == [] and not run.chapter_path.exists()
+    # Entry 1 is prepared: its six drafts, Enter keeps the first ranked; no
+    # entry 2, no chapter.
+    assert "BROUILLON À CHOISIR" in out and asked[-1].startswith("\nBrouillon retenu")
+    assert [c.role for c in _writes(fake_model)] == ["write.entry"] * 6
+    assert m["entry_pick"]["entry"] == 1 and m["entry_pick"]["by"] == "owner"
+    assert not run.chapter_path.exists()
+    assert "## entrée 1 / entrée entière / variant 6" in (run.dir / "variants.md").read_text(
+        encoding="utf-8")
+
+
+def test_the_owner_picks_the_draft_and_the_stage_writes_entry_2_only(stage, monkeypatch,
+                                                                     fake_model, capsys):
+    from factory.pipeline import checkpoint
+    fake_model.responses["write.entry"] = [
+        f"J'ai décidé que ce jour n'aurait pas lieu, brouillon {k}. Les photos sont "
+        "rangées dans la boîte, la playlist supprimée." for k in range(1, 7)]
+    # A typo and an out-of-range rank are asked again; « 3 » is the third ranked.
+    asked = answer(monkeypatch, "o", "x", "9", "3")
+    assert prepare(stage) == 0
+    assert sum("Brouillon" in a for a in asked) == 3
+    (prepared,) = runs.list_runs(stage)
+    variant = prepared.manifest["entry_pick"]["variant"]
+    values = checkpoint.prepared_values(prepared.checkpoints_path, prepared.id)
+    assert f"brouillon {variant}" in values["repaired"][0]
+    fake_model.calls.clear()
+    assert resume(stage, prepared.id) == 0
+    # On stage: entry 2's beats, its review and repair; entry 1 is not touched.
+    assert not fake_model.by_role("write.entry") and fake_model.by_role("write.beat")
+    assert len(fake_model.by_role("review")) == 1
+    (run,) = [r for r in runs.list_runs(stage) if r.id != prepared.id]
+    final = checkpoint.prepared_values(run.checkpoints_path, run.id)
+    assert final["repaired"][0] == values["repaired"][0] and len(final["repaired"]) == 2
 
 
 @pytest.mark.parametrize("reply", ["n", "", None])

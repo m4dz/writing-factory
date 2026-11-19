@@ -78,7 +78,9 @@ the deck reads.
 ```
            ┌──────────────── PREP ────────────────┐
 preflight ──▶ narrative_state ──▶ plan ──▶ leader ──(prepare)──▶ END
-                                             │
+                                             │ (prepare, approved, prepared entry 1)
+                                             ├──▶ write ──▶ prep_pick ──▶ accumulate ──▶ drift
+                                             │      ──▶ review ──▶ repair ──▶ END
                                              ▼ otherwise
     ┌──────────────────────────── LIVE ───────────────────────────────────────┐
     live_preflight ──▶ write ──▶ accumulate ──▶ drift ───┐
@@ -111,9 +113,16 @@ will sit between `plan` and `leader`.
   entries (chapter 7).
 - **leader** (no model): with `prepare` in the state, interrupts with the
   plan and its check report; the owner's answer is stored in `leader` and the
-  thread ends there: a prepared thread never writes. Otherwise passes
+  thread ends there — unless the spec's first entry is `prepared` and the
+  plan approved: the prep then writes that entry (ADR-0030). Otherwise passes
   through. It holds nothing but the interrupt, which LangGraph re-executes
   on resume.
+- **prep_pick** (no model before its interrupt): in a prep, `write` leaves a
+  prepared entry's drafts unfinished in `entry_draws`; this node interrupts
+  with them ranked, takes the owner's variant number and finishes the chosen
+  draft as `write` finishes a winner (`_finish_entry`). The prep then
+  reviews and repairs that entry and ends. A resumed run marks the prep's
+  entries `frozen`: `review` and `repair` keep them as they are.
 - **live_preflight** (no model): on a run resumed from a prepared plan only
   (`prepared_from`), the same gate as `preflight`, strict and timed by
   default: the stage machine is checked, not the prep machine. An unsplit
