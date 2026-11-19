@@ -244,3 +244,58 @@ SHALL be run overrides recorded in the resolved configuration.
 #### Scenario: A knob set for the writer
 - **WHEN** `min_p` is set
 - **THEN** the writing calls (continuations included) send it and `prompts.md` shows it, while plan, review, QA and gesture calls send the same options as without it
+
+### Requirement: An entry best-of rejects the notebook's own defects
+
+Every entry drawn as best-of SHALL be scored, on its served bounded text, for
+the notebook's defects in addition to its spec criterion: third person (no
+first-person mark, and two « elle » or a sentence opening on « Elle ») and,
+for an entry without anchor, quotation (a quotation opening the entry, or a
+quoted span of five words or more). Each SHALL weigh more than the
+criterion's own terms.
+
+#### Scenario: An invented quotation opens entry 1
+- **WHEN** entry 1 (no anchor) draws a quoting variant and a clean one
+- **THEN** the clean variant is retained and the warnings name the quoting one's defect
+
+#### Scenario: Romane next to the narrator
+- **WHEN** a variant writes « Les photos où elle rit, où elle est belle, je les range »
+- **THEN** no third-person defect is counted
+
+### Requirement: The review keeps the entry's header and bounds
+
+After the review call, the code SHALL restore the header it composed for the
+entry and SHALL remove any header the review produced. A review that adds a
+defect the entry did not have before it SHALL be rejected and the entry
+before the review kept, with a warning naming the defect. Defects: more
+sentences than the entry's `sentences_max`, more words than the top of its
+`words`, third person, and for an entry without anchor a quotation; the
+anchor quotation SHALL be removed from the text before the check.
+
+#### Scenario: The review grows entry 1
+- **WHEN** the review returns entry 1 (two sentences, no quotation) as several paragraphs opening on a quotation
+- **THEN** the entry before the review is kept and the warning names both defects
+
+#### Scenario: The review rewrites the weather
+- **WHEN** the review returns « Samedi 14. Ciel blanc. » over an entry headed « Samedi 14. Beau temps. »
+- **THEN** the reviewed body is kept under « Samedi 14. Beau temps. » and the restoration is warned
+
+#### Scenario: A defect already there
+- **WHEN** the entry before the review already opens on a quotation and the review keeps it
+- **THEN** the review is accepted
+
+### Requirement: The language repair touches only detected English
+
+The repair SHALL be served only the sentences of an entry where the lint
+detects English (suspect words or corrupted tokens), one sentence per call,
+and SHALL put each answer back in place, every other character of the entry
+kept. An answer that is empty or spans paragraphs SHALL be refused and the
+sentence kept. An entry without a detected leak SHALL cost no repair call.
+
+#### Scenario: French without English
+- **WHEN** an entry carries « J'ai décidé de ne pas allumer les bougies du soir. » and no English
+- **THEN** no repair call is made and the entry is returned byte for byte
+
+#### Scenario: One leaking sentence
+- **WHEN** one sentence of an entry carries « suddenly the door »
+- **THEN** only that sentence is served to the repair and only it changes
