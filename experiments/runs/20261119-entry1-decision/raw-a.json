@@ -1,0 +1,74 @@
+[
+ {
+  "k": 0,
+  "text": "Les photos du dernier été sont repliées dans une enveloppe kraft, rangées avec les autres — trois au total, glissées dans le tiroir central où elles ne prendront plus de poussière. Elle a effacé le contact de sa playlist préférée sans écouter une seule note, comme on arrache une bande qui colle : la musique s’est tue avant même d’avoir commencé. Le plat en porcelaine, celui des dimanches d’hiver, reste dans le placard où il a toujours dormi, oublié sous les serviettes. Les couverts sont sortis pour un repas banal, la nappe étendue comme tous les soirs.",
+  "done": "length",
+  "toks": null
+ },
+ {
+  "k": 1,
+  "text": "J’ai tourné la clé dans la serrure après avoir vérifié trois fois que rien ne traînait sur la console. Les photos, encore dans leur enveloppe de plastique froissé, sont parties dans le premier tiroir du bureau, sous les factures. La musique a disparu du téléphone : je l’ai effacée en retenant mon souffle, comme si l’appareil pouvait encore la rappeler. Le plat des grandes occasions est resté couvert, à sa place habituelle, comme si je l’avais à peine dérangé. Mes doigts ont frôlé la nappe, juste assez pour sentir qu’elle était toujours là, lisse et sans trace.",
+  "done": "stop",
+  "toks": null
+ },
+ {
+  "k": 2,
+  "text": "« J’ai décidé de ne pas préparer le plat, ni d’allumer la musique, ni de regarder les photos du tiroir. Les couverts resteront dans le placard, les verres dans l’armoire. Les doigts ont glissé sur l’album avant que je ne referme le tiroir d’un geste sec. Le silence est devenu une chose lourde, comme l’air après la pluie. J’ai sentis l’odeur de l’encre sur le papier des tickets de caisse, posés là depuis des mois. Demain, je relirai ce soir sans les voir. »",
+  "done": "stop",
+  "toks": null
+ },
+ {
+  "k": 3,
+  "text": "« *J’ai décidé qu’il ne serait pas question de l’anniversaire aujourd’hui. Pas de musique, pas de plat des grandes occasions, pas même l’odeur de la cannelle qui restait collée aux couverts.* »\nLe téléphone posé sur la table, je vérifie trois fois : les photos sont rangées dans l’enveloppe kraft, la playlist supprimée sans retour arrière, le plat reste dans le placard, à l’abri. Mes doigts effleurent le bord de l’étagère, comme pour s’assurer que rien ne traîne. L’après-midi s’étire, vide. Un bruit de pas dans le couloir — le",
+  "done": "length",
+  "toks": null
+ },
+ {
+  "k": 4,
+  "text": "J’ai tourné la clé dans la serrure, comme d’habitude, mais cette fois, je n’ai pas ouvert. Les photos du cadre argenté sont restées dans le tiroir, sous leur enveloppe de papier bulle, intactes. La playlist de l’anniversaire n’a pas été lancée, les titres sont encore marqués d’un point noir, comme des noms oubliés. Le plat en porcelaine, celui aux motifs dorés, est demeuré au fond du placard, sous son voile de tissu — je n’ai même pas touché les couverts.\n\nMa main s’est posée sur le téléphone, puis s’en est retirée. Les doigts",
+  "done": "length",
+  "toks": null
+ },
+ {
+  "k": 5,
+  "text": "« J’ai décidé que cette année ne passerait pas par les photos sur la table basse. Trois albums, un par saison, toujours les mêmes, les mêmes doigts sur les mêmes pages. J’ai fermé le coffret sans les toucher. »\n\nLa playlist *Les dernières danses* est supprimée du téléphone — 12 titres, plus un qui grésillait à la fin, comme un souffle. Le haut-parleur est resté muet toute la journée.\n\nLe plat en grès, celui avec les feuilles dorées, ne sortira pas. À la place, le plat quotidien, celui qui ne pèse rien quand il est vide. J’ai vérifié les",
+  "done": "length",
+  "toks": null
+ },
+ {
+  "k": 6,
+  "text": "J’ai fermé la porte et poussé le verrou, comme un point final. Les photos sont parties en premier : quatre clichés pliés en deux, glissés dans une enveloppe kraft posée sur la table basse — le poids juste, pas un de trop, pas un de moins. Puis la musique, effacée des listes, des écrans, des sons qui revenaient quand je ne les appelais pas. J’ai appuyé sur *supprimer*, regardé l’écran devenir blanc, puis noir, comme si le silence avait absorbé le reste.\n\nLe plat des grandes occasions est resté dans le placard, sous une serviette propre.",
+  "done": "length",
+  "toks": null
+ },
+ {
+  "k": 7,
+  "text": "À seize heures, la décision a été prise : cette date ne se célébrera pas. J’ai retiré les photos de la table basse d’un geste sec, les ai alignées dans le tiroir du bureau, sous les factures de l’hiver dernier. Le plat des grandes occasions reste dans son emballage plastique, au fond du placard — son poids me rappelle autre chose, alors je ne le sors pas.\n\nLa musique a été supprimée du téléphone, des haut-parleurs, des playlists. Les morceaux qu’elle choisissait sont toujours là, mais ils n’apparaissent plus quand je fais défiler. Je vérifie, deux fois. Les",
+  "done": "length",
+  "toks": null
+ },
+ {
+  "k": 8,
+  "text": "J’ai sorti les photos de la table basse, les enveloppés dans le papier kraft du bureau. Les coins restent marqués, comme si je n’avais pas assez serré. Le plat des grandes occasions est toujours là, sous le cellophane, mais je ne l’ai pas touché.\n\nLa playlist est effacée du téléphone avant que la sonnerie ne s’allume.\n\nMes doigts ont tremblé en appuyant sur *supprimer*, une fois. La deuxième fois, non.",
+  "done": "stop",
+  "toks": null
+ },
+ {
+  "k": 9,
+  "text": "« **Il ne restera rien des préparatifs.** La nappe du dimanche est repliée dans son carton, les bougies alignées dans un tiroir fermé à clé, le vin rangé au fond du placard où il ne jaunit pas. »\n\nLa boîte en métal des photos passe d’abord : les clichés glissent sous les autres, comme on enterre un corps sans cercueil. Puis le téléphone : trois appuis sur l’écran effacent les mélodies qu’elle avait enregistrées, celles qui revenaient toujours aux mêmes heures. Le plat, celui qu’elle sortait sans y croire, reste dans le buffet, sous un torch",
+  "done": "length",
+  "toks": null
+ },
+ {
+  "k": 10,
+  "text": "Les photos ont été glissées dans l’enveloppe kraft, quatre clichés sans ordre, la dernière page tournée vers l’intérieur pour les protéger. Le plateau de la tablette n’a pas été nettoyé : les résidus de sauce aux cèpes restent là, comme une trace à ignorer. Le volume 27 de l’intégrale des *Quatuors à cordes* a été ouvert, la dernière piste effacée d’un geste sec sur l’interface, le curseur arrêté sur *supprimer*. La main s’est figée au-dessus des touches, deux secondes, avant de relâcher.\n\nLe plat des grandes occasions est resté",
+  "done": "length",
+  "toks": null
+ },
+ {
+  "k": 11,
+  "text": "Le carnet était ouvert à la dernière page vierge, la plume suspendue au-dessus du blanc. Deux phrases l’avaient décidée : *ce jour n’aura pas lieu*. Effacé. J’ai rangé les photos sous le verre épais, serrées côte à côte comme avant, comme si le fait de les toucher encore les rendait moins absentes. La musique, je l’ai désactivée du réveil, une par une, sans écouter les titres, sans hésiter. Le plat des grandes occasions est resté dans le placard, couvert de son film, comme s’il n’avait jamais existé. Mes doigts ont frôlé l’arg",
+  "done": "length",
+  "toks": null
+ }
+]
