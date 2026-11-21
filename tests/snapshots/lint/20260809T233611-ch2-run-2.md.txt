@@ -1,11 +1,10 @@
 ### 20260809T233611-ch2-run-2.md
-613 mots [HORS CIBLE] · 16 paragraphes · 48 phrases
+600 mots [HORS CIBLE] · 16 paragraphes · 46 phrases
 
 **Mécanique — EXACT (✗ = défaut présent)**
 - ✓ Lexique pastiche gothique
 - ✓ Tic d'IA
-- ✗ Point d'exclamation hors dialogue → 1
-    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Point d'exclamation hors dialogue
 - ✓ Incise adverbiale (ou son équivalent prépositionnel)
 - ✓ Élision manquante
 

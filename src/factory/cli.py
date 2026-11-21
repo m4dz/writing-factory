@@ -604,6 +604,12 @@ def doctor(argv: list[str]) -> int:
         line(True, "dépendances TTS (mlx-audio, soundfile)")
     except ImportError as exc:
         line(None, f"dépendances TTS absentes ({exc}) — pip install -e '.[tts]' sur la machine de scène")
+    else:
+        from factory.infra import tts
+        try:
+            line(True, f"modèle vocal chargé : {tts.probe()}")
+        except tts.TTSUnavailable as exc:
+            line(False, f"{exc} — le run finirait sans chapitre.wav")
 
     print("bible")
     line(settings.bible_dir.is_dir(), f"bible : {settings.bible_dir}")

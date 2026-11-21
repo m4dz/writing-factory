@@ -1,19 +1,17 @@
 ### 20260819T112233-runs-s5-bp-run-Bp3.md
-813 mots [HORS CIBLE] · 14 paragraphes · 85 phrases
+800 mots [HORS CIBLE] · 14 paragraphes · 83 phrases
 
 **Mécanique — EXACT (✗ = défaut présent)**
 - ✓ Lexique pastiche gothique
 - ✓ Tic d'IA
-- ✗ Point d'exclamation hors dialogue → 1
-    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Point d'exclamation hors dialogue
 - ✓ Incise adverbiale (ou son équivalent prépositionnel)
 - ✓ Élision manquante
 
 **Structure — EXACT (✗ = attendu absent)**
 - ✗ Phrase d'accumulation : zéro = plat
 - ✓ Phrase-couperet en fin de paragraphe → 5 (dont 27 couperets au total)
-    - `-->
-# Run Bp3 — runs-s5-bp`
+    - `# Run Bp3 — runs-s5-bp`
     - `warnings: []
 ---`
     - `Il y en a bien deux.`

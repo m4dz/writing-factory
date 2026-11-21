@@ -1,12 +1,11 @@
 ### 20260809T233712-ch2-run-3.md
-564 mots [HORS CIBLE] · 13 paragraphes · 40 phrases
+551 mots [HORS CIBLE] · 13 paragraphes · 38 phrases
 
 **Mécanique — EXACT (✗ = défaut présent)**
 - ✓ Lexique pastiche gothique
 - ✗ Tic d'IA → 1
     - `… à cette histoire d'assiette sale. Mais je ne peux m'empêcher de penser... où donc est passée l'autre as…`
-- ✗ Point d'exclamation hors dialogue → 1
-    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Point d'exclamation hors dialogue
 - ✓ Incise adverbiale (ou son équivalent prépositionnel)
 - ✓ Élision manquante
 

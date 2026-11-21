@@ -1,12 +1,11 @@
 ### 20260819T113630-runs-s5-bp-run-BpC.md
-1541 mots [HORS CIBLE] · 33 paragraphes · 119 phrases
+1528 mots [HORS CIBLE] · 33 paragraphes · 117 phrases
 
 **Mécanique — EXACT (✗ = défaut présent)**
 - ✓ Lexique pastiche gothique
 - ✗ Tic d'IA → 1
     - `…t autre chose, mais je suis préoccupée. Je ne peux pas m'empêcher de penser que quelque chose ne va pas, mai…`
-- ✗ Point d'exclamation hors dialogue → 1
-    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Point d'exclamation hors dialogue
 - ✗ Incise adverbiale (ou son équivalent prépositionnel) → 1
     - `…e narratrice qui semble perdre pied. Est-elle vraiment folle, ou est-ce simplement une impress…`
 - ✗ Élision manquante → 2
@@ -19,8 +18,7 @@
 - **Collections interrogées** : ["auteur"]
 - **Ligne de grille — échecs AUTO** : L2 fuite lexicale (1), L3 accumulati…`
 - ✓ Phrase-couperet en fin de paragraphe → 8 (dont 25 couperets au total)
-    - `-->
-# Run BpC — runs-s5-bp`
+    - `# Run BpC — runs-s5-bp`
     - `Lundi 2, nuageux.`
     - `Ma mémoire avait omis ce détail.`
 - ✗ Heure ou quantité exacte → 0

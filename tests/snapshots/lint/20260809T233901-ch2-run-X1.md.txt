@@ -1,11 +1,10 @@
 ### 20260809T233901-ch2-run-X1.md
-463 mots [OK] · 21 paragraphes · 36 phrases
+450 mots [OK] · 21 paragraphes · 34 phrases
 
 **Mécanique — EXACT (✗ = défaut présent)**
 - ✓ Lexique pastiche gothique
 - ✓ Tic d'IA
-- ✗ Point d'exclamation hors dialogue → 1
-    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Point d'exclamation hors dialogue
 - ✓ Incise adverbiale (ou son équivalent prépositionnel)
 - ✓ Élision manquante
 

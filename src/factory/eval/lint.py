@@ -301,6 +301,16 @@ def strip_frontmatter(text: str) -> str:
     return text.strip()
 
 
+# The chapter's stage markers (`<!-- BASCULE -->`, `<!-- FIN AUDIO -->`) are
+# HTML comments, not prose: read as text, the « ! » of `<!--` was an
+# exclamation mark outside dialogue in every assembled chapter.
+_HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+
+
+def strip_markers(text: str) -> str:
+    return _HTML_COMMENT.sub("", text)
+
+
 def paragraphs(text: str) -> list[str]:
     return [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
 
@@ -1297,7 +1307,7 @@ def _excerpts(pattern: re.Pattern, text: str, *, margin: int = 40) -> list[str]:
 
 def analyze(raw_text: str) -> dict:
     """Returns the mechanically decidable grid lines, with their evidence."""
-    text = normalize(strip_frontmatter(raw_text))
+    text = normalize(strip_markers(strip_frontmatter(raw_text)))
     paras = paragraphs(text)
     all_sentences = sentences(text)
 

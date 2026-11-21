@@ -1,11 +1,10 @@
 ### 20260818T153322-runs-s4-b-run-BC.md
-1225 mots [HORS CIBLE] · 22 paragraphes · 129 phrases
+1212 mots [HORS CIBLE] · 22 paragraphes · 127 phrases
 
 **Mécanique — EXACT (✗ = défaut présent)**
 - ✓ Lexique pastiche gothique
 - ✓ Tic d'IA
-- ✗ Point d'exclamation hors dialogue → 1
-    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Point d'exclamation hors dialogue
 - ✓ Incise adverbiale (ou son équivalent prépositionnel)
 - ✓ Élision manquante
 
@@ -16,8 +15,7 @@
 - **Ligne de grille — échecs AUTO** : L1 noms propres (1), L3 accumulation…`
     - `warnings: ["entrée 1 : fin coupée à la dernière phrase complète, 14 caractères retirés — « Je ne l'ai pas »", "entrée 2 …`
 - ✓ Phrase-couperet en fin de paragraphe → 4 (dont 42 couperets au total)
-    - `-->
-# Run BC — runs-s4-b`
+    - `# Run BC — runs-s4-b`
     - `À ce que j'ai cru lire.`
     - `À ce que j'ai cru lire.`
 - ✗ Heure ou quantité exacte → 0

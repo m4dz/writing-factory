@@ -86,6 +86,22 @@ def _reference() -> tuple[str, str]:
     return str(wav), txt.read_text(encoding="utf-8").strip()
 
 
+def probe(model_id: str | None = None) -> str:
+    """Load the voice model lazily (architecture and config; the weights are
+    mapped, not read): the import chain the synthesis takes, without
+    synthesising. Importing `mlx_audio` proves nothing: on macOS 27 the
+    package imported while the model's own dependencies (scipy) would not
+    load, and every run ended without its WAV. Raises `TTSUnavailable`."""
+    model_id = model_id or settings.tts_model
+    try:
+        from mlx_audio.tts.utils import load_model
+        load_model(model_id, lazy=True)
+    except Exception as exc:                        # noqa: BLE001
+        first = next((ln for ln in str(exc).splitlines() if ln.strip()), repr(exc))
+        raise TTSUnavailable(f"modèle vocal {model_id} : {first.strip()[:200]}") from exc
+    return model_id
+
+
 def render(text: str, output: Path, *, model_id: str | None = None,
            pause_s: float | None = None) -> dict:
     """Synthesise `text` in the reference voice, write a WAV, return the

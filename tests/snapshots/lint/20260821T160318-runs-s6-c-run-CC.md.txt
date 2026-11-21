@@ -1,11 +1,10 @@
 ### 20260821T160318-runs-s6-c-run-CC.md
-2240 mots [HORS CIBLE] · 31 paragraphes · 149 phrases
+2227 mots [HORS CIBLE] · 31 paragraphes · 147 phrases
 
 **Mécanique — EXACT (✗ = défaut présent)**
 - ✓ Lexique pastiche gothique
 - ✓ Tic d'IA
-- ✗ Point d'exclamation hors dialogue → 1
-    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Point d'exclamation hors dialogue
 - ✓ Incise adverbiale (ou son équivalent prépositionnel)
 - ✓ Élision manquante
 
@@ -18,8 +17,7 @@
 Je suis rentrée à 20h30, j'ai enlevé mes c…`
     - `Je suis rentrée chez moi à 21h30, j'ai enlevé mes chaussures, j'ai allumé la télévision, je me suis préparé un thé, j'ai…`
 - ✓ Phrase-couperet en fin de paragraphe → 4 (dont 24 couperets au total)
-    - `-->
-# Run CC — runs-s6-c`
+    - `# Run CC — runs-s6-c`
     - `Juste le noir, le vide.`
     - `Mais rien ne vient.`
 - ✓ Heure ou quantité exacte → 9

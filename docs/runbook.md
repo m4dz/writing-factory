@@ -32,7 +32,12 @@ backends
   ✓ ChromaDB localhost:8000
 voix
   ✓ référence vocale … ✓ dépendances TTS
+  ✓ modèle vocal chargé : mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
 ```
+
+The voice line loads the model lazily (~15 s, weights mapped, not read):
+importing `mlx-audio` is not enough, the model's own dependencies can fail
+to load while the package imports (macOS 27 and scipy 1.15.3).
 
 The same preflight is the FIRST NODE of the generation graph: `factory
 generate` and `POST /generate` refuse to start in five cases, all lived
