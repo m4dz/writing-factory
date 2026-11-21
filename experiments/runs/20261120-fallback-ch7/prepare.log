@@ -1,0 +1,71 @@
+
+=== préparation 20261120-010038-ch07-prep ===
+[0:00 / 25:00] Préflight
+[0:08 / 25:00]   · préflight : Swap : 0.95 GB libres sur 17.0 GB alloués, mais FROID (moins de 1024 Ko/s de pageouts sur 4 s). Ce sont des pages froides que personne ne relit : macOS dimensionne `total` au-dessus de `used`, donc `free` reste petit même quand la machine va bien. Les durées restent interprétables.
+[0:08 / 25:00] État narratif — chapitre 7
+[0:09 / 25:00]   · état narratif du chapitre 7 inchangé, chunk judith::etat_narratif_courant::ch07
+[0:09 / 25:00] Plan — fourni par le brief (2 entrées)
+
+##############################################################################
+PLAN À APPROUVER
+##############################################################################
+  1. **Chapitre 7 — L'anniversaire.** Carnet de relecture, première personne. **Deux entrées du carnet, datées du même jour** (anniversaire de mariage), chacune ouverte par l'en-tête normalisé (« Samedi 14. Beau temps. »). **L'entrée 1 ne cite pas** — elle n'a pas relu le cahier ce jour-là : première entorse au rituel, premier signal. **L'entrée 2 s'ouvre sur une citation du cahier** entre guillemets — ancre [CIT-2], fournie en matériau : une ligne chaude, adressée, qu'elle ne parvient pas à réduire. Texte de l'ancre, verbatim : « Neuf ans aujourd'hui que je t'ai dit oui. J'ai mis deux couverts, exprès cette fois, et j'ai redit oui tout haut dans la cuisine. Je t'aime toujours. »
+
+**Entrée 1 — l'après-midi. DEUX PHRASES MAXIMUM après l'en-tête, sans citation.** Elle sait quel jour c'est et a décidé que ce jour n'aura pas lieu ; la liste d'effacement tient dans la seconde phrase (encaisser les photos, supprimer la playlist, une journée ordinaire). Le mot du jour n'est jamais écrit dans l'entrée 1. *(Note scénique : c'est l'entrée lue en direct par le locuteur — sa brièveté est un choix de keynote autant que de dramaturgie.)*
+
+**Matériau imposé :** les photos, la playlist, le plat des anniversaires, les deux couverts — et l'ancre [CIT-2] (ouverture de l'entrée 2), recopiée verbatim. L'entrée 1 ne cite pas.
+**Progression interne :** résolution → contrariété → vertige → capitulation.
+**Chute :** capitulation lexicale — elle cesse la liste, laisse la journée finir telle qu'elle s'est imposée, et écrit pour la première fois le mot qu'elle refusait d'écrire. Dernière ligne de l'entrée 2, seule : « Constat : anniversaire. »
+**Interdits :** aucun élément d'intrigue nouveau. Aucune explication, aucune hypothèse sur la cause. Aucun personnage, aucune apparition, aucune figure. Aucun nom propre. Aucune tentative de contact (pas d'appel, pas de lettre — si la pensée approche le où ou le pourquoi du départ, la phrase s'interrompt). La voix ne cède pas : déclaratif, tenu, pas de cri.
+  2. **Chapitre 7 — L'anniversaire.** Carnet de relecture, première personne. **Deux entrées du carnet, datées du même jour** (anniversaire de mariage), chacune ouverte par l'en-tête normalisé (« Samedi 14. Beau temps. »). **L'entrée 1 ne cite pas** — elle n'a pas relu le cahier ce jour-là : première entorse au rituel, premier signal. **L'entrée 2 s'ouvre sur une citation du cahier** entre guillemets — ancre [CIT-2], fournie en matériau : une ligne chaude, adressée, qu'elle ne parvient pas à réduire. Texte de l'ancre, verbatim : « Neuf ans aujourd'hui que je t'ai dit oui. J'ai mis deux couverts, exprès cette fois, et j'ai redit oui tout haut dans la cuisine. Je t'aime toujours. »
+
+**Entrée 2 — la nuit.** Tout ce qu'elle a banni est revenu. Chaque geste d'effacement dont elle se souvient d'avoir décidé est contredit par l'état de la maison : les photos sur la table, la musique lancée, le plat au four, deux couverts mis. Plus elle éloigne le souvenir, plus il s'accroche. Le mot du jour reste interdit jusqu'à la chute.
+
+**Matériau imposé :** les photos, la playlist, le plat des anniversaires, les deux couverts — et l'ancre [CIT-2] (ouverture de l'entrée 2), recopiée verbatim. L'entrée 1 ne cite pas.
+**Progression interne :** résolution → contrariété → vertige → capitulation.
+**Chute :** capitulation lexicale — elle cesse la liste, laisse la journée finir telle qu'elle s'est imposée, et écrit pour la première fois le mot qu'elle refusait d'écrire. Dernière ligne de l'entrée 2, seule : « Constat : anniversaire. »
+**Interdits :** aucun élément d'intrigue nouveau. Aucune explication, aucune hypothèse sur la cause. Aucun personnage, aucune apparition, aucune figure. Aucun nom propre. Aucune tentative de contact (pas d'appel, pas de lettre — si la pensée approche le où ou le pourquoi du départ, la phrase s'interrompt). La voix ne cède pas : déclaratif, tenu, pas de cri.
+
+  contrôle du plan :
+  plan FOURNI par le brief — nœud court-circuité (structure imposée, un beat par entrée)
+
+Approuver ce plan ? [o/N] [0:09 / 25:00] Écriture — entrée 1/2 (ministral3-14b-q5)
+[0:09 / 25:00] Écriture — entrée 1 (1/6)
+[0:56 / 25:00] Écriture — entrée 1 (2/6)
+[1:07 / 25:00] Écriture — entrée 1 (3/6)
+[1:18 / 25:00] Écriture — entrée 1 (4/6)
+[1:29 / 25:00] Écriture — entrée 1 (5/6)
+[1:40 / 25:00] Écriture — entrée 1 (6/6)
+
+##############################################################################
+ENTRÉE 1 — BROUILLON À CHOISIR
+##############################################################################
+
+  [1] variant 1 — score 3 (propre)
+      J’ai décidé que ce jour n’aurait pas lieu. Pas d’albums ouverts sur la table basse, pas de mélodies choisies pour traverser l’après-midi sans la voir.
+
+  [2] variant 3 — score 3 (propre)
+      J’ai décidé que ce jour n’aurait pas lieu. 
+      
+      Les photos glissent une à une dans l’enveloppe kraft, les bords des clichés frottent contre le papier comme des dents serrées.
+
+  [3] variant 5 — score 3 (propre)
+      J’ai décidé que ce jour n’était pas celui-là. Les photos glissent une à une dans l’enveloppe kraft, comme on range des objets qu’on ne veut plus voir.
+
+  [4] variant 2 — score -1 (ne pose pas la décision)
+      Je n’ai pas sorti le plat des grandes occasions. 
+      
+      Les photos, dans leur album, glissent sous le film plastique comme des feuilles mortes.
+
+  [5] variant 4 — score -1 (ne pose pas la décision)
+      Les photos étaient alignées sur le bord de la table, recto visible, comme pour vérifier l’absence. J’ai poussé le paquet de cartes vers le fond du tiroir, sans les compter — trois, quatre, la dernière avec sa bordure effilée.
+
+  [6] variant 6 — score -1 (ne pose pas la décision)
+      À 14h37, j’ai fermé la porte du placard où dormaient les photos. Leurs bords n’étaient plus alignés comme je les avais laissées, un décalage imperceptible entre le carton et la tranche du meuble.
+
+Brouillon retenu ? [1-6, Entrée = 1] [1:52 / 25:00] Relecture — entrée 1/1 (ministral3-14b-q5)
+[2:12 / 25:00] Bascule des modèles — ministral3-14b-q5 déchargé, Qwen prend la main
+[2:13 / 25:00] Réparation linguistique — entrée 1/1 (Qwen)
+
+  plan approuvé : 20261120-010038-ch07-prep
+  reprise      : factory generate --from 20261120-010038-ch07-prep

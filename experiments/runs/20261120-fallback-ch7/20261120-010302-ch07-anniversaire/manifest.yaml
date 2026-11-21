@@ -1,0 +1,140 @@
+id: 20261120-010302-ch07-anniversaire
+kind: run
+chapter: 7
+slug: anniversaire
+seed: 336073
+created: '2026-11-20T00:03:02.080388+00:00'
+commit: 6e62a2c
+status: ready
+overrides: {}
+config:
+  author_model: ministral3-14b-q5
+  qa_model: qwen2.5:7b-instruct
+  embed_model: nomic-embed-text
+  num_ctx: 8192
+  gesture_model: ''
+  gesture_temperature: 0.3
+  beats_n: 3
+  pruning_enabled: true
+  accumulation_enabled: true
+  beat_context: blind
+  beat_form: prose
+  switch_after_sentences: 2
+  audio_seconds: 165.0
+  audio_words_per_minute: 177.0
+  tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+  stage_budget_min: 25.0
+  write_temperature: 0.7
+  min_p: null
+  top_p: null
+  repeat_penalty: null
+prepared_from: 20261120-010038-ch07-prep
+prepared_seed: 587697
+fingerprint:
+  commit: 6e62a2c832f83f24a3a2ac8301030eb915b56f1c
+  dirty: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+  chapter:
+    brief-entree-2.md: 87a49192fe24ee601ffc378ac1a08ce57fd435f60532c5bb2a1f6f66de784fbb
+    brief.md: 67f934a9069e3b0aadf843ef60f13ab3d6a6a6bfdc07a9ba9289f428a7847697
+    spec.yaml: b52cd529039d194f5db98f0fcedac40f5c0c4d255bb6118321ac55592c51195a
+  config:
+    author_model: ministral3-14b-q5
+    qa_model: qwen2.5:7b-instruct
+    embed_model: nomic-embed-text
+    num_ctx: 8192
+    gesture_model: ''
+    gesture_temperature: 0.3
+    beats_n: 3
+    pruning_enabled: true
+    accumulation_enabled: true
+    beat_context: blind
+    beat_form: prose
+    switch_after_sentences: 2
+    audio_seconds: 165.0
+    audio_words_per_minute: 177.0
+    tts_model: mlx-community/Qwen3-TTS-12Hz-1.7B-Base-8bit
+    stage_budget_min: 25.0
+    write_temperature: 0.7
+    min_p: null
+    top_p: null
+    repeat_penalty: null
+  models:
+    ministral3-14b-q5: 87501e5270dc6d27dfb25200fb9f6a334149bc76383e4ee66099e7bd1c624e6d
+    qwen2.5:7b-instruct: 845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e
+    nomic-embed-text: 0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f
+  narrative_state: 3dd0dd694eba72735835d7d39dd3be64d10dedf005a82063562f041616a8631e
+timings:
+  monotonic_s: 280.9
+  wall_s: 280.9
+  sleep_s: 0.0
+collections:
+- auteur
+finished: '2026-11-20T00:07:43+00:00'
+metrics:
+  calls: 24
+  gen_toks: 3580
+  ctx_need_max: 0.54
+  ctx_truncated: 0
+scenes: 2
+warnings:
+- 'entrée 1 : best-of-6 préparé — variant 1 choisi par l''auteur (rang 1, score 3,
+  propre)'
+- 'entrée 1 : bornée à 2 phrase(s) — 3 retirée(s), à partir de « Le plateau en argent
+  est resté dans le tiroir, les doigts ont frôlé le cadran av… »'
+- 'relecture entrée 1: hors des bornes de l''entrée (plus de 2 phrase(s)) — relecture
+  REJETÉE, texte d''avant relecture conservé'
+- 'entrée 2/relève#2 : fin coupée à la dernière phrase complète, 59 caractères retirés
+  — « Le cahier est ouvert à cette entrée, la phrase marquée d’un »'
+- 'entrée 2 : bornée à 4 phrase(s) — 3 retirée(s), à partir de « Le robinet n’a pas
+  coulé. Les serviettes sont pliées à l’identique, encore humid… »'
+- 'entrée 2/relève : best-of-3 — variant 2 retenu (score 0, propre) ; rejetés : #3
+  score 0 ; #1 score -4'
+- 'entrée 2/découverte#1 : fin coupée à la dernière phrase complète, 90 caractères
+  retirés — « Mes mains se referment sur le téléphone posé sur le plan de travail
+  : l’écran s’ »'
+- 'entrée 2 : bornée à 5 phrase(s) — 4 retirée(s), à partir de « La musique n’est
+  pas celle que j’écoute d’habitude. C’est une playlist que je ne… »'
+- 'entrée 2/découverte : best-of-3 — variant 1 retenu (score 0, propre) ; rejetés
+  : #2 score 0 ; #3 score 0'
+- 'entrée 2/doute#1 : fin coupée à la dernière phrase complète, 91 caractères retirés
+  — « Pourtant, je suis sûre d’avoir vu des assiettes dedans hier soir, ou peut-être
+  a »'
+- 'entrée 2/doute : best-of-3 — variant 1 retenu (score 0, propre) ; rejetés : #2
+  score 0 ; #3 score 0'
+- 'accumulation entrée 2, essai 1 : troisième personne : « Elle est rentrée à vingt-deux
+  heures t »'
+- 'accumulation entrée 2 : ACCEPTÉE malgré 158 mots (plafond 120) — dernier essai'
+- 'relecture entrée 2: garde-fou déclenché (166 mots contre 299, soit 56% — hors cible
+  300-400) — relecture REJETÉE, original conservé'
+- 'pruning : rien à retirer'
+- 'assemblage entrée 1 : aucune accumulation à poser'
+- 'assemblage entrée 2 : chute imposée absente — posée par le code : « Constat : anniversaire.
+  »'
+plan_report: plan FOURNI par le brief — nœud court-circuité (structure imposée, un
+  beat par entrée)
+coherence: 'FAIT 1 : tenu — La narratrice ignore où est Romane et ne cherchera jamais
+  à la joindre.
+
+  FAIT 2 : tenu — La narratrice a perdu sa sœur dans un incendie il y a neuf mois.
+
+  FAIT 3 : tenu — La narratrice refuse de consulter une thérapeute, préférant noter
+  ce qu''on lui dirait si elle y allait.
+
+  FAIT 4 : tenu — La narratrice a 38 ans et est correctrice depuis quinze ans.
+
+  FAIT 5 : tenu — La narratrice ne supprime jamais une ligne de ce qu''elle relit,
+  même si cela la blesse.
+
+  FAIT 6 : tenu — La narratrice utilise une méthode de dater, relever, relire pour
+  se tenir debout.
+
+  FAIT 7 : tenu — Personne d''autre n''entre dans la maison.
+
+  FAIT 8 : tenu — Aucun repas n''est partagé, aucune conversation n''a lieu.
+
+  FAIT 9 : tenu — Elle ne sort pas de la maison.'
+audio: null
+preflight_warnings: []
+variants:
+  drawn: 15
+  with_defects: 4
