@@ -1,19 +1,17 @@
 ### 20260818T105712-runs-s4-b-run-B3.md
-710 mots [HORS CIBLE] · 13 paragraphes · 65 phrases
+697 mots [HORS CIBLE] · 13 paragraphes · 63 phrases
 
 **Mécanique — EXACT (✗ = défaut présent)**
 - ✓ Lexique pastiche gothique
 - ✓ Tic d'IA
-- ✗ Point d'exclamation hors dialogue → 1
-    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Point d'exclamation hors dialogue
 - ✓ Incise adverbiale (ou son équivalent prépositionnel)
 - ✓ Élision manquante
 
 **Structure — EXACT (✗ = attendu absent)**
 - ✗ Phrase d'accumulation : zéro = plat
 - ✓ Phrase-couperet en fin de paragraphe → 1 (dont 13 couperets au total)
-    - `-->
-# Run B3 — runs-s4-b`
+    - `# Run B3 — runs-s4-b`
 - ✓ Heure ou quantité exacte → 3
     - `Deux assiettes`, `deux assiettes`, `deux phrases`
 

@@ -111,8 +111,21 @@ def test_promote_copies_the_chapter_into_the_scenes_and_indexes_it(fake_model, f
     assert runs.find_run(run.id).manifest["promoted_to"] == str(target)
 
 
+def _fake_tts(monkeypatch, probe):
+    import sys
+    import types
+
+    from factory.infra import tts
+
+    monkeypatch.setitem(sys.modules, "mlx_audio", types.ModuleType("mlx_audio"))
+    monkeypatch.setitem(sys.modules, "soundfile", types.ModuleType("soundfile"))
+    monkeypatch.setattr(tts, "probe", probe)
+
+
 def test_doctor_reports_each_probe(monkeypatch, capsys):
     from factory.infra import preflight as pf
+
+    _fake_tts(monkeypatch, lambda: "voix-test")
 
     monkeypatch.setattr(pf, "report", lambda: "disque 100 GB libres")
     monkeypatch.setattr(pf, "preflight", lambda **k: ["swap tiède"])
@@ -125,3 +138,23 @@ def test_doctor_reports_each_probe(monkeypatch, capsys):
     assert "✓ disque 100 GB libres" in out and "⚠ swap tiède" in out
     assert "✓ modèle auteur" in out and "✗ modèle QA" in out
     assert "✗ ChromaDB" in out and "problème(s) bloquant(s)" in out
+    assert "✓ modèle vocal chargé : voix-test" in out
+
+
+def test_doctor_blocks_on_a_voice_model_that_does_not_load(monkeypatch, capsys):
+    """mlx-audio imports, the model's own dependency does not (macOS 27,
+    scipy 1.15.3): a blocking line, not a green one."""
+    from factory.infra import preflight as pf
+    from factory.infra import tts
+
+    def broken():
+        raise tts.TTSUnavailable("modèle vocal X : Missing dependency while loading qwen3_tts")
+
+    _fake_tts(monkeypatch, broken)
+    monkeypatch.setattr(pf, "report", lambda: "disque 100 GB libres")
+    monkeypatch.setattr(pf, "preflight", lambda **k: [])
+    monkeypatch.setattr(cli, "_http_ok", lambda url, timeout=5.0: (False, "refused"))
+    cli.main(["doctor"])
+    out = capsys.readouterr().out
+    assert "✓ dépendances TTS" in out
+    assert "✗ modèle vocal X : Missing dependency while loading qwen3_tts" in out

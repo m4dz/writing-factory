@@ -1,11 +1,10 @@
 ### 20260821T154521-runs-s6-c-run-C2.md
-1121 mots [HORS CIBLE] · 17 paragraphes · 93 phrases
+1108 mots [HORS CIBLE] · 17 paragraphes · 91 phrases
 
 **Mécanique — EXACT (✗ = défaut présent)**
 - ✓ Lexique pastiche gothique
 - ✓ Tic d'IA
-- ✗ Point d'exclamation hors dialogue → 1
-    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Point d'exclamation hors dialogue
 - ✓ Incise adverbiale (ou son équivalent prépositionnel)
 - ✓ Élision manquante
 
@@ -14,8 +13,7 @@
     - `warnings: ["entrée 1 : 1 point(s) de suspension produit(s) par le modèle, retiré(s) — le marqueur est réservé au glissem…`
     - `Rentrée tard, deux assiettes mises sur la table, sans y penser, laissé la vaisselle sale jusqu'au matin, relu l'entrée d…`
 - ✓ Phrase-couperet en fin de paragraphe → 3 (dont 25 couperets au total)
-    - `-->
-# Run C2 — runs-s6-c`
+    - `# Run C2 — runs-s6-c`
     - `Pas ce soir.`
     - `Demain, tout sera clair.`
 - ✓ Heure ou quantité exacte → 7

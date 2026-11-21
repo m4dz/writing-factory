@@ -1,12 +1,11 @@
 ### 20260821T143122-runs-s6-c-run-C2.md
-1209 mots [HORS CIBLE] · 15 paragraphes · 99 phrases
+1196 mots [HORS CIBLE] · 15 paragraphes · 97 phrases
 
 **Mécanique — EXACT (✗ = défaut présent)**
 - ✓ Lexique pastiche gothique
 - ✗ Tic d'IA → 1
     - `…is alors que je m'allonge dans mon lit, je ne peux m'empêcher de me poser une question : qui a utilisé l…`
-- ✗ Point d'exclamation hors dialogue → 1
-    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Point d'exclamation hors dialogue
 - ✓ Incise adverbiale (ou son équivalent prépositionnel)
 - ✗ Élision manquante → 1
     - `…ux assiettes sur l'égouttoir. Mais cela ne explique pas pourquoi j'ai écrit que j'avais lai…`
@@ -15,8 +14,7 @@
 - ✓ Phrase d'accumulation : exactement une
     - `warnings: ["entrée 1 : 1 en-tête(s) daté(s) produit(s) par le modèle, retiré(s) — le code compose les en-têtes", "accumu…`
 - ✓ Phrase-couperet en fin de paragraphe → 3 (dont 19 couperets au total)
-    - `-->
-# Run C2 — runs-s6-c`
+    - `# Run C2 — runs-s6-c`
     - `Je décide de vérifier à nouveau.`
     - `Je suis rassurée.`
 - ✓ Heure ou quantité exacte → 6

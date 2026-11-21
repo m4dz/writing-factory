@@ -1,11 +1,10 @@
 ### 20260819T111318-runs-s5-bp-run-Bp1.md
-676 mots [HORS CIBLE] · 12 paragraphes · 68 phrases
+663 mots [HORS CIBLE] · 12 paragraphes · 66 phrases
 
 **Mécanique — EXACT (✗ = défaut présent)**
 - ✓ Lexique pastiche gothique
 - ✓ Tic d'IA
-- ✗ Point d'exclamation hors dialogue → 1
-    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Point d'exclamation hors dialogue
 - ✓ Incise adverbiale (ou son équivalent prépositionnel)
 - ✓ Élision manquante
 
@@ -13,8 +12,7 @@
 - ✓ Phrase d'accumulation : exactement une
     - `warnings: ["relecture entrée 1 : fin coupée à la dernière phrase complète, 40 caractères retirés — « J'ai dû manquer de …`
 - ✓ Phrase-couperet en fin de paragraphe → 3 (dont 19 couperets au total)
-    - `-->
-# Run Bp1 — runs-s5-bp`
+    - `# Run Bp1 — runs-s5-bp`
     - `J'ai dû me tromper en relevant.`
     - `Je referme le carnet.`
 - ✓ Heure ou quantité exacte → 3

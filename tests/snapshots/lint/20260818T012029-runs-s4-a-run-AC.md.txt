@@ -1,19 +1,17 @@
 ### 20260818T012029-runs-s4-a-run-AC.md
-1513 mots [HORS CIBLE] · 38 paragraphes · 129 phrases
+1500 mots [HORS CIBLE] · 38 paragraphes · 127 phrases
 
 **Mécanique — EXACT (✗ = défaut présent)**
 - ✓ Lexique pastiche gothique
 - ✓ Tic d'IA
-- ✗ Point d'exclamation hors dialogue → 1
-    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Point d'exclamation hors dialogue
 - ✓ Incise adverbiale (ou son équivalent prépositionnel)
 - ✓ Élision manquante
 
 **Structure — EXACT (✗ = attendu absent)**
 - ✗ Phrase d'accumulation : zéro = plat
 - ✓ Phrase-couperet en fin de paragraphe → 9 (dont 32 couperets au total)
-    - `-->
-# Run AC — runs-s4-a`
+    - `# Run AC — runs-s4-a`
     - `Je les ai rangées.`
     - `Cette voix était réelle.`
 - ✗ Heure ou quantité exacte → 0

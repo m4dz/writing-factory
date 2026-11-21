@@ -36,3 +36,14 @@ def test_lint_report_is_frozen(source, request):
 def test_the_corpus_is_not_empty():
     """A snapshot over zero files is green by construction (doctrine 4)."""
     assert len(SOURCES) >= 30
+
+
+def test_stage_markers_are_not_prose():
+    """The « ! » of `<!-- BASCULE -->` is not an exclamation mark outside
+    dialogue, and the markers count no words."""
+    body = "J'ai décidé que ce jour n'aurait pas lieu."
+    marked = f"Samedi 14.\n\n{body}\n\n<!-- BASCULE -->\n\n{body}\n\n<!-- FIN AUDIO -->\n"
+    plain = f"Samedi 14.\n\n{body}\n\n{body}\n"
+    got = analyze(marked)
+    assert got["exclamation_hors_dialogue"] == []
+    assert got["mots"] == analyze(plain)["mots"]

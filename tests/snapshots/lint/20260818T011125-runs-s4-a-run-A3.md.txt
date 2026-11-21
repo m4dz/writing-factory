@@ -1,19 +1,17 @@
 ### 20260818T011125-runs-s4-a-run-A3.md
-820 mots [HORS CIBLE] · 15 paragraphes · 76 phrases
+807 mots [HORS CIBLE] · 15 paragraphes · 74 phrases
 
 **Mécanique — EXACT (✗ = défaut présent)**
 - ✓ Lexique pastiche gothique
 - ✓ Tic d'IA
-- ✗ Point d'exclamation hors dialogue → 1
-    - `…<!-- JOURNAL DES MURS — run raté, conservé…`
+- ✓ Point d'exclamation hors dialogue
 - ✓ Incise adverbiale (ou son équivalent prépositionnel)
 - ✓ Élision manquante
 
 **Structure — EXACT (✗ = attendu absent)**
 - ✗ Phrase d'accumulation : zéro = plat
 - ✓ Phrase-couperet en fin de paragraphe → 4 (dont 20 couperets au total)
-    - `-->
-# Run A3 — runs-s4-a`
+    - `# Run A3 — runs-s4-a`
     - `J'ai dû me tromper en notant.`
     - `Et puis j'ai tout rangé.`
 - ✓ Heure ou quantité exacte → 4
