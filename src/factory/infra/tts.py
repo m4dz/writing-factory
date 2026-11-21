@@ -92,10 +92,16 @@ def probe(model_id: str | None = None) -> str:
     synthesising. Importing `mlx_audio` proves nothing: on macOS 27 the
     package imported while the model's own dependencies (scipy) would not
     load, and every run ended without its WAV. Raises `TTSUnavailable`."""
+    import contextlib
+    import io
+
     model_id = model_id or settings.tts_model
     try:
-        from mlx_audio.tts.utils import load_model
-        load_model(model_id, lazy=True)
+        # mlx-audio and transformers talk while loading (hub progress bar,
+        # architecture notice): the doctor prints one line per probe.
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            from mlx_audio.tts.utils import load_model
+            load_model(model_id, lazy=True)
     except Exception as exc:                        # noqa: BLE001
         first = next((ln for ln in str(exc).splitlines() if ln.strip()), repr(exc))
         raise TTSUnavailable(f"modèle vocal {model_id} : {first.strip()[:200]}") from exc
