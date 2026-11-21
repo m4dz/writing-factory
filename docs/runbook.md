@@ -123,7 +123,11 @@ make venv                          # the package, the graph and the test deps
 .venv/bin/pip install -e ".[tts]"  # stage machine only: mlx-audio, soundfile, numpy
 ```
 
-One venv: LangGraph, the Chroma client AND the TTS. About 1 min, ~700 MB.
+Python 3.12, pinned by `.python-version` (pyenv picks it for `python3` in
+this directory). On macOS 27 the voice needs it: scipy 1.15.3, the last for
+Python 3.10, no longer loads (`__thread_bss` dlopen refusal) and the run
+finishes without `chapitre.wav`. One venv: LangGraph, the Chroma client AND
+the TTS. About 1 min, ~700 MB.
 Dependency groups: core (indexer, query, eval; what the container installs),
 `pipeline` (LangGraph: generate, calibrate, serve, chat), `tts`, `test`.
 
